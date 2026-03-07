@@ -12,6 +12,7 @@ updateOctaveLabel();
 initMemorySlots();
 initWebMIDI();
 initPlayControls();
+if (typeof initIncremental === 'function') initIncremental();
 I18N.init();
 
 // Mobile responsive init
@@ -56,11 +57,13 @@ _landscapeMediaQuery.addEventListener('change', handleLandscapeChange);
   document.getElementById('inst-toggle-piano').classList.toggle('active', showPiano);
   document.getElementById('inst-toggle-staff').classList.toggle('active', showStaff);
   document.getElementById('inst-toggle-sound').classList.toggle('active', showSound);
+  document.getElementById('inst-toggle-circle').classList.toggle('active', AppState.showCircle);
   document.getElementById('guitar-wrap').style.display = showGuitar ? '' : 'none';
   document.getElementById('bass-wrap').style.display = showBass ? '' : 'none';
   document.getElementById('piano-wrap-display').style.display = showPiano ? '' : 'none';
   document.getElementById('staff-area').style.display = showStaff ? '' : 'none';
   document.getElementById('sound-controls').style.display = showSound ? '' : 'none';
+  document.getElementById('circle-wrap').style.display = AppState.showCircle ? '' : 'none';
   document.getElementById('guitar-label-btn').style.display = (showGuitar || showBass) ? '' : 'none';
   document.getElementById('guitar-label-btn').textContent = guitarLabelMode === 'name' ? t('label.note_name') : t('label.degree');
   // Memory slots UI
@@ -82,6 +85,14 @@ document.addEventListener('keydown', (e) => {
 
   const key = e.key;
   const lk = key.toLowerCase(); // for letter key matching (case-insensitive)
+
+  // /: Focus incremental input
+  if (key === '/') {
+    e.preventDefault();
+    var incInput = document.getElementById('incremental-input');
+    if (incInput) incInput.focus();
+    return;
+  }
 
   // [ / ]: Bank switch (全モード共通)
   if (key === '[') { switchBank(-1); return; }

@@ -392,22 +392,57 @@ function calcShellPositions(rootRow, rootCol, thirdInterval, seventhInterval, sh
 // ========================================
 // GUITAR/BASS POSITION ALTERNATIVES (v3.19)
 // ========================================
+function groupGuitarForms(alternatives) {
+  var groups = [];
+  for (var g = 0; g < GUITAR_POS_GROUPS.length; g++) {
+    var grp = GUITAR_POS_GROUPS[g];
+    var forms = [];
+    for (var i = 0; i < alternatives.length; i++) {
+      var form = alternatives[i];
+      var minNonZeroFret = Infinity;
+      var hasAnyFretted = false;
+      for (var s = 0; s < form.frets.length; s++) {
+        if (form.frets[s] !== null && form.frets[s] > 0) {
+          hasAnyFretted = true;
+          if (form.frets[s] < minNonZeroFret) minNonZeroFret = form.frets[s];
+        }
+      }
+      if (!hasAnyFretted) {
+        // All open strings → Open group
+        if (grp.min === 0) forms.push(i);
+      } else if (minNonZeroFret >= grp.min && minNonZeroFret <= grp.max) {
+        forms.push(i);
+      }
+    }
+    if (forms.length > 0) {
+      groups.push({ label: grp.label, forms: forms });
+    }
+  }
+  return groups;
+}
+
+function _resetPositionState(state) {
+  state.enabled = false;
+  state._lastKey = null;
+  state.groups = [];
+  state.currentGroupIdx = 0;
+  state.currentAltInGroup = 0;
+}
+
 function updateGuitarPositions() {
   if (AppState.mode !== 'chord' || BuilderState.root === null || !BuilderState.quality) {
-    GuitarPositionState.enabled = false;
-    GuitarPositionState._lastKey = null;
+    _resetPositionState(GuitarPositionState);
     updatePositionBar('guitar');
     return;
   }
   if (_guitarSyncSource === 'manual') {
-    GuitarPositionState.enabled = false;
-    GuitarPositionState._lastKey = null;
+    _resetPositionState(GuitarPositionState);
     updatePositionBar('guitar');
     return;
   }
 
   var pcs = getBuilderPCS();
-  if (!pcs) { GuitarPositionState.enabled = false; GuitarPositionState._lastKey = null; updatePositionBar('guitar'); return; }
+  if (!pcs) { _resetPositionState(GuitarPositionState); updatePositionBar('guitar'); return; }
 
   var key = BuilderState.root + ':' + pcs.join(',');
   if (key !== GuitarPositionState._lastKey) {
@@ -415,8 +450,11 @@ function updateGuitarPositions() {
     GuitarPositionState.currentAlt = 0;
     GuitarPositionState.alternatives = padEnumGuitarChordForms(pcs, BuilderState.root, GUITAR_OPEN_MIDI, 21, 4);
     GuitarPositionState.enabled = GuitarPositionState.alternatives.length > 0;
+    GuitarPositionState.groups = groupGuitarForms(GuitarPositionState.alternatives);
+    GuitarPositionState.currentGroupIdx = 0;
+    GuitarPositionState.currentAltInGroup = 0;
     if (GuitarPositionState.enabled) {
-      applyGuitarForm(GuitarPositionState.alternatives[0]);
+      applyGuitarForm(GuitarPositionState.alternatives[_currentFormIndex(GuitarPositionState)]);
     }
   }
   updatePositionBar('guitar');
@@ -424,14 +462,13 @@ function updateGuitarPositions() {
 
 function updateBassPositions() {
   if (AppState.mode !== 'chord' || BuilderState.root === null || !BuilderState.quality) {
-    BassPositionState.enabled = false;
-    BassPositionState._lastKey = null;
+    _resetPositionState(BassPositionState);
     updatePositionBar('bass');
     return;
   }
 
   var pcs = getBuilderPCS();
-  if (!pcs) { BassPositionState.enabled = false; BassPositionState._lastKey = null; updatePositionBar('bass'); return; }
+  if (!pcs) { _resetPositionState(BassPositionState); updatePositionBar('bass'); return; }
 
   var key = BuilderState.root + ':' + pcs.join(',');
   if (key !== BassPositionState._lastKey) {
@@ -439,8 +476,11 @@ function updateBassPositions() {
     BassPositionState.currentAlt = 0;
     BassPositionState.alternatives = padEnumGuitarChordForms(pcs, BuilderState.root, BASS_OPEN_MIDI, 21, 4);
     BassPositionState.enabled = BassPositionState.alternatives.length > 0;
+    BassPositionState.groups = groupGuitarForms(BassPositionState.alternatives);
+    BassPositionState.currentGroupIdx = 0;
+    BassPositionState.currentAltInGroup = 0;
     if (BassPositionState.enabled) {
-      applyBassForm(BassPositionState.alternatives[0]);
+      applyBassForm(BassPositionState.alternatives[_currentFormIndex(BassPositionState)]);
     }
   }
   updatePositionBar('bass');
@@ -456,19 +496,52 @@ function applyBassForm(form) {
   bassSelectedFrets = form.frets.slice();
 }
 
+function _currentFormIndex(state) {
+  if (state.groups.length === 0) return 0;
+  var grp = state.groups[state.currentGroupIdx];
+  if (!grp || state.currentAltInGroup >= grp.forms.length) return 0;
+  return grp.forms[state.currentAltInGroup];
+}
+
 function cycleGuitarPosition(delta) {
-  if (!GuitarPositionState.enabled || GuitarPositionState.alternatives.length === 0) return;
-  var len = GuitarPositionState.alternatives.length;
-  GuitarPositionState.currentAlt = (GuitarPositionState.currentAlt + delta + len) % len;
+  if (!GuitarPositionState.enabled || GuitarPositionState.groups.length === 0) return;
+  var grp = GuitarPositionState.groups[GuitarPositionState.currentGroupIdx];
+  var len = grp.forms.length;
+  GuitarPositionState.currentAltInGroup = (GuitarPositionState.currentAltInGroup + delta + len) % len;
+  GuitarPositionState.currentAlt = _currentFormIndex(GuitarPositionState);
+  applyGuitarForm(GuitarPositionState.alternatives[GuitarPositionState.currentAlt]);
+  updatePositionBar('guitar');
+  render();
+}
+
+function cycleGuitarGroup(delta) {
+  if (!GuitarPositionState.enabled || GuitarPositionState.groups.length <= 1) return;
+  var len = GuitarPositionState.groups.length;
+  GuitarPositionState.currentGroupIdx = (GuitarPositionState.currentGroupIdx + delta + len) % len;
+  GuitarPositionState.currentAltInGroup = 0;
+  GuitarPositionState.currentAlt = _currentFormIndex(GuitarPositionState);
   applyGuitarForm(GuitarPositionState.alternatives[GuitarPositionState.currentAlt]);
   updatePositionBar('guitar');
   render();
 }
 
 function cycleBassPosition(delta) {
-  if (!BassPositionState.enabled || BassPositionState.alternatives.length === 0) return;
-  var len = BassPositionState.alternatives.length;
-  BassPositionState.currentAlt = (BassPositionState.currentAlt + delta + len) % len;
+  if (!BassPositionState.enabled || BassPositionState.groups.length === 0) return;
+  var grp = BassPositionState.groups[BassPositionState.currentGroupIdx];
+  var len = grp.forms.length;
+  BassPositionState.currentAltInGroup = (BassPositionState.currentAltInGroup + delta + len) % len;
+  BassPositionState.currentAlt = _currentFormIndex(BassPositionState);
+  applyBassForm(BassPositionState.alternatives[BassPositionState.currentAlt]);
+  updatePositionBar('bass');
+  render();
+}
+
+function cycleBassGroup(delta) {
+  if (!BassPositionState.enabled || BassPositionState.groups.length <= 1) return;
+  var len = BassPositionState.groups.length;
+  BassPositionState.currentGroupIdx = (BassPositionState.currentGroupIdx + delta + len) % len;
+  BassPositionState.currentAltInGroup = 0;
+  BassPositionState.currentAlt = _currentFormIndex(BassPositionState);
   applyBassForm(BassPositionState.alternatives[BassPositionState.currentAlt]);
   updatePositionBar('bass');
   render();
@@ -478,11 +551,41 @@ function updatePositionBar(which) {
   var state = which === 'guitar' ? GuitarPositionState : BassPositionState;
   var bar = document.getElementById(which + '-position-bar');
   var label = document.getElementById(which + '-pos-label');
+  var groupsEl = document.getElementById(which + '-pos-groups');
   if (!bar || !label) return;
   if (state.enabled && state.alternatives.length > 0) {
     bar.style.display = 'flex';
-    var letter = String.fromCharCode(65 + state.currentAlt);
-    label.textContent = letter + ' ' + (state.currentAlt + 1) + '/' + state.alternatives.length;
+    var grp = state.groups[state.currentGroupIdx];
+    var grpLabel = grp ? grp.label : '';
+    label.textContent = grpLabel + ': ' + (state.currentAltInGroup + 1) + '/' + (grp ? grp.forms.length : 0);
+    // Render group tabs
+    if (groupsEl) {
+      groupsEl.innerHTML = '';
+      if (state.groups.length > 1) {
+        groupsEl.style.display = 'flex';
+        for (var g = 0; g < state.groups.length; g++) {
+          var tab = document.createElement('button');
+          tab.className = 'pos-group-tab' + (g === state.currentGroupIdx ? ' active' : '');
+          tab.textContent = state.groups[g].label;
+          tab.setAttribute('data-idx', g);
+          tab.onclick = (function(which2, idx) {
+            return function() {
+              var s = which2 === 'guitar' ? GuitarPositionState : BassPositionState;
+              s.currentGroupIdx = idx;
+              s.currentAltInGroup = 0;
+              s.currentAlt = _currentFormIndex(s);
+              if (which2 === 'guitar') applyGuitarForm(s.alternatives[s.currentAlt]);
+              else applyBassForm(s.alternatives[s.currentAlt]);
+              updatePositionBar(which2);
+              render();
+            };
+          })(which, g);
+          groupsEl.appendChild(tab);
+        }
+      } else {
+        groupsEl.style.display = 'none';
+      }
+    }
   } else {
     bar.style.display = 'none';
   }
@@ -639,8 +742,14 @@ function noteNameForKey(pc, key) {
   return padNoteNameForKey(pc, key);
 }
 
-function getDiatonicTetrads(scalePCS, key) {
-  return padGetDiatonicTetrads(scalePCS, key);
+function getDiatonicTetrads(scalePCS, key, noteCount) {
+  return padGetDiatonicTetrads(scalePCS, key, noteCount);
+}
+
+function toggleDiatonicMode() {
+  AppState.diatonicMode = AppState.diatonicMode === 'tetrad' ? 'triad' : 'tetrad';
+  renderDiatonicBar();
+  saveAppSettings();
 }
 
 function renderDiatonicBar() {
@@ -665,8 +774,19 @@ function renderDiatonicBar() {
     return;
   }
   bar.style.display = 'flex';
-  const tetrads = getDiatonicTetrads(scale.pcs, AppState.key);
+  const noteCount = AppState.diatonicMode === 'triad' ? 3 : 4;
+  const tetrads = getDiatonicTetrads(scale.pcs, AppState.key, noteCount);
   bar.innerHTML = '';
+
+  // Toggle button (3/4 switch)
+  const toggleBtn = document.createElement('button');
+  toggleBtn.id = 'diatonic-mode-btn';
+  toggleBtn.className = 'diatonic-toggle-btn';
+  toggleBtn.textContent = noteCount === 3 ? '3' : '4';
+  toggleBtn.title = noteCount === 3 ? 'Triads → Tetrads' : 'Tetrads → Triads';
+  toggleBtn.onclick = (e) => { e.stopPropagation(); toggleDiatonicMode(); };
+  bar.appendChild(toggleBtn);
+
   tetrads.forEach((t, i) => {
     const btn = document.createElement('button');
     btn.className = 'diatonic-btn';

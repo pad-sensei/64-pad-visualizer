@@ -585,6 +585,9 @@ function render() {
 
   // Compute parent scale selection BEFORE renderState (sets _selectedPS for overlay)
   renderDiatonicBar();
+  if (AppState.showCircle && typeof renderCircleOfFifths === 'function') {
+    renderCircleOfFifths(document.getElementById('circle-svg'), AppState.key);
+  }
   renderParentScales();
 
   const state = computeRenderState();

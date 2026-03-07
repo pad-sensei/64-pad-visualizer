@@ -36,6 +36,8 @@ const AppState = {
   velDrive: 0,       // -64 to +64: curve rise (+soft=loud, -need harder touch)
   velCompand: 0,     // -64 to +64: dynamic range compress(+)/expand(-)
   velRange: 127,     // 1-127: max output velocity
+  diatonicMode: 'tetrad', // 'triad' | 'tetrad'
+  showCircle: false,      // Circle of Fifths display toggle
 };
 
 const BuilderState = {
@@ -74,17 +76,31 @@ const PerformState = {
 };
 
 // ======== GUITAR/BASS POSITION STATE (v3.19) ========
+const GUITAR_POS_GROUPS = [
+  { label: 'Open', min: 0, max: 2 },
+  { label: 'III-V', min: 3, max: 5 },
+  { label: 'VI-VIII', min: 6, max: 8 },
+  { label: 'IX-XII', min: 9, max: 12 },
+  { label: 'High', min: 13, max: 21 },
+];
+
 const GuitarPositionState = {
   alternatives: [],   // padEnumGuitarChordForms results
   currentAlt: 0,      // currently displayed index
   enabled: false,     // true only in Chord mode + chord confirmed
   _lastKey: null,     // cache key for recalc detection
+  groups: [],         // [{label, forms:[...originalIndices]}]
+  currentGroupIdx: 0,
+  currentAltInGroup: 0,
 };
 const BassPositionState = {
   alternatives: [],
   currentAlt: 0,
   enabled: false,
   _lastKey: null,
+  groups: [],
+  currentGroupIdx: 0,
+  currentAltInGroup: 0,
 };
 
 // ======== BANK STATE (v2.50) ========
@@ -126,6 +142,8 @@ function saveAppSettings() {
       velDrive: AppState.velDrive,
       velCompand: AppState.velCompand,
       velRange: AppState.velRange,
+      diatonicMode: AppState.diatonicMode,
+      showCircle: AppState.showCircle,
       semitoneShift: AppState.semitoneShift,
       banks: BankState.banks,
       activeBankId: BankState.activeBankId,
@@ -154,6 +172,8 @@ function loadAppSettings() {
     if (s.velDrive !== undefined) AppState.velDrive = s.velDrive;
     if (s.velCompand !== undefined) AppState.velCompand = s.velCompand;
     if (s.velRange !== undefined) AppState.velRange = s.velRange;
+    if (s.diatonicMode && (s.diatonicMode === 'triad' || s.diatonicMode === 'tetrad')) AppState.diatonicMode = s.diatonicMode;
+    if (s.showCircle !== undefined) AppState.showCircle = !!s.showCircle;
     if (s.semitoneShift !== undefined && s.semitoneShift >= -11 && s.semitoneShift <= 11) AppState.semitoneShift = s.semitoneShift;
     // Migration: banks
     if (Array.isArray(s.banks) && s.banks.length > 0) {
@@ -192,7 +212,7 @@ if (typeof module !== 'undefined') module.exports = {
   GRID, ROWS, COLS, BASE_MIDI, ROW_INTERVAL, COL_INTERVAL, PAD_SIZE, PAD_GAP, MARGIN,
   SCALE_DEGREE_NAMES, PC_TO_TENSION_NAME, TENSION_NAME_TO_PC,
   AppState, BuilderState, VoicingState, PlainState, PerformState, BankState,
-  GuitarPositionState, BassPositionState,
+  GUITAR_POS_GROUPS, GuitarPositionState, BassPositionState,
   resetVoicingSelection, getParentMajorKey, pcName, onReady, IS_DEV,
   getActiveBank, syncMemoryToActiveBank, loadBankMemory,
   GRID_32,
