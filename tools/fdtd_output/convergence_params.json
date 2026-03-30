@@ -1,0 +1,137 @@
+{
+  "60": {
+    "midi": 60,
+    "f0": 261.63,
+    "tine_length_mm": 56.0,
+    "Q": 1238.0,
+    "has_tonebar": true,
+    "f_tb_eigen": 153.0,
+    "duration_s": 2.0,
+    "noTB": {
+      "f0_measured": 255.09,
+      "decays": {
+        "f0": {
+          "freq_Hz": 261.6,
+          "alpha": 1.6933,
+          "A0": 0.0002117561,
+          "tau_s": 0.5906,
+          "r_squared": 1.0
+        },
+        "beam_6.5x": {
+          "freq_Hz": 1690.7,
+          "alpha": 53.0332,
+          "A0": 1.037544e-06,
+          "tau_s": 0.0189,
+          "r_squared": 0.9627
+        },
+        "beam_17.2x": {
+          "freq_Hz": 4513.3,
+          "alpha": 1.7397,
+          "A0": 1.004838e-11,
+          "tau_s": 0.5748,
+          "r_squared": 0.5754
+        },
+        "beam_31.8x": {
+          "freq_Hz": 8325.1,
+          "alpha": 1.8014,
+          "A0": 2.245592e-12,
+          "tau_s": 0.5551,
+          "r_squared": 0.9252
+        },
+        "beam_53.2x": {
+          "freq_Hz": 13937.3,
+          "alpha": 1.6884,
+          "A0": 3.194686e-13,
+          "tau_s": 0.5923,
+          "r_squared": 0.9952
+        }
+      }
+    },
+    "TB": {
+      "f0_measured": 261.65,
+      "decays": {
+        "f0": {
+          "freq_Hz": 261.6,
+          "alpha": 23.3874,
+          "A0": 0.0002196212,
+          "tau_s": 0.0428,
+          "r_squared": 1.0
+        },
+        "beam_6.5x": {
+          "freq_Hz": 1690.7,
+          "alpha": 69.3529,
+          "A0": 2.299305e-06,
+          "tau_s": 0.0144,
+          "r_squared": 1.0
+        },
+        "beam_17.2x": {
+          "freq_Hz": 4513.3,
+          "alpha": 22.6237,
+          "A0": 6.76004e-12,
+          "tau_s": 0.0442,
+          "r_squared": 0.9127
+        },
+        "beam_31.8x": {
+          "freq_Hz": 8325.1,
+          "alpha": 44.8112,
+          "A0": 4.49327e-11,
+          "tau_s": 0.0223,
+          "r_squared": 0.8535
+        },
+        "beam_53.2x": {
+          "freq_Hz": 13937.3,
+          "alpha": 22.0442,
+          "A0": 3.068042e-13,
+          "tau_s": 0.0454,
+          "r_squared": 0.8259
+        }
+      },
+      "tb_convergence": {
+        "tb_eigen_alpha": 67.8677,
+        "tb_eigen_tau_s": 0.0147,
+        "tb_eigen_A0": 2.561578e-06,
+        "tb_eigen_r2": 0.9381
+      },
+      "tb_damping_effect": {
+        "f0": {
+          "delta_alpha": 21.6941,
+          "decay_ratio": 13.812
+        },
+        "beam_6.5x": {
+          "delta_alpha": 16.3197,
+          "decay_ratio": 1.308
+        },
+        "beam_17.2x": {
+          "delta_alpha": 20.884,
+          "decay_ratio": 13.004
+        },
+        "beam_31.8x": {
+          "delta_alpha": 43.0098,
+          "decay_ratio": 24.876
+        },
+        "beam_53.2x": {
+          "delta_alpha": 20.3558,
+          "decay_ratio": 13.056
+        }
+      }
+    },
+    "convergence": {
+      "f0_decay_alpha": 23.3874,
+      "f0_tau_s": 0.0428,
+      "tb_tau_convergence_s": 0.0147,
+      "tb_amp_ratio": 0.0117,
+      "beam_6.5x_alpha": 69.3529,
+      "beam_6.5x_tau_s": 0.0144,
+      "beam_6.5x_tb_boost": 1.308,
+      "beam_17.2x_alpha": 22.6237,
+      "beam_17.2x_tau_s": 0.0442,
+      "beam_17.2x_tb_boost": 13.004,
+      "beam_31.8x_alpha": 44.8112,
+      "beam_31.8x_tau_s": 0.0223,
+      "beam_31.8x_tb_boost": 24.876,
+      "beam_53.2x_alpha": 22.0442,
+      "beam_53.2x_tau_s": 0.0454,
+      "beam_53.2x_tb_boost": 13.056
+    }
+  }
+}

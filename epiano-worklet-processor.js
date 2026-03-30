@@ -1563,10 +1563,10 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
     // Effective gains drive LUTs into nonlinear range while keeping inter-stage ≤ ±1.
     // Physical values: see permanent note "AB763 Twin Reverbのゲインステージングと信号経路の物理値"
     this.inputAtten     = 0.5;    // AB763 Hi input -6dB (68kΩ/68kΩ divider)
-    this.v1aGain        = 8;      // Effective. Single=0.14, chord=0.54, forte=1.5 (saturation)
+    this.v1aDrive       = 15;     // Pre-LUT drive. single=0.26, chord=1.0, forte=2.0(sat)
     this.cfGain         = 0.95;   // V2A cathode follower (Vibrato ch only)
     this.tsInsertionLoss = 0.20;  // AB763 Twin Reverb: -14dB (physical, Yeh & Smith 2006)
-    this.v2bGain        = 11;     // Effective. V4B_in: single=0.045, chord=0.18, forte=0.51 (bloom)
+    this.v2bDrive       = 10;     // Pre-LUT drive. Makeup for TS loss. chord=0.95, forte=sat
     this.outputTrim     = 0.5;    // Final output trim
     this.v4bGain        = 2;      // 12AX7, V4B bloom (unity-norm + ×2 real gain)
     this.powerGain      = 1.14;   // 6L6×4 ×25-30 / OT ÷22 ≈ 1.14 (LINEAR for Rhodes)
@@ -1623,8 +1623,8 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
     if (msg.rhodesLevel !== undefined) this.rhodesLevel = msg.rhodesLevel;
 
     // Amp chain params (dev sliders)
-    if (msg.v1aGain !== undefined) this.v1aGain = msg.v1aGain;
-    if (msg.v2bGain !== undefined) this.v2bGain = msg.v2bGain;
+    if (msg.v1aGain !== undefined) this.v1aDrive = msg.v1aGain;
+    if (msg.v2bGain !== undefined) this.v2bDrive = msg.v2bGain;
     if (msg.v4bGain !== undefined) this.v4bGain = msg.v4bGain;
     if (msg.powerGain !== undefined) this.powerGain = msg.powerGain;
     if (msg.cabinetGain !== undefined) this.cabinetGain = msg.cabinetGain;
@@ -2454,13 +2454,16 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
         // Input jack attenuator (-6dB, AB763 Hi input)
         ampSig *= this.inputAtten;
 
-        // Preamp V1A (12AX7 LUT, ADAA antialiasing)
+        // Preamp V1A (12AX7 LUT, ADAA antialiasing, pre-LUT drive)
+        // Drive pushes signal into LUT nonlinear range. Output bounded to ±1.
+        // single=0.26(clean), chord=1.0(edge), forte=2.0(sat/bloom)
         if (this.usePreamp) {
           ampSig *= this.preampGain;
+          ampSig *= this.v1aDrive;
           var v1aPrev = this.adaaPrevV1A;
           this.adaaPrevV1A = ampSig;
           ampSig = adaaLutLookup(this.preampLUT, this.preampF1, ampSig, v1aPrev);
-          ampSig *= this.v1aGain;
+          // No post-LUT gain — LUT output naturally bounded to ±1
 
           // Cathode follower V2A
           if (this.use2ndPreamp) {
@@ -2670,13 +2673,15 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
           ampSig *= this.volumePot;
         }
 
-        // V2B recovery amp (12AX7 LUT + ADAA, same tube type as V1A)
-        // Input ~0.076 (tonestack -14dB × vol 50%). In LUT nonlinear range.
+        // V2B recovery amp (12AX7 LUT + ADAA, pre-LUT drive)
+        // Makeup gain for tonestack loss. Drive into LUT nonlinear range.
+        // Output bounded to ±1.
         if (this.useV2B && this.use2ndPreamp) {
+          ampSig *= this.v2bDrive;
           var v2bPrev = this.adaaPrevV2B;
           this.adaaPrevV2B = ampSig;
           ampSig = adaaLutLookup(this.preampLUT, this.preampF1, ampSig, v2bPrev);
-          ampSig *= this.v2bGain;
+          // No post-LUT gain — output bounded to ±1
         }
 
         // --- DEBUG: gain staging via MessagePort ---
