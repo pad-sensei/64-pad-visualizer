@@ -1510,7 +1510,9 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
     this.springReverbMix = 0.12;
     this.springDwell    = 6.0;
     this.use2ndPreamp   = true;
+    this.usePreamp      = true;
     this.useTonestack   = true;
+    this.useV2B         = true;
     this.useCabinet     = true;
     this.useSpringReverb = false; // OFF until Nyquist aliasing fixed
 
@@ -1573,7 +1575,9 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
     if (msg.springDwell !== undefined) this.springDwell = Math.max(msg.springDwell, 0.5);
     if (msg.use2ndPreamp !== undefined) this.use2ndPreamp = msg.use2ndPreamp;
     if (msg.brightSwitch !== undefined) this.brightSwitch = msg.brightSwitch;
+    if (msg.usePreamp !== undefined) this.usePreamp = msg.usePreamp;
     if (msg.useTonestack !== undefined) this.useTonestack = msg.useTonestack;
+    if (msg.useV2B !== undefined) this.useV2B = msg.useV2B;
     if (msg.useCabinet !== undefined) this.useCabinet = msg.useCabinet;
     if (msg.useSpringReverb !== undefined) this.useSpringReverb = msg.useSpringReverb;
     if (msg.coupledTonebar !== undefined) this.coupledTonebar = msg.coupledTonebar;
@@ -2410,13 +2414,15 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
         ampSig *= this.inputAtten;
 
         // Preamp V1A (12AX7 LUT, 2x oversampled)
-        ampSig *= this.preampGain;
-        ampSig = lutLookup2x(this.preampLUT, ampSig, 0, _OS2X_PREAMP);
-        ampSig *= this.v1aGain;
+        if (this.usePreamp) {
+          ampSig *= this.preampGain;
+          ampSig = lutLookup2x(this.preampLUT, ampSig, 0, _OS2X_PREAMP);
+          ampSig *= this.v1aGain;
 
-        // Cathode follower V2A
-        if (this.use2ndPreamp) {
-          ampSig *= this.cfGain;
+          // Cathode follower V2A
+          if (this.use2ndPreamp) {
+            ampSig *= this.cfGain;
+          }
         }
 
         // Tonestack (3 × biquad IIR, shared state)
@@ -2621,7 +2627,7 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
 
         // V2B recovery amp (12AX7 LUT, same tube type as V1A)
         // Input ~0.076 (tonestack -14dB × vol 50%). In LUT nonlinear range.
-        if (this.use2ndPreamp) {
+        if (this.useV2B && this.use2ndPreamp) {
           ampSig = lutLookup(this.preampLUT, ampSig);
           ampSig *= this.v2bGain;
         }

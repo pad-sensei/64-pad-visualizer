@@ -865,6 +865,8 @@ function noteOn(midi, velocity, poly, _retries) {
     // Physics engine: bypass per-voice saturation (physics chain has 3 nonlinear stages)
     if (sat.cleanup) sat.cleanup();
     EpState.preset = _ampPresetParam === 'twin' ? 'Rhodes Stage + Twin'
+                   : _ampPresetParam === 'v1a'  ? 'Rhodes DI + V1A'
+                   : _ampPresetParam === 'ts'   ? 'Rhodes DI + V1A+TS'
                    : _ampPresetParam === 'suit' ? 'Rhodes Suitcase'
                    : _ampPresetParam === 'wurl' ? 'Wurlitzer 200A'
                    : AudioState.instrument.epiano;

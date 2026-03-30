@@ -65,36 +65,65 @@ var EpState = {
 // AMP MODEL PRESETS
 // ========================================
 var EP_AMP_PRESETS = {
+  // === Incremental presets: each adds exactly one layer for A/B isolation ===
+  'Rhodes DI': {
+    pickupType: 'rhodes',
+    preampType: null,
+    powerampType: null,
+    usePreamp: false,
+    useTonestack: false,
+    useV2B: false,
+    useCabinet: false,
+    useSpringReverb: false,
+  },
+  'Rhodes DI + V1A': {
+    pickupType: 'rhodes',
+    preampType: '12AX7',
+    powerampType: null,
+    usePreamp: true,       // V1A only (adds harmonics)
+    useTonestack: false,
+    useV2B: false,
+    useCabinet: true,      // routes through shared chain (but only V1A active)
+    useSpringReverb: false,
+  },
+  'Rhodes DI + V1A+TS': {
+    pickupType: 'rhodes',
+    preampType: '12AX7',
+    powerampType: null,
+    usePreamp: true,
+    useTonestack: true,    // + tonestack (bandwidth shaping)
+    useV2B: false,
+    useCabinet: true,
+    useSpringReverb: false,
+  },
   'Rhodes Stage + Twin': {
     pickupType: 'rhodes',
     preampType: '12AX7',
     powerampType: '6L6',
+    usePreamp: true,
     useTonestack: true,
+    useV2B: true,          // + V2B + V4B + power + cabinet (full chain)
     useCabinet: true,
-    useSpringReverb: false,  // OFF: Nyquist aliasing in spring reverb (chirp artifacts). Fix before re-enabling.
+    useSpringReverb: false,  // OFF: Nyquist aliasing. Fix before re-enabling.
   },
   'Rhodes Suitcase': {
     pickupType: 'rhodes',
     preampType: 'NE5534',
     powerampType: 'GeTr',
+    usePreamp: true,
     useTonestack: true,
+    useV2B: true,
     useCabinet: true,
-    useSpringReverb: false,  // Suitcase has vibrato, not spring reverb
+    useSpringReverb: false,
   },
   'Wurlitzer 200A': {
     pickupType: 'wurlitzer',
     preampType: 'BJT',
     powerampType: 'SS',
+    usePreamp: true,
     useTonestack: true,
+    useV2B: true,
     useCabinet: true,
-    useSpringReverb: false,  // Built-in speaker, no spring reverb
-  },
-  'Rhodes DI': {
-    pickupType: 'rhodes',
-    preampType: null,
-    powerampType: null,
-    useTonestack: false,
-    useCabinet: false,
     useSpringReverb: false,
   },
 };
