@@ -2684,39 +2684,36 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
         if (Math.abs(ampSig) > this._dbgPeakV2B) this._dbgPeakV2B = Math.abs(ampSig);
         if (Math.abs(drySum / HARP_PARALLEL_DIV) > this._dbgPeakDry) this._dbgPeakDry = Math.abs(drySum / HARP_PARALLEL_DIV);
 
-        // V4B bloom: dry(V2B out) + wet(V4A out) → 12AX7 nonlinear mixing (gain=2)
-        // Real circuit: 470kΩ/220kΩ resistive divider at V4B grid passes 32%.
-        ampSig = (ampSig + wetSignal) * this.rhodesLevel * 0.32;
+        if (this.useV2B) {
+          // === FULL AMP CHAIN: V4B + Power + Cabinet ===
 
-        if (Math.abs(ampSig) > this._dbgPeakV4B) this._dbgPeakV4B = Math.abs(ampSig);
-        this._dbgCount++;
-        if (this._dbgCount % 24000 === 0 && (this._dbgPeakV4B > 0.001 || this._dbgPeakDry > 0.001)) {
-          this.port.postMessage({ type: 'debug', v4bIn: this._dbgPeakV4B, dry: this._dbgPeakDry, v2b: this._dbgPeakV2B, v2bIn: this._dbgPeakV2Bin });
-          this._dbgPeakV4B = 0; this._dbgPeakDry = 0; this._dbgPeakV2B = 0; this._dbgPeakV2Bin = 0;
-        }
-        var v4bPrev = this.adaaPrevV4B;
-        this.adaaPrevV4B = ampSig;
-        ampSig = adaaLutLookup(this.v4bLUT, this.v4bF1, ampSig, v4bPrev);
-        ampSig *= this.v4bGain;
+          // V4B bloom: dry(V2B out) + wet(V4A out) → 12AX7 nonlinear mixing
+          // V2B output ~4 (single) to ~15 (chord). Divider 0.08 gives
+          // single=0.35 (clean), chord=1.2 (bloom), forte=soft-clip.
+          ampSig = (ampSig + wetSignal) * this.rhodesLevel * 0.08;
 
-        // Power amp + OT: LINEAR for Rhodes (permanent note: "6L6GC doesn't clip")
-        // 6L6×4 gain ×25-30, OT step-down ÷22, net ≈ ×1.14
-        ampSig *= this.powerGain;
+          if (Math.abs(ampSig) > this._dbgPeakV4B) this._dbgPeakV4B = Math.abs(ampSig);
+          this._dbgCount++;
+          if (this._dbgCount % 24000 === 0 && (this._dbgPeakV4B > 0.001 || this._dbgPeakDry > 0.001)) {
+            this.port.postMessage({ type: 'debug', v4bIn: this._dbgPeakV4B, dry: this._dbgPeakDry, v2b: this._dbgPeakV2B, v2bIn: this._dbgPeakV2Bin });
+            this._dbgPeakV4B = 0; this._dbgPeakDry = 0; this._dbgPeakV2B = 0; this._dbgPeakV2Bin = 0;
+          }
+          var v4bPrev = this.adaaPrevV4B;
+          this.adaaPrevV4B = ampSig;
+          ampSig = adaaLutLookup(this.v4bLUT, this.v4bF1, ampSig, v4bPrev);
+          ampSig *= this.v4bGain;
 
-        // Cabinet: Jensen C12N 2x12" open-back (4-stage parametric EQ)
-        // Gate: skip cabinet when signal is inaudible. Prevents biquad state
-        // residual from being amplified by cab resonance/presence peaks.
-        if (Math.abs(ampSig) > 1e-7) {
-          // HPF 60Hz: physical lower limit
-          ampSig = biquadProcess(this.cabHPFCoeff, this.cabHPFState, ampSig);
-          // Speaker resonance +6dB @ 113Hz: Fs peak (the "ボフボフ")
-          ampSig = biquadProcess(this.cabResCoeff, this.cabResState, ampSig);
-          // Presence +8dB @ 2kHz: cone breakup → bell emphasis
-          ampSig = biquadProcess(this.cabPeakCoeff, this.cabPeakState, ampSig);
-          // LPF 6kHz: cone mass → harshness removal
-          ampSig = biquadProcess(this.cabLPFCoeff, this.cabLPFState, ampSig);
-        } else {
-          // Clear cabinet biquad states when silent
+          // Power amp + OT: LINEAR for Rhodes (permanent note: "6L6GC doesn't clip")
+          ampSig *= this.powerGain;
+
+          // Cabinet: Jensen C12N 2x12" open-back (4-stage parametric EQ)
+          if (Math.abs(ampSig) > 1e-7) {
+            ampSig = biquadProcess(this.cabHPFCoeff, this.cabHPFState, ampSig);
+            ampSig = biquadProcess(this.cabResCoeff, this.cabResState, ampSig);
+            ampSig = biquadProcess(this.cabPeakCoeff, this.cabPeakState, ampSig);
+            ampSig = biquadProcess(this.cabLPFCoeff, this.cabLPFState, ampSig);
+          } else {
+            // Clear cabinet biquad states when silent
           this.cabHPFState[0] = 0; this.cabHPFState[1] = 0;
           this.cabResState[0] = 0; this.cabResState[1] = 0;
           this.cabPeakState[0] = 0; this.cabPeakState[1] = 0;
@@ -2724,7 +2721,17 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
           ampSig = 0;
         }
 
-        mainOut = ampSig * this.cabinetGain * this.outputTrim;
+          mainOut = ampSig * this.cabinetGain * this.outputTrim;
+        } else {
+          // === BYPASS V4B/Power/Cabinet (intermediate presets: V1A, V1A+TS) ===
+          // Output pre-amp signal directly for A/B isolation.
+          this._dbgCount++;
+          if (this._dbgCount % 24000 === 0 && Math.abs(ampSig) > 0.001) {
+            this.port.postMessage({ type: 'debug', v4bIn: 0, dry: this._dbgPeakDry, v2b: this._dbgPeakV2B, bypass: true });
+            this._dbgPeakDry = 0; this._dbgPeakV2B = 0;
+          }
+          mainOut = ampSig * this.rhodesLevel * this.outputTrim;
+        }
       } else {
         // === DI PATH: no cable LCR, transparent output ===
         mainOut = (diSum / HARP_PARALLEL_DIV) * this.rhodesLevel;
