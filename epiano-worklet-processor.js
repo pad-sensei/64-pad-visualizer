@@ -1643,9 +1643,16 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
 
     // Preset-specific LUT switching
     if (msg.preampType !== undefined) {
-      if (msg.preampType === 'NE5534') this.preampLUT = this.preampLUT_NE5534;
-      else if (msg.preampType === 'BJT') this.preampLUT = this.preampLUT_BJT;
-      else this.preampLUT = this.preampLUT_12AX7;
+      if (msg.preampType === 'NE5534') {
+        this.preampLUT = this.preampLUT_NE5534;
+        this.preampF1  = computeF1Table(this.preampLUT_NE5534);
+      } else if (msg.preampType === 'BJT') {
+        this.preampLUT = this.preampLUT_BJT;
+        this.preampF1  = computeF1Table(this.preampLUT_BJT);
+      } else {
+        this.preampLUT = this.preampLUT_12AX7;
+        this.preampF1  = this.preampF1_12AX7;
+      }
     }
     if (msg.pickupType !== undefined) {
       this.pickupType = msg.pickupType || 'rhodes';
