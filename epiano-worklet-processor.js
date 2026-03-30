@@ -731,6 +731,30 @@ function lutLookup2x(lut, x, voiceIdx, stageIdx) {
   return y0 * 0.25 + y1 * 0.75;
 }
 
+// --- ADAA: Antiderivative Antialiasing for LUT-based nonlinear stages ---
+// Permanent note: "ADAA+LUTはオーバーサンプリングより軽量で非線形処理のエイリアシングを抑制できる"
+// Cost: 2 LUT lookups + 1 division per sample. 0.5 sample group delay.
+// F1 table: numerical integral of LUT via trapezoidal rule.
+function computeF1Table(lut) {
+  var f1 = new Float32Array(LUT_SIZE);
+  var dx = 2.0 / (LUT_SIZE - 1); // input range [-1, 1] → step
+  f1[0] = 0;
+  for (var i = 1; i < LUT_SIZE; i++) {
+    f1[i] = f1[i - 1] + (lut[i - 1] + lut[i]) * 0.5 * dx;
+  }
+  return f1;
+}
+
+// ADAA 1st-order lookup: (F1(x) - F1(prevX)) / (x - prevX)
+// Falls back to direct LUT when dx < 1e-7 (avoids division by near-zero).
+function adaaLutLookup(lut, f1, x, prevX) {
+  var dx = x - prevX;
+  if (dx > 1e-7 || dx < -1e-7) {
+    return (lutLookup(f1, x) - lutLookup(f1, prevX)) / dx;
+  }
+  return lutLookup(lut, x);
+}
+
 // --- Biquad filter state (IIR, direct form II transposed) ---
 // coefficients: [b0, b1, b2, a1, a2] (a0 normalized to 1)
 // state: [z1, z2]
@@ -1457,6 +1481,16 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
     this.v4bLUT = normalizeLUTUnityGain(computePreampLUT());
     // Poweramp (6L6 push-pull, unity-gain normalized) — worklet-internal
     this.powerampLUT = normalizeLUTUnityGain(computePowerampLUT());
+    // ADAA F1 tables (antiderivative for antialiasing)
+    this.preampF1_12AX7 = computeF1Table(this.preampLUT_12AX7);
+    this.v4bF1          = computeF1Table(this.v4bLUT);
+    this.v3F1           = computeF1Table(this.v3LUT);
+    this.preampF1       = this.preampF1_12AX7; // Active F1 (switches with preampLUT)
+    // ADAA prev-sample state (shared chain, single instance)
+    this.adaaPrevV1A    = 0;
+    this.adaaPrevV2B    = 0;
+    this.adaaPrevV4B    = 0;
+    this.adaaPrevV3     = 0;
     // Poweramp 2x oversampling state (shared, post-voice-sum)
     this.paPrevSample = 0;
 
@@ -2413,10 +2447,12 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
         // Input jack attenuator (-6dB, AB763 Hi input)
         ampSig *= this.inputAtten;
 
-        // Preamp V1A (12AX7 LUT, 2x oversampled)
+        // Preamp V1A (12AX7 LUT, ADAA antialiasing)
         if (this.usePreamp) {
           ampSig *= this.preampGain;
-          ampSig = lutLookup2x(this.preampLUT, ampSig, 0, _OS2X_PREAMP);
+          var v1aPrev = this.adaaPrevV1A;
+          this.adaaPrevV1A = ampSig;
+          ampSig = adaaLutLookup(this.preampLUT, this.preampF1, ampSig, v1aPrev);
           ampSig *= this.v1aGain;
 
           // Cathode follower V2A
@@ -2461,7 +2497,9 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
         }
         // V3 drive + nonlinearity
         sendSum *= this.springDwell;
-        sendSum = lutLookup(this.v3LUT, sendSum);
+        var v3Prev = this.adaaPrevV3;
+        this.adaaPrevV3 = sendSum;
+        sendSum = adaaLutLookup(this.v3LUT, this.v3F1, sendSum, v3Prev);
         // Highshelf tilt
         {
           var tc = this.sendTiltCoeff;
@@ -2625,10 +2663,12 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
           ampSig *= this.volumePot;
         }
 
-        // V2B recovery amp (12AX7 LUT, same tube type as V1A)
+        // V2B recovery amp (12AX7 LUT + ADAA, same tube type as V1A)
         // Input ~0.076 (tonestack -14dB × vol 50%). In LUT nonlinear range.
         if (this.useV2B && this.use2ndPreamp) {
-          ampSig = lutLookup(this.preampLUT, ampSig);
+          var v2bPrev = this.adaaPrevV2B;
+          this.adaaPrevV2B = ampSig;
+          ampSig = adaaLutLookup(this.preampLUT, this.preampF1, ampSig, v2bPrev);
           ampSig *= this.v2bGain;
         }
 
@@ -2647,7 +2687,9 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
           this.port.postMessage({ type: 'debug', v4bIn: this._dbgPeakV4B, dry: this._dbgPeakDry, v2b: this._dbgPeakV2B, v2bIn: this._dbgPeakV2Bin });
           this._dbgPeakV4B = 0; this._dbgPeakDry = 0; this._dbgPeakV2B = 0; this._dbgPeakV2Bin = 0;
         }
-        ampSig = lutLookup(this.v4bLUT, ampSig);
+        var v4bPrev = this.adaaPrevV4B;
+        this.adaaPrevV4B = ampSig;
+        ampSig = adaaLutLookup(this.v4bLUT, this.v4bF1, ampSig, v4bPrev);
         ampSig *= this.v4bGain;
 
         // Power amp + OT: LINEAR for Rhodes (permanent note: "6L6GC doesn't clip")
