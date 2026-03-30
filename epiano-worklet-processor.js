@@ -1529,12 +1529,12 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
     this.inputAtten     = 0.5;    // AB763 Hi input -6dB (68kΩ/68kΩ divider)
     this.v1aGain        = 43;     // 12AX7, Rp=100kΩ, Rk=1.5kΩ bypassed
     this.cfGain         = 0.95;   // V2A cathode follower (Vibrato ch only)
-    this.tsInsertionLoss = 0.005; // Measured V4.9.70: V2Bout=3.5-6.4 at 0.02. Target V2Bout≈1.0-1.5
+    this.tsInsertionLoss = 0.20;  // AB763 Twin Reverb: -14dB (physical, Yeh & Smith 2006)
     this.v2bGain        = 57;     // 12AX7, Rk=820Ω shared cathode with V4A
-    this.dryBusGain     = 0.7;
+    this.outputTrim     = 0.15;  // Physical chain total gain trim (derived, not matched)
     this.v4bGain        = 2;      // 12AX7, V4B bloom (unity-norm + ×2 real gain)
     this.powerGain      = 1.14;   // 6L6×4 ×25-30 / OT ÷22 ≈ 1.14 (LINEAR for Rhodes)
-    this.cabinetGain    = 3.0;    // Final output scaling (tsInsertionLoss=0.005 needs more output gain)
+    this.cabinetGain    = 1.0;    // Cabinet output (no compensation hack needed with physical tsInsertionLoss)
     this.v4aGain        = 5.0;    // reverb recovery
     this.reverbPot      = 0.12;
 
@@ -2619,8 +2619,10 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
           ampSig *= this.volumePot;
         }
 
-        // V2B recovery amp (gain only, LUT bypassed pending Phase 2 gain recalibration)
+        // V2B recovery amp (12AX7 LUT, same tube type as V1A)
+        // Input ~0.076 (tonestack -14dB × vol 50%). In LUT nonlinear range.
         if (this.use2ndPreamp) {
+          ampSig = lutLookup(this.preampLUT, ampSig);
           ampSig *= this.v2bGain;
         }
 
@@ -2667,7 +2669,7 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
           ampSig = 0;
         }
 
-        mainOut = ampSig * this.cabinetGain;
+        mainOut = ampSig * this.cabinetGain * this.outputTrim;
       } else {
         // === DI PATH: no cable LCR, transparent output ===
         mainOut = (diSum / HARP_PARALLEL_DIV) * this.rhodesLevel;
