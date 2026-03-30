@@ -1295,8 +1295,9 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
     // [z1, z2] per voice
     this.vCouplingState = new Float32Array(MAX_VOICES * 2);
 
-    // Per-voice tonestack biquad states: 4 filters × 2 states = 8 per voice
-    this.vTsState      = new Float32Array(MAX_VOICES * 6); // 3 filters × 2 states (DC HPF removed)
+    // Shared tonestack biquad states: 3 filters × 2 states = 6
+    // Physical: single tonestack processes summed harp signal (not per-voice)
+    this.sharedTsState = new Float32Array(6);
 
     // Per-voice harp LCR filter states (both DI and amp paths)
     // Physical: 73 PU series L=1.2H + cable C=650pF + Vol R=25kΩ → f₀=5700Hz, Q=1.7
@@ -1973,7 +1974,7 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
     // Reset filter states
     this.vCouplingState[vi * 2] = 0;
     this.vCouplingState[vi * 2 + 1] = 0;
-    for (var j = 0; j < 6; j++) this.vTsState[vi * 6 + j] = 0;
+    // Shared tonestack state: no per-voice clear needed (single shared instance)
     this.vHarpLCRState[vi * 2] = 0;
     this.vHarpLCRState[vi * 2 + 1] = 0;
     _os2x_prev[vi * 2 + _OS2X_PREAMP] = 0;
@@ -2369,12 +2370,13 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
         var sig = couplingOut;
 
         if (this.useCabinet) {
-          // === AMP PATH (Rhodes Stage + Twin, Suitcase, Wurlitzer) ===
+          // === AMP PATH: per-voice harp LCR only, then sum ===
+          // Physical: each PU → cable LCR → harp bus. Amp chain is SHARED (post-sum).
+          // Permanent note: "エレピのアンプチェーンは共有でありper-voiceは物理的に存在しない"
 
           // --- 3b. Harp LCR (5700Hz, Q=1.7) — amp path only ---
           // 73 PU series L=1.2H + cable C=650pF + Vol R=25kΩ → f₀=5700Hz
           // DI has no cable → internal C≈50-100pF → f₀>14kHz → transparent.
-          // LCR only applies when signal goes through cable to amp.
           {
             var hOff = v * 2;
             var hc = this.harpLPFCoeff;
@@ -2384,74 +2386,60 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
             this.vHarpLCRState[hOff + 1] = hc[2] * couplingOut - hc[4] * sig;
           }
 
-          // --- 4. Input jack attenuator (-6dB, AB763 Hi input) ---
-          sig *= this.inputAtten;
-
-          // --- 5. Preamp V1A (12AX7 LUT, 2x oversampled) ---
-          // Input ~0.025-0.075 (Rhodes 74mV after -6dB). LUT unity-gain, then ×43 real gain.
-          // Output ~1-3V equivalent. Exceeds ±1 — OK, tonestack handles it linearly.
-          sig *= this.preampGain;
-          sig = lutLookup2x(this.preampLUT, sig, v, _OS2X_PREAMP);
-          sig *= this.v1aGain;
-
-          // --- 5b. Cathode follower V2A ---
-          if (this.use2ndPreamp) {
-            sig *= this.cfGain;
-          }
-
-          // --- 6. Tonestack (3 × biquad IIR, DC HPF removed) ---
-          if (this.useTonestack) {
-            var tsBase = v * 6;
-            for (var f = 0; f < 3; f++) {
-              var coeff = this.tsCoeffs[f];
-              var sOff = tsBase + f * 2;
-              var cb0 = coeff[0], cb1 = coeff[1], cb2 = coeff[2], ca1 = coeff[3], ca2 = coeff[4];
-              var tz1 = this.vTsState[sOff], tz2 = this.vTsState[sOff + 1];
-              var tsOut = cb0 * sig + tz1;
-              this.vTsState[sOff] = cb1 * sig - ca1 * tsOut + tz2;
-              this.vTsState[sOff + 1] = cb2 * sig - ca2 * tsOut;
-              sig = tsOut;
-            }
-
-            // Tonestack insertion loss (-14dB)
-            sig *= this.tsInsertionLoss;
-          }
-
-          // --- Reverb send tap (post-tonestack, pre-volume pot) ---
-          if (this.useSpringReverb) {
-            sendSum += sig;
-          }
-
-          // --- 7. Volume pot ---
-          if (this.useTonestack) {
-            sig *= this.volumePot;
-          }
-
-          // --- 8. V2B recovery amp (gain only, LUT bypassed) ---
-          // LUT bypass: tsInsertionLoss=0.005 puts V2B input at ~0.00006 (0.03 LUT steps).
-          // At this level, LUT≈linear (no tube character) but creates release transient
-          // artifacts. Gain-only is sonically identical until tsInsertionLoss is corrected
-          // to physical value (~0.2). Re-enable LUT when gain chain is recalibrated.
-          if (this.use2ndPreamp) {
-            sig *= this.v2bGain;
-          }
-
-          // --- DEBUG: per-voice V2B output peak + V2B input ---
-          if (this._dbgPeakV2B !== undefined && Math.abs(sig) > this._dbgPeakV2B) this._dbgPeakV2B = Math.abs(sig);
-          if (this._dbgPeakV2Bin !== undefined && Math.abs(this._dbgLastV2Bin) > this._dbgPeakV2Bin) this._dbgPeakV2Bin = Math.abs(this._dbgLastV2Bin);
-          // Sum to dry bus
+          // Sum to harp bus (amp chain processes summed signal below)
           drySum += sig;
 
         } else {
           // === DI PATH (no amp chain) ===
           // DI = no cable → no LCR. Internal C≈50-100pF → f₀>14kHz → transparent.
-          // (debug removed)
           diSum += sig;
         }
         this.vAge[v]++;
       }
 
       // === SHARED CHAIN (post-voice sum) ===
+
+      // --- Pre-reverb amp stages: V1A → CF → Tonestack → reverb send tap ---
+      // Physical: harp sum → single cable → single amp (shared chain).
+      // Reverb send is post-tonestack, so we process V1A-TS before the reverb chain.
+      var ampSig = 0;
+      if (this.useCabinet) {
+        ampSig = drySum / HARP_PARALLEL_DIV;
+
+        // Input jack attenuator (-6dB, AB763 Hi input)
+        ampSig *= this.inputAtten;
+
+        // Preamp V1A (12AX7 LUT, 2x oversampled)
+        ampSig *= this.preampGain;
+        ampSig = lutLookup2x(this.preampLUT, ampSig, 0, _OS2X_PREAMP);
+        ampSig *= this.v1aGain;
+
+        // Cathode follower V2A
+        if (this.use2ndPreamp) {
+          ampSig *= this.cfGain;
+        }
+
+        // Tonestack (3 × biquad IIR, shared state)
+        if (this.useTonestack) {
+          for (var f = 0; f < 3; f++) {
+            var coeff = this.tsCoeffs[f];
+            var sOff = f * 2;
+            var cb0 = coeff[0], cb1 = coeff[1], cb2 = coeff[2], ca1 = coeff[3], ca2 = coeff[4];
+            var tz1 = this.sharedTsState[sOff], tz2 = this.sharedTsState[sOff + 1];
+            var tsOut = cb0 * ampSig + tz1;
+            this.sharedTsState[sOff] = cb1 * ampSig - ca1 * tsOut + tz2;
+            this.sharedTsState[sOff + 1] = cb2 * ampSig - ca2 * tsOut;
+            ampSig = tsOut;
+          }
+          // Tonestack insertion loss (-14dB, physical value)
+          ampSig *= this.tsInsertionLoss;
+        }
+
+        // Reverb send tap (post-tonestack, pre-volume pot)
+        if (this.useSpringReverb) {
+          sendSum = ampSig;
+        }
+      }
 
       // --- Reverb send chain: HPF → V3 → tilt → LPF × 2 ---
       var wetSignal = 0;
@@ -2623,20 +2611,29 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
       var mainOut;
 
       if (this.useCabinet) {
-        // === AMP PATH: worklet-internal V4B → poweramp → cabinet ===
-        // Sample-by-sample processing eliminates 128-sample block jitter
-        // that amplifies through nonlinear stages (framework §3).
-        drySum = (drySum / HARP_PARALLEL_DIV) * this.dryBusGain;
+        // === POST-REVERB AMP CHAIN: Volume → V2B → V4B → Power → Cabinet ===
+        // Pre-reverb stages (V1A → CF → Tonestack) already processed above.
 
-        // V4B bloom: dry+wet → 12AX7 nonlinear mixing (gain=2)
+        // Volume pot
+        if (this.useTonestack) {
+          ampSig *= this.volumePot;
+        }
+
+        // V2B recovery amp (gain only, LUT bypassed pending Phase 2 gain recalibration)
+        if (this.use2ndPreamp) {
+          ampSig *= this.v2bGain;
+        }
+
+        // --- DEBUG: gain staging via MessagePort ---
+        if (this._dbgCount === undefined) { this._dbgCount = 0; this._dbgPeakV4B = 0; this._dbgPeakDry = 0; this._dbgPeakV2B = 0; this._dbgPeakV2Bin = 0; }
+        if (Math.abs(ampSig) > this._dbgPeakV2B) this._dbgPeakV2B = Math.abs(ampSig);
+        if (Math.abs(drySum / HARP_PARALLEL_DIV) > this._dbgPeakDry) this._dbgPeakDry = Math.abs(drySum / HARP_PARALLEL_DIV);
+
+        // V4B bloom: dry(V2B out) + wet(V4A out) → 12AX7 nonlinear mixing (gain=2)
         // Real circuit: 470kΩ/220kΩ resistive divider at V4B grid passes 32%.
-        // 15.4V(V2B) × 0.5(Vol) × 0.32(divider) = 2.46V → within ±3V grid swing.
-        // Forte chord: 0.82 normalized → subtle soft-clip = bloom (NOT hard distortion).
-        var ampSig = (drySum + wetSignal) * this.rhodesLevel * 0.32;
-        // --- DEBUG: gain staging via MessagePort (worklet console.log not visible) ---
-        if (this._dbgCount === undefined) { this._dbgCount = 0; this._dbgPeakV4B = 0; this._dbgPeakDry = 0; this._dbgPeakV2B = 0; this._dbgPeakV2Bin = 0; this._dbgLastV2Bin = 0; }
+        ampSig = (ampSig + wetSignal) * this.rhodesLevel * 0.32;
+
         if (Math.abs(ampSig) > this._dbgPeakV4B) this._dbgPeakV4B = Math.abs(ampSig);
-        if (Math.abs(drySum) > this._dbgPeakDry) this._dbgPeakDry = Math.abs(drySum);
         this._dbgCount++;
         if (this._dbgCount % 24000 === 0 && (this._dbgPeakV4B > 0.001 || this._dbgPeakDry > 0.001)) {
           this.port.postMessage({ type: 'debug', v4bIn: this._dbgPeakV4B, dry: this._dbgPeakDry, v2b: this._dbgPeakV2B, v2bIn: this._dbgPeakV2Bin });
