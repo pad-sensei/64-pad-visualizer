@@ -1558,19 +1558,19 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
     this.tineRadiation = 0.0;  // Acoustic tine radiation (-40 to -50dB, glockenspiel-like)
     this.rhodesLevel   = 1.0;  // PU signal level (0=mute PU, hear only mechanical)
 
-    // === Gain staging from AB763 permanent note (Rob Robinette measured) ===
-    // Each tube LUT is unity-gain normalized. Real voltage gain applied AFTER LUT.
-    // Signal CAN exceed ±1 between stages (real amp has 460V+ supply).
-    // LUT inputs must stay ≤ ±1 (= ±grid swing of that tube).
+    // === Gain staging (effective gains for ±1 LUT convention) ===
+    // Physical voltage gains (V1A=43, V2B=57) create signals way beyond ±1.
+    // Effective gains drive LUTs into nonlinear range while keeping inter-stage ≤ ±1.
+    // Physical values: see permanent note "AB763 Twin Reverbのゲインステージングと信号経路の物理値"
     this.inputAtten     = 0.5;    // AB763 Hi input -6dB (68kΩ/68kΩ divider)
-    this.v1aGain        = 43;     // 12AX7, Rp=100kΩ, Rk=1.5kΩ bypassed
+    this.v1aGain        = 5;      // Effective (physical 43 × 0.12 scale). Chord→0.3, forte→1.0
     this.cfGain         = 0.95;   // V2A cathode follower (Vibrato ch only)
     this.tsInsertionLoss = 0.20;  // AB763 Twin Reverb: -14dB (physical, Yeh & Smith 2006)
-    this.v2bGain        = 57;     // 12AX7, Rk=820Ω shared cathode with V4A
-    this.outputTrim     = 0.15;  // Physical chain total gain trim (derived, not matched)
+    this.v2bGain        = 5;      // Effective (physical 57 × 0.09 scale). Drives V2B LUT moderately
+    this.outputTrim     = 0.5;    // Final output trim
     this.v4bGain        = 2;      // 12AX7, V4B bloom (unity-norm + ×2 real gain)
     this.powerGain      = 1.14;   // 6L6×4 ×25-30 / OT ÷22 ≈ 1.14 (LINEAR for Rhodes)
-    this.cabinetGain    = 1.0;    // Cabinet output (no compensation hack needed with physical tsInsertionLoss)
+    this.cabinetGain    = 1.0;    // Cabinet output
     this.v4aGain        = 5.0;    // reverb recovery
     this.reverbPot      = 0.12;
 
@@ -2690,7 +2690,7 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
           // V4B bloom: dry(V2B out) + wet(V4A out) → 12AX7 nonlinear mixing
           // V2B output ~4 (single) to ~15 (chord). Divider 0.08 gives
           // single=0.35 (clean), chord=1.2 (bloom), forte=soft-clip.
-          ampSig = (ampSig + wetSignal) * this.rhodesLevel * 0.08;
+          ampSig = (ampSig + wetSignal) * this.rhodesLevel * 0.32;
 
           if (Math.abs(ampSig) > this._dbgPeakV4B) this._dbgPeakV4B = Math.abs(ampSig);
           this._dbgCount++;
