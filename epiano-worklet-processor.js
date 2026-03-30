@@ -1563,10 +1563,10 @@ class EpianoWorkletProcessor extends AudioWorkletProcessor {
     // Effective gains drive LUTs into nonlinear range while keeping inter-stage ≤ ±1.
     // Physical values: see permanent note "AB763 Twin Reverbのゲインステージングと信号経路の物理値"
     this.inputAtten     = 0.5;    // AB763 Hi input -6dB (68kΩ/68kΩ divider)
-    this.v1aGain        = 5;      // Effective (physical 43 × 0.12 scale). Chord→0.3, forte→1.0
+    this.v1aGain        = 8;      // Effective. Single=0.14, chord=0.54, forte=1.5 (saturation)
     this.cfGain         = 0.95;   // V2A cathode follower (Vibrato ch only)
     this.tsInsertionLoss = 0.20;  // AB763 Twin Reverb: -14dB (physical, Yeh & Smith 2006)
-    this.v2bGain        = 5;      // Effective (physical 57 × 0.09 scale). Drives V2B LUT moderately
+    this.v2bGain        = 11;     // Effective. V4B_in: single=0.045, chord=0.18, forte=0.51 (bloom)
     this.outputTrim     = 0.5;    // Final output trim
     this.v4bGain        = 2;      // 12AX7, V4B bloom (unity-norm + ×2 real gain)
     this.powerGain      = 1.14;   // 6L6×4 ×25-30 / OT ÷22 ≈ 1.14 (LINEAR for Rhodes)
