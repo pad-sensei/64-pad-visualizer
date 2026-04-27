@@ -1687,3 +1687,23 @@ html.silent #sound-controls,
 html.silent #audio-start-overlay {
   display: none !important;
 }
+
+/* 2026-04-28: Desktop モード UI gate (?desktop=1, JUCE WebView 経由)。
+   index.html L11-22 で html.desktop-mode のみ付与 (AUDIO_ENABLED=true なので silent class は付かない)。
+   音源 UI のうち音源依存パラメータ (Header preset/VOL/Effects/AUTO FILTER/E.PIANO MIXER) を hide、
+   VELOCITY SENSITIVITY (#vel-section) と TASTY/Stock/Memory slots/Push 表示/ギターボイシングは残す。
+   #ep-reverb-section は親 #ep-mixer-section の hide で同時に隠れるため列挙不要 (Codex 監査 MINOR で指摘)。
+   #inst-toggle-sound は Desktop で意味がないため hide (showSound toggle 上書き対策、Codex 監査 MAJOR で指摘)。
+   うりなみさん指示 (2026-04-28): Desktop は音源 DSP を持たない host (外部 VST/AU plugin loader)
+   設計、VELOCITY/TASTY/Stock/ギターボイシング/Push 表示は残す。 */
+html.desktop-mode #organ-preset,
+html.desktop-mode #sound-mute-btn,
+html.desktop-mode #sound-expand-btn,
+html.desktop-mode #header-vol-label,
+html.desktop-mode #sound-fx-row,
+html.desktop-mode #sound-autofilter,
+html.desktop-mode #ep-mixer-section,
+html.desktop-mode #audio-start-overlay,
+html.desktop-mode #inst-toggle-sound {
+  display: none !important;
+}
