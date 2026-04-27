@@ -96,6 +96,23 @@ audio-core `eeca490 → 7c37b0b` (D-1/C-1/C-2 + Tone Balance outputGain 分離 +
 
 ---
 
+## 現在地（2026-04-27 自動更新）
+
+- **状態**: V6.0 本番デプロイ済 (`f11c455`)。物理モデリング V5.2 → V6.0 大型 bump (3 者意見一致: 蔵人/Gemini/ChatGPT)。AMP Vintage Envelope Filter preset (HPS gate) + AUTO FILTER WET/VOL slider 追加
+- **残作業**: V6.0 release note **8 言語翻訳** (en/zh/es/fr/pt/de/it/ko)。Dashboard inbox に登録済 (project: 64-pad-visualizer)。urinami の日本語確定文を翻訳する
+- **正規ルール**:
+  - 本番デプロイは「リリースして」明示 GO のみ ([[忘れやすいこと]] 2026-04-27)
+  - release note は urinami の言葉で書く ([[release_noteはurinamiの言葉で書きAIが技術詳細を勝手に膨らませない]])
+  - AMP 系 preset は HPS gate 必須 (本ファイル下の絶対ルール)
+- **次**: urinami の ear test 進行中 (https://murinaikurashi.com/apps/64-pad/?hps&v=6.0.2-banner-fix)。ear test 確定後、8 言語翻訳作業
+- **注意**:
+  - vh_540 (旧 V5.4) を vh_600 (V6.0) に rename 済。lang-en/zh/es/fr/pt/de/it/ko の vh_540 が独断翻訳された残骸として残っている → 翻訳作業時に整理する
+  - DECAY slider range 0.5 → 1.5 に拡張済、表示は ×10 (0.0-15.0)
+  - Envelope Filter preset 切替で AUTO FILTER 自動 ON、他 preset 切替で `resetEffectRack` helper が AF/LO/HI cut OFF + slider default
+- **判断待ち**: なし
+
+---
+
 ## ⚠️ clone 時の submodule 必須手順（2026-04-14 Phase 1 移行）
 
 **このリポジトリは 2 つの submodule に依存している。`git clone` だけでは audio-core / pad-core が空になり、起動不能になる。**
