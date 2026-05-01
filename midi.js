@@ -375,6 +375,39 @@ function highlightPlaybackPads(midiNotes) {
 let selectedMidiInputId = null; // null = all inputs
 var _lastOctCC = 0; // debounce: Push 3 multi-port duplicate CC
 
+// Sustain pedal (CC#64) — エッジ非対称 debounce。
+// 経緯: Roland A-88 MK2 等が踏み込み中 / 保持中に CC64=14 などの中間値を
+// 流す事例を確認 (うりなみさん 2026-05-01)。素朴に `velocity >= 64` で
+// setSustain を毎回呼ぶと、jitter で setSustain(false) が発火し、worklet
+// 側 _setSustain(false) が sustainPending を全 _noteOff してしまう。
+// 聞こえとしては「Sustain 切れた」になる。
+// アプローチ: 3 通りに分岐。
+//   - velocity >= 64 (rising edge): 即時 ON (fast pedaling 追従)
+//   - velocity === 0 (definitive release): 即時 OFF
+//   - velocity 1〜63 (intermediate): 100ms debounce (jitter rejection +
+//     非標準 rest 救済)
+// 詳細は keys/midi-input.js の同等実装 (commit 0638138) コメント参照。
+const SUSTAIN_OFF_DEBOUNCE_MS = 100;
+let _sustainOn = false;
+let _sustainPendingVal = -1;
+let _sustainDebounceTimer = null;
+function _cancelSustainDebounce() {
+  if (_sustainDebounceTimer !== null) {
+    clearTimeout(_sustainDebounceTimer);
+    _sustainDebounceTimer = null;
+  }
+  _sustainPendingVal = -1;
+}
+function _resolveSustainOff() {
+  _sustainDebounceTimer = null;
+  const v = _sustainPendingVal;
+  _sustainPendingVal = -1;
+  if (v > 0 && v < 64 && _sustainOn && typeof setSustain === 'function') {
+    _sustainOn = false;
+    try { setSustain(false); } catch (_) {}
+  }
+}
+
 function initWebMIDI() {
   if (!navigator.requestMIDIAccess) return;
   navigator.requestMIDIAccess().then(access => {
@@ -450,10 +483,31 @@ function initWebMIDI() {
             shiftOctave((rawNote === 91 || rawNote === 104) ? 1 : -1);
             return;
           }
-          // Sustain pedal (CC#64, standard MIDI Hold Pedal)
-          // Threshold: >= 64 = ON, < 64 = OFF (standard convention)
+          // Sustain pedal (CC#64) — エッジ非対称 debounce。
+          // 詳細は midi.js モジュール上部 SUSTAIN_OFF_DEBOUNCE_MS コメント参照。
           if (cmd === 0xb0 && rawNote === 64) {
-            if (typeof setSustain === 'function') setSustain(velocity >= 64);
+            if (velocity >= 64) {
+              // Rising edge: 即時 ON、保留 OFF を cancel
+              _cancelSustainDebounce();
+              if (!_sustainOn && typeof setSustain === 'function') {
+                _sustainOn = true;
+                try { setSustain(true); } catch (_) {}
+              }
+            } else if (velocity === 0) {
+              // Definitive release: 即時 OFF、保留 cancel
+              _cancelSustainDebounce();
+              if (_sustainOn && typeof setSustain === 'function') {
+                _sustainOn = false;
+                try { setSustain(false); } catch (_) {}
+              }
+            } else {
+              // 1〜63 intermediate: jitter rejection + 非標準 rest 救済
+              if (_sustainOn) {
+                _sustainPendingVal = velocity;
+                if (_sustainDebounceTimer !== null) clearTimeout(_sustainDebounceTimer);
+                _sustainDebounceTimer = setTimeout(_resolveSustainOff, SUSTAIN_OFF_DEBOUNCE_MS);
+              }
+            }
             return;
           }
           // Push perform mode: serial 4x4 → slots directly (bypass fourths conversion)
