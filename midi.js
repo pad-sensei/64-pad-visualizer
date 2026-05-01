@@ -387,8 +387,13 @@ var _lastOctCC = 0; // debounce: Push 3 multi-port duplicate CC
 //   - velocity 1〜63 (intermediate): 100ms debounce (jitter rejection +
 //     非標準 rest 救済)
 // 詳細は keys/midi-input.js の同等実装 (commit 0638138) コメント参照。
+//
+// NOTE: midi.js は module top-level scope で declare されるため、識別子の
+// global collision に注意。audio-core/audio-voice.js が `var _sustainOn`
+// を持つので、ここでは `_midiSustainOn` と prefix 付きで分離する
+// (Codex 監査 P1 BLOCKER 対応)。
 const SUSTAIN_OFF_DEBOUNCE_MS = 100;
-let _sustainOn = false;
+let _midiSustainOn = false;
 let _sustainPendingVal = -1;
 let _sustainDebounceTimer = null;
 function _cancelSustainDebounce() {
@@ -402,8 +407,8 @@ function _resolveSustainOff() {
   _sustainDebounceTimer = null;
   const v = _sustainPendingVal;
   _sustainPendingVal = -1;
-  if (v > 0 && v < 64 && _sustainOn && typeof setSustain === 'function') {
-    _sustainOn = false;
+  if (v > 0 && v < 64 && _midiSustainOn && typeof setSustain === 'function') {
+    _midiSustainOn = false;
     try { setSustain(false); } catch (_) {}
   }
 }
@@ -489,20 +494,20 @@ function initWebMIDI() {
             if (velocity >= 64) {
               // Rising edge: 即時 ON、保留 OFF を cancel
               _cancelSustainDebounce();
-              if (!_sustainOn && typeof setSustain === 'function') {
-                _sustainOn = true;
+              if (!_midiSustainOn && typeof setSustain === 'function') {
+                _midiSustainOn = true;
                 try { setSustain(true); } catch (_) {}
               }
             } else if (velocity === 0) {
               // Definitive release: 即時 OFF、保留 cancel
               _cancelSustainDebounce();
-              if (_sustainOn && typeof setSustain === 'function') {
-                _sustainOn = false;
+              if (_midiSustainOn && typeof setSustain === 'function') {
+                _midiSustainOn = false;
                 try { setSustain(false); } catch (_) {}
               }
             } else {
               // 1〜63 intermediate: jitter rejection + 非標準 rest 救済
-              if (_sustainOn) {
+              if (_midiSustainOn) {
                 _sustainPendingVal = velocity;
                 if (_sustainDebounceTimer !== null) clearTimeout(_sustainDebounceTimer);
                 _sustainDebounceTimer = setTimeout(_resolveSustainOff, SUSTAIN_OFF_DEBOUNCE_MS);
