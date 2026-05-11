@@ -664,14 +664,24 @@ function toggleSection(name) {
 
     var msg = bannerText.textContent.trim();
     if (!msg) return;
+    // Content hash で dismiss 管理 (RSS 更新で content 変われば自動再表示、Pad Sensei Keys と同じパターン、2026-05-11 修正)
+    function _bannerHashStr(s) {
+      var h = 0;
+      for (var i = 0; i < s.length; i++) {
+        h = ((h << 5) - h) + s.charCodeAt(i);
+        h |= 0;
+      }
+      return h.toString(36);
+    }
+    var contentHash = _bannerHashStr(msg);
     var dismissed = localStorage.getItem('64pad-notice-dismissed');
-    if (dismissed === currentVer) return;
+    if (dismissed === contentHash) return;
     banner.style.display = '';
     var closeBtn = document.getElementById('update-notice-close');
     if (closeBtn) {
       closeBtn.addEventListener('click', function() {
         banner.style.display = 'none';
-        if (currentVer) localStorage.setItem('64pad-notice-dismissed', currentVer);
+        try { localStorage.setItem('64pad-notice-dismissed', contentHash); } catch(_) {}
         // Record that this version's release notice has been seen
         if (_versionNoticeShown) localStorage.setItem(noticeSeenKey, '1');
       });
