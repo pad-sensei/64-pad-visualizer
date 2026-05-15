@@ -70,11 +70,7 @@ function onMidiNoteOn(note, velocity) {
       PlainState.captureIndex = findNextEmptySlot(0);
       updatePlainUI();
     }
-    if (PlainState.activeNotes.has(mapped)) {
-      PlainState.activeNotes.delete(mapped);
-    } else {
-      PlainState.activeNotes.add(mapped);
-    }
+    PlainState.activeNotes.add(mapped);
     updatePlainDisplay();
     render();
   }
@@ -110,11 +106,7 @@ function onNativeMidiIn(note, velocity) {
       PlainState.captureIndex = findNextEmptySlot(0);
       updatePlainUI();
     }
-    if (PlainState.activeNotes.has(note)) {
-      PlainState.activeNotes.delete(note);
-    } else {
-      PlainState.activeNotes.add(note);
-    }
+    PlainState.activeNotes.add(note);
     updatePlainDisplay();
     render();
   }
