@@ -141,8 +141,16 @@ function getCurrentChordMidiNotes() {
       notes = [...merged];
     }
     notes.sort((a, b) => a - b);
-    if (notes.length === 0) return null;
-    return notes;
+    if (notes.length > 0) return notes;
+    // activeNotes empty: Capture 後の "直前に保存したスロット" を再生対象にする。
+    // currentSlot 優先 → なければ最後に保存された slot にフォールバック。
+    if (PlainState.currentSlot !== null && PlainState.memory[PlainState.currentSlot]) {
+      return [...PlainState.memory[PlainState.currentSlot].midiNotes];
+    }
+    for (let i = PlainState.memory.length - 1; i >= 0; i--) {
+      if (PlainState.memory[i]) return [...PlainState.memory[i].midiNotes];
+    }
+    return null;
   }
   // Chord/Scale mode
   if (AppState.mode === 'chord' || AppState.mode === 'scale') {
