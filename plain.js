@@ -881,9 +881,7 @@ function updateMemorySlotUI() {
   const slotCount = PlainState.memory.filter(s => s !== null).length;
   const sel = PlainState.currentSlot !== null && PlainState.memory[PlainState.currentSlot];
   const midiLabel = sel ? t('memory.midi_selected', {chord: sel.chordName}) : t('memory.midi_all') + (slotCount ? ' (' + slotCount + ')' : '');
-  const chsLabel = sel ? t('memory.chs_selected', {chord: sel.chordName}) : t('memory.chs_all') + (slotCount ? ' (' + slotCount + ')' : '');
   ['btn-midi-export-plain', 'btn-midi-export-mem'].forEach(function(id) { var b = document.getElementById(id); if (b) b.textContent = midiLabel; });
-  ['btn-chs-export-plain', 'btn-chs-export-mem'].forEach(function(id) { var b = document.getElementById(id); if (b) b.textContent = chsLabel; });
   // Play button label (only update if not currently playing)
   if (!_slotPlayTimer) {
     var playBtn = document.getElementById('btn-play-slots');
@@ -983,7 +981,6 @@ function downloadBinary(uint8Array, filename, mimeType) {
   if (isHTTPS && window.showSaveFilePicker) {
     const ext = filename.split('.').pop();
     const types = ext === 'mid' ? [{ description: 'MIDI', accept: { 'audio/midi': ['.mid'] } }]
-      : ext === 'chs' ? [{ description: 'Chordcat', accept: { 'application/octet-stream': ['.chs'] } }]
       : [];
     var pickerDone = false;
     var pickerTimer = setTimeout(function() { if (!pickerDone) { pickerDone = true; downloadBinaryFallback(blob, filename); } }, 3000);

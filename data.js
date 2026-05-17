@@ -10,7 +10,7 @@ function onReady(fn) {
   else document.addEventListener("DOMContentLoaded", fn);
 }
 
-const IS_DEV = location.pathname.indexOf('64-pad-dev') !== -1 || location.pathname.indexOf('64-pad-chs') !== -1;
+const IS_DEV = location.pathname.indexOf('64-pad-dev') !== -1;
 
 // ======== GRID DESTRUCTURING (from pad-core GRID) ========
 const { ROWS, COLS, BASE_MIDI, ROW_INTERVAL, COL_INTERVAL, PAD_SIZE, PAD_GAP, MARGIN } = GRID;

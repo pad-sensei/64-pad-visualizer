@@ -14,10 +14,6 @@
 onReady(() => {
   // Set initial mute button state
   _updateMuteBtn();
-  // Hide CHS export on production (reverse-engineered Chordcat format — dev only)
-  if (!IS_DEV) {
-    ['btn-chs-export-plain', 'btn-chs-export-mem', 'btn-chs-import'].forEach(function(id) { var b = document.getElementById(id); if (b) b.style.display = 'none'; });
-  }
   // 単位統一 (urinami 2026-04-22): 内部 0-1 値は表示層で 1-10 (× 10) に統一。
   // T.SPD のみ物理単位 Hz を維持。認知リソースを音楽以外に使わせない。
   [['snd-volume','snd-vol-val'],['snd-tremolo','snd-trm-val'],['snd-tremolo-spd','snd-trm-spd-val'],['snd-phaser','snd-phs-val'],['snd-flanger','snd-flg-val']].forEach(([sid, vid]) => {
