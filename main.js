@@ -648,9 +648,10 @@ function toggleSection(name) {
     // Prepend version release notes. Shown once per version: if the user hasn't
     // dismissed the notice for this specific version, show it — including users who
     // visited before a whats_new_<digits> entry was added for that version.
-    // i18n key: 'whats_new_' + digits (V5.0 → whats_new_50, V4.9.7 → whats_new_497).
+    // i18n key: 'whats_new_' + digits. Web V6.1 → whats_new_61. Desktop v1.2.3 → whats_new_123.
+    // (Desktop overrides version-tag to "Desktop v1.2.3"; non-digit chars are stripped here)
     // Add a whats_new_<digits> entry in lang-*.js whenever a release is worth announcing.
-    var verDigits = currentVerPlain.replace(/\./g, '');
+    var verDigits = currentVer.replace(/[^0-9]/g, '');
     var relKey = 'whats_new_' + verDigits;
     var relMsg = (typeof t === 'function' ? t(relKey) : '');
     if (relMsg === relKey) relMsg = ''; // no entry for this version → skip notice

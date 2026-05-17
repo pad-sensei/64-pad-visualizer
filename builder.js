@@ -591,7 +591,6 @@ function updateControlsForQuality(quality) {
   if (isTriad) {
     if (VoicingState.shell) {
       VoicingState.shell = null;
-      VoicingState.shellExtension = 0;
       VoicingState.omit5 = false;
     }
     if (VoicingState.inversion > 2) VoicingState.inversion = 0;

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "64pad",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/Users/nozakidaikai/64-pad-visualizer/_nocache_server.py", "8765"],
+      "port": 8765
+    }
+  ]
+}

@@ -175,7 +175,7 @@ function getCurrentChordMidiNotes() {
     const rootPC = BuilderState.root;
     let intervals;
     if (VoicingState.shell) {
-      intervals = getShellIntervals(BuilderState.quality.pcs, VoicingState.shell, VoicingState.shellExtension, pcs);
+      intervals = getShellIntervals(BuilderState.quality.pcs, VoicingState.shell, 0, pcs);
       if (!intervals) return null;
     } else {
       if (VoicingState.omit5) pcs = pcs.filter(iv => iv % 12 !== 7);

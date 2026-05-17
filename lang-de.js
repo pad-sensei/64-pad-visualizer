@@ -539,6 +539,8 @@ I18N.addLang('de', {
   tips_off: 'Tipps ausblenden',
   whats_new: 'Neuheiten',
   whats_new_497: 'Tremolo ist jetzt physikalisch modelliert! HPS-Mitglieder erhalten Pad Sensei MK1 Suitcase.',
+  whats_new_61: 'Das Online-Handbuch ist jetzt über den Guide zugänglich. Derzeit in Arbeit.',
+  whats_new_123: 'Das Online-Handbuch ist jetzt über den Guide zugänglich. Derzeit in Arbeit.',
   whats_new_51: 'C-Dur-Sperrmodus hinzugefügt! Im Hilfe-Menü (?) umschaltbar. Push/Launchpad zeigt dann immer C-Dur.',
   whats_new_50: 'Spring- und Plate-Reverb hinzugef\u00FCgt! Baxandall Bass/Treble EQ, Suitcase-Amp verbessert.',
   whats_new_32427: 'Gitarren-Voicing \u2192 Pad-Spiegelung (V-Taste). Umschalten Gitarren-Stil / Kompakt-Layout',

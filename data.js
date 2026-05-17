@@ -67,7 +67,6 @@ const VoicingState = {
   shell: null,           // null, '137', '173'
   inversion: 0,          // 0=root, 1=1st, 2=2nd, 3=3rd
   drop: null,            // null, 'drop2', 'drop3'
-  shellExtension: 0,     // 0 = shell only, 1 = +1 note, 2 = +2 notes
   selectedBoxIdx: null,  // selected bounding box index for staff display
   lastBoxes: [],         // [{midiNotes: [...], alternatives: [...], currentAlt: n}, ...] stored from last render
   cycleIndices: {},      // { boxIdx: alternativeIdx } - tracks cycling state per box

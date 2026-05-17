@@ -89,16 +89,7 @@ function setShell(mode) {
   if (mode) {
     VoicingState.omit5 = true; VoicingState.rootless = false; VoicingState.omit3 = false;
     VoicingState.inversion = 0; VoicingState.drop = null;
-  } else {
-    VoicingState.shellExtension = 0;
   }
-  resetVoicingSelection();
-  updateVoicingButtons(); updateChordDisplay(); render();
-  playCurrentChord();
-}
-function setShellExtension(n) {
-  VoicingState.shellExtension = (VoicingState.shellExtension === n) ? 0 : n;
-  if (VoicingState.shellExtension > 0 && !VoicingState.shell) VoicingState.shell = '137'; // auto-enable shell
   resetVoicingSelection();
   updateVoicingButtons(); updateChordDisplay(); render();
   playCurrentChord();
@@ -123,10 +114,6 @@ function updateVoicingButtons() {
   document.getElementById('btn-omit3').classList.toggle('active', VoicingState.omit3);
   document.getElementById('btn-shell137').classList.toggle('active', VoicingState.shell === '137');
   document.getElementById('btn-shell173').classList.toggle('active', VoicingState.shell === '173');
-  const ext1 = document.getElementById('btn-shell-ext1');
-  const ext2 = document.getElementById('btn-shell-ext2');
-  if (ext1) ext1.classList.toggle('active', VoicingState.shellExtension === 1);
-  if (ext2) ext2.classList.toggle('active', VoicingState.shellExtension === 2);
   for (let i = 0; i < 4; i++) {
     const el = document.getElementById('btn-inv' + i);
     if (el) el.classList.toggle('active', VoicingState.inversion === i);
@@ -231,7 +218,7 @@ function playCurrentChord() {
   let intervals;
 
   if (VoicingState.shell) {
-    intervals = getShellIntervals(BuilderState.quality.pcs, VoicingState.shell, VoicingState.shellExtension, pcs);
+    intervals = getShellIntervals(BuilderState.quality.pcs, VoicingState.shell, 0, pcs);
     if (!intervals) return;
   } else {
     // Normal voicing: apply omit/rootless filters

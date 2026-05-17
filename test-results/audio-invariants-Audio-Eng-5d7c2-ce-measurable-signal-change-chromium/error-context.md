@@ -1,0 +1,560 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - heading "64 Pad Explorer" [level=1] [ref=e5]
+        - generic [ref=e6]: V5.2
+        - combobox [ref=e7] [cursor=pointer]:
+          - option "EN" [selected]
+          - option "JA"
+          - option "ZH"
+          - option "ES"
+          - option "FR"
+          - option "PT"
+          - option "DE"
+          - option "KO"
+          - option "IT"
+        - button "Save Settings" [ref=e8] [cursor=pointer]:
+          - img [ref=e9]
+        - button "Tutorials" [ref=e13] [cursor=pointer]:
+          - img [ref=e14]
+        - button "?" [ref=e17] [cursor=pointer]
+      - generic [ref=e18]:
+        - link "Guide" [ref=e19] [cursor=pointer]:
+          - /url: guide.html
+        - text: "|"
+        - link "HPS Portal" [ref=e20] [cursor=pointer]:
+          - /url: https://murinaikurashi.com/apps/hps-glossary/?utm_source=64pad&utm_medium=tool-link&utm_campaign=app-cta
+        - text: "|"
+        - link "HPS" [ref=e21] [cursor=pointer]:
+          - /url: https://note.com/urinami/membership?utm_source=64pad&utm_medium=tool-link&utm_campaign=membership-cta
+        - text: "|"
+        - link "My Blog" [ref=e22] [cursor=pointer]:
+          - /url: https://murinaikurashi.com/?utm_source=64pad&utm_medium=tool-link&utm_campaign=blog-link
+        - text: "|"
+        - link "Wishlist" [ref=e23] [cursor=pointer]:
+          - /url: https://www.amazon.co.jp/hz/wishlist/ls/2U3B7JYF1BLGD?tag=urinami-22&utm_source=64pad&utm_medium=tool-link&utm_campaign=wishlist
+    - generic [ref=e24]: Sound ON/OFF
+  - generic [ref=e26]:
+    - generic [ref=e27]:
+      - text: 📝 ブログ更新「
+      - 'link "保護中: 我々はどう生きるか 2026/04/23 仏壇にLED 木魚に反応 政策金融公庫に断られる" [ref=e28] [cursor=pointer]':
+        - /url: https://murinaikurashi.com/%e6%88%91%e3%80%85%e3%81%af%e3%81%a9%e3%81%86%e7%94%9f%e3%81%8d%e3%82%8b%e3%81%8b%e3%80%802026-04-23%e3%80%80%e4%bb%8f%e5%a3%87%e3%81%abled-%e6%9c%a8%e9%ad%9a%e3%81%ab%e5%8f%8d%e5%bf%9c%e3%80%80/?utm_source=rss&utm_medium=rss&utm_campaign=%25e6%2588%2591%25e3%2580%2585%25e3%2581%25af%25e3%2581%25a9%25e3%2581%2586%25e7%2594%259f%25e3%2581%258d%25e3%2582%258b%25e3%2581%258b%25e3%2580%25802026-04-23%25e3%2580%2580%25e4%25bb%258f%25e5%25a3%2587%25e3%2581%25abled-%25e6%259c%25a8%25e9%25ad%259a%25e3%2581%25ab%25e5%258f%258d%25e5%25bf%259c%25e3%2580%2580
+      - text: 」 🎹 HPS更新「
+      - link "パッド夏期講習 第3回 フォームを覚えよう" [ref=e29] [cursor=pointer]:
+        - /url: https://note.com/urinami/n/n32c76e864672
+      - text: 」 📰 Pad Sensei「
+      - link "なぜ64Pad Explorerは複数のポジションを表示するのか" [ref=e30] [cursor=pointer]:
+        - /url: https://urinami.substack.com/p/64pad-explorer
+      - text: 」
+    - button "閉じる" [ref=e31] [cursor=pointer]: ×
+  - generic [ref=e32]:
+    - generic [ref=e33]:
+      - generic [ref=e35]:
+        - generic [ref=e36]: Tutorial
+        - generic [ref=e37]: First time here? Want a quick tour of the app?
+        - generic [ref=e38]:
+          - button "Next" [ref=e39] [cursor=pointer]
+          - button "Skip" [ref=e40] [cursor=pointer]
+      - img [ref=e41]:
+        - generic: C
+        - generic: R
+        - generic: C1
+        - generic: Db
+        - generic: Db1
+        - generic: D
+        - generic: D1
+        - generic: Eb
+        - generic: Eb1
+        - generic: E
+        - generic: E1
+        - generic: F
+        - generic: F1
+        - generic: Gb
+        - generic: Gb1
+        - generic: G
+        - generic: G1
+        - generic: F
+        - generic: F1
+        - generic: Gb
+        - generic: Gb1
+        - generic: G
+        - generic: G1
+        - generic: Ab
+        - generic: Ab1
+        - generic: A
+        - generic: A1
+        - generic: Bb
+        - generic: Bb1
+        - generic: B
+        - generic: B1
+        - generic: C
+        - generic: R
+        - generic: C2
+        - generic: Bb
+        - generic: Bb1
+        - generic: B
+        - generic: B1
+        - generic: C
+        - generic: R
+        - generic: C2
+        - generic: Db
+        - generic: Db2
+        - generic: D
+        - generic: D2
+        - generic: Eb
+        - generic: Eb2
+        - generic: E
+        - generic: E2
+        - generic: F
+        - generic: F2
+        - generic: Eb
+        - generic: Eb2
+        - generic: E
+        - generic: E2
+        - generic: F
+        - generic: F2
+        - generic: Gb
+        - generic: Gb2
+        - generic: G
+        - generic: G2
+        - generic: Ab
+        - generic: Ab2
+        - generic: A
+        - generic: A2
+        - generic: Bb
+        - generic: Bb2
+        - generic: Ab
+        - generic: Ab2
+        - generic: A
+        - generic: A2
+        - generic: Bb
+        - generic: Bb2
+        - generic: B
+        - generic: B2
+        - generic: C
+        - generic: R
+        - generic: C3
+        - generic: Db
+        - generic: Db3
+        - generic: D
+        - generic: D3
+        - generic: Eb
+        - generic: Eb3
+        - generic: Db
+        - generic: Db3
+        - generic: D
+        - generic: D3
+        - generic: Eb
+        - generic: Eb3
+        - generic: E
+        - generic: E3
+        - generic: F
+        - generic: F3
+        - generic: Gb
+        - generic: Gb3
+        - generic: G
+        - generic: G3
+        - generic: Ab
+        - generic: Ab3
+        - generic: Gb
+        - generic: Gb3
+        - generic: G
+        - generic: G3
+        - generic: Ab
+        - generic: Ab3
+        - generic: A
+        - generic: A3
+        - generic: Bb
+        - generic: Bb3
+        - generic: B
+        - generic: B3
+        - generic: C
+        - generic: R
+        - generic: C4
+        - generic: Db
+        - generic: Db4
+        - generic: B
+        - generic: B3
+        - generic: C
+        - generic: R
+        - generic: C4
+        - generic: Db
+        - generic: Db4
+        - generic: D
+        - generic: D4
+        - generic: Eb
+        - generic: Eb4
+        - generic: E
+        - generic: E4
+        - generic: F
+        - generic: F4
+        - generic: Gb
+        - generic: Gb4
+      - generic [ref=e106]:
+        - generic [ref=e107]:
+          - generic [ref=e108]: Root
+          - generic [ref=e112]: Chord Tone
+          - generic [ref=e113]: "Off"
+        - generic [ref=e115]:
+          - button "▼" [ref=e116] [cursor=pointer]
+          - generic [ref=e117]: C1 — Gb4
+          - button "▲" [ref=e118] [cursor=pointer]
+      - generic [ref=e120]:
+        - button "Link" [ref=e121] [cursor=pointer]
+        - button "Guitar" [ref=e122] [cursor=pointer]
+        - button "Bass" [ref=e123] [cursor=pointer]
+        - button "Piano" [ref=e124] [cursor=pointer]
+    - generic [ref=e125]:
+      - generic [ref=e126]:
+        - button "Tab Scale" [ref=e127] [cursor=pointer]:
+          - generic: Tab
+          - text: Scale
+        - button "Tab Chord" [ref=e128] [cursor=pointer]:
+          - generic: Tab
+          - text: Chord
+        - button "Tab Input" [ref=e129] [cursor=pointer]:
+          - generic: Tab
+          - text: Input
+        - button "Space Play ▶" [ref=e130] [cursor=pointer]:
+          - generic: Space
+          - text: Play ▶
+      - generic [ref=e131]:
+        - text: Key
+        - button "C" [ref=e132] [cursor=pointer]
+        - button "Am" [ref=e133] [cursor=pointer]
+        - button "▶" [ref=e134] [cursor=pointer]
+        - text: Also settable via Scale mode or Circle of Fifths
+      - generic [ref=e135]:
+        - generic [ref=e136]:
+          - button "3" [ref=e137] [cursor=pointer]
+          - button "4" [ref=e138] [cursor=pointer]
+        - button "1 C△7 I△7" [ref=e139] [cursor=pointer]:
+          - generic [ref=e140]: "1"
+          - generic [ref=e141]: C△7
+          - generic [ref=e142]: I△7
+        - button "2 Dm7 IIm7" [ref=e143] [cursor=pointer]:
+          - generic [ref=e144]: "2"
+          - generic [ref=e145]: Dm7
+          - generic [ref=e146]: IIm7
+        - button "3 Em7 IIIm7" [ref=e147] [cursor=pointer]:
+          - generic [ref=e148]: "3"
+          - generic [ref=e149]: Em7
+          - generic [ref=e150]: IIIm7
+        - button "4 F△7 IV△7" [ref=e151] [cursor=pointer]:
+          - generic [ref=e152]: "4"
+          - generic [ref=e153]: F△7
+          - generic [ref=e154]: IV△7
+        - button "5 G7 V7" [ref=e155] [cursor=pointer]:
+          - generic [ref=e156]: "5"
+          - generic [ref=e157]: G7
+          - generic [ref=e158]: V7
+        - button "6 Am7 VIm7" [ref=e159] [cursor=pointer]:
+          - generic [ref=e160]: "6"
+          - generic [ref=e161]: Am7
+          - generic [ref=e162]: VIm7
+        - button "7 Bm7(b5) VIIm7(b5)" [ref=e163] [cursor=pointer]:
+          - generic [ref=e164]: "7"
+          - generic [ref=e165]: Bm7(b5)
+          - generic [ref=e166]: VIIm7(b5)
+      - generic [ref=e167]:
+        - button "Relative" [ref=e168] [cursor=pointer]
+        - button "Parallel Key" [ref=e169] [cursor=pointer]
+        - button "Secondary Dominant" [ref=e170] [cursor=pointer]
+        - button "T/SD/D" [ref=e171] [cursor=pointer]
+      - generic [ref=e172]:
+        - generic [ref=e173]:
+          - button "Key" [ref=e174] [cursor=pointer]
+          - button "Text" [ref=e175] [cursor=pointer]
+          - button "Quality" [ref=e176] [cursor=pointer]
+          - button "Voicing" [ref=e177] [cursor=pointer]
+        - textbox "Cm7, G7(b9,#11), Am7/G ..." [ref=e179]
+        - generic [ref=e180]:
+          - generic [ref=e182]: C
+          - generic "On Chord (Slash)" [ref=e183] [cursor=pointer]: /
+          - generic [ref=e184]:
+            - button "X Clear" [ref=e185] [cursor=pointer]:
+              - generic: X
+              - text: Clear
+            - button "⌫ Back" [ref=e186] [cursor=pointer]:
+              - generic: ⌫
+              - text: Back
+        - generic [ref=e187]:
+          - generic [ref=e188]:
+            - generic [ref=e189]: Root
+            - generic [ref=e190] [cursor=pointer]: ♯
+            - generic [ref=e191] [cursor=pointer]: ♭
+          - generic [ref=e192]:
+            - button "C" [ref=e193] [cursor=pointer]
+            - button "Db" [ref=e194] [cursor=pointer]
+            - button "D" [ref=e195] [cursor=pointer]
+            - button "Eb" [ref=e196] [cursor=pointer]
+            - button "E" [ref=e197] [cursor=pointer]
+            - button "F" [ref=e198] [cursor=pointer]
+            - button "Gb" [ref=e199] [cursor=pointer]
+            - button "G" [ref=e200] [cursor=pointer]
+            - button "Ab" [ref=e201] [cursor=pointer]
+            - button "A" [ref=e202] [cursor=pointer]
+            - button "Bb" [ref=e203] [cursor=pointer]
+            - button "B" [ref=e204] [cursor=pointer]
+        - generic [ref=e205]: Quality
+        - generic [ref=e209]:
+          - button "Maj" [ref=e210] [cursor=pointer]
+          - button "m" [ref=e211] [cursor=pointer]
+          - button "m7⁻⁵" [ref=e212] [cursor=pointer]
+          - button "6" [ref=e213] [cursor=pointer]
+          - button "m6" [ref=e214] [cursor=pointer]
+          - button "dim" [ref=e215] [cursor=pointer]
+          - button "7" [ref=e216] [cursor=pointer]
+          - button "m7" [ref=e217] [cursor=pointer]
+          - button "dim7" [ref=e218] [cursor=pointer]
+          - button "△7" [ref=e219] [cursor=pointer]
+          - button "m△7" [ref=e220] [cursor=pointer]
+          - button "aug" [ref=e221] [cursor=pointer]
+        - generic [ref=e222]: Voicing
+        - generic [ref=e223]:
+          - generic [ref=e224]:
+            - button "O Omit 5" [ref=e225] [cursor=pointer]:
+              - generic: O
+              - text: Omit 5
+            - button "R Rootless" [ref=e226] [cursor=pointer]:
+              - generic: R
+              - text: Rootless
+            - button "Omit 3" [ref=e227] [cursor=pointer]
+          - generic [ref=e228]:
+            - button "S Shell 1-3-7" [ref=e229] [cursor=pointer]:
+              - generic: S
+              - text: Shell 1-3-7
+            - button "S Shell 1-7-3" [ref=e230] [cursor=pointer]:
+              - generic: S
+              - text: Shell 1-7-3
+            - button "S Shell Off" [ref=e231] [cursor=pointer]:
+              - generic: S
+              - text: Shell Off
+            - button "+1" [ref=e232] [cursor=pointer]
+            - button "+2" [ref=e233] [cursor=pointer]
+          - generic [ref=e234]:
+            - button "↓ Root" [ref=e235] [cursor=pointer]:
+              - generic: ↓
+              - text: Root
+            - button "↑↓ 1st" [ref=e236] [cursor=pointer]:
+              - generic: ↑↓
+              - text: 1st
+            - button "↑↓ 2nd" [ref=e237] [cursor=pointer]:
+              - generic: ↑↓
+              - text: 2nd
+            - button "↑ 3rd" [ref=e238] [cursor=pointer]:
+              - generic: ↑
+              - text: 3rd
+          - generic [ref=e239]:
+            - button "Shift+D Drop 2" [ref=e240] [cursor=pointer]:
+              - generic: Shift+D
+              - text: Drop 2
+            - button "Shift+D Drop 3" [ref=e241] [cursor=pointer]:
+              - generic: Shift+D
+              - text: Drop 3
+    - generic [ref=e242]:
+      - generic [ref=e243]:
+        - button "Staff" [ref=e244] [cursor=pointer]
+        - button "Circle" [ref=e245] [cursor=pointer]
+        - button "Audio" [ref=e246] [cursor=pointer]
+        - button "Memory Slot" [ref=e247] [cursor=pointer]
+      - img [ref=e249]:
+        - generic: C
+        - generic: I
+        - generic: Am
+        - generic: vi
+        - generic: G
+        - generic: V
+        - generic: Em
+        - generic: iii
+        - generic: D
+        - generic: Bm
+        - generic: vii
+        - generic: A
+        - generic: F♯m
+        - generic: E
+        - generic: C♯m
+        - generic: B
+        - generic: G♯m
+        - generic: G♭
+        - generic: E♭m
+        - generic: D♭
+        - generic: B♭m
+        - generic: A♭
+        - generic: Fm
+        - generic: E♭
+        - generic: Cm
+        - generic: B♭
+        - generic: Gm
+        - generic: F
+        - generic: IV
+        - generic: Dm
+        - generic: ii
+        - generic [ref=e275]: Circle of Fifths
+      - generic [ref=e276]:
+        - generic [ref=e277]:
+          - button "Sound ON/OFF" [active] [ref=e278] [cursor=pointer]:
+            - img [ref=e279]
+          - generic [ref=e283]:
+            - generic [ref=e284]: VOL
+            - slider "VOL 4.9" [ref=e285] [cursor=pointer]: "0.49"
+            - generic [ref=e286]: "4.9"
+          - button "▲" [ref=e287] [cursor=pointer]
+        - generic [ref=e288]:
+          - generic [ref=e289]:
+            - generic [ref=e290]:
+              - generic [ref=e291]: LO CUT
+              - checkbox "LO CUT 80 80" [ref=e293] [cursor=pointer]
+              - slider [ref=e294] [cursor=pointer]: "80"
+              - generic [ref=e295]: "80"
+            - generic [ref=e296]:
+              - generic [ref=e297]: HI CUT
+              - checkbox "HI CUT 10000 10000" [ref=e299] [cursor=pointer]
+              - slider [ref=e300] [cursor=pointer]: "10000"
+              - generic [ref=e301]: "10000"
+            - generic [ref=e302]:
+              - generic [ref=e303]: DRIVE
+              - slider "DRIVE 0.07" [ref=e304] [cursor=pointer]: "0.07"
+              - generic [ref=e305]: "0.07"
+            - generic [ref=e306]:
+              - generic [ref=e307]: TREM
+              - slider "TREM 5.0" [ref=e308] [cursor=pointer]: "0.5"
+              - generic [ref=e309]: "5.0"
+            - generic [ref=e310]:
+              - generic [ref=e311]: T.SPD
+              - slider "T.SPD 4.0" [ref=e312] [cursor=pointer]: "4"
+              - generic [ref=e313]: "4.0"
+            - generic [ref=e314]:
+              - generic [ref=e315]: PHASE
+              - slider "PHASE 5.3" [ref=e316] [cursor=pointer]: "0.53"
+              - generic [ref=e317]: "5.3"
+            - generic [ref=e318]:
+              - generic [ref=e319]: FLANG
+              - slider "FLANG 0.0" [ref=e320] [cursor=pointer]: "0"
+              - generic [ref=e321]: "0.0"
+          - generic [ref=e322]:
+            - generic [ref=e323]: AUTO FILTER
+            - generic [ref=e324]:
+              - generic [ref=e325]:
+                - generic [ref=e326]: "ON"
+                - checkbox "ON" [ref=e328] [cursor=pointer]
+              - generic [ref=e329]:
+                - generic [ref=e330]: TYPE
+                - generic [ref=e331]:
+                  - button "LP" [ref=e332] [cursor=pointer]
+                  - button "2P" [ref=e333] [cursor=pointer]
+              - generic [ref=e334]:
+                - generic [ref=e335]: DEPTH
+                - slider "DEPTH 0.70" [ref=e336] [cursor=pointer]: "0.7"
+                - generic [ref=e337]: "0.70"
+              - generic [ref=e338]:
+                - generic [ref=e339]: DECAY
+                - slider "DECAY 0.15" [ref=e340] [cursor=pointer]: "0.15"
+                - generic [ref=e341]: "0.15"
+              - generic [ref=e342]:
+                - generic [ref=e343]: Q
+                - slider "Q 2.0" [ref=e344] [cursor=pointer]: "2"
+                - generic [ref=e345]: "2.0"
+          - generic [ref=e346]:
+            - generic [ref=e347]: E.PIANO MIXER
+            - generic [ref=e348]:
+              - generic [ref=e349]:
+                - generic [ref=e350]: PU LEVEL
+                - slider "PU LEVEL 1.00" [ref=e351] [cursor=pointer]: "1"
+                - generic [ref=e352]: "1.00"
+              - generic [ref=e353]:
+                - generic [ref=e354]: VOICING
+                - slider "VOICING 0.50" [ref=e355] [cursor=pointer]: "0.5"
+                - generic [ref=e356]: "0.50"
+              - generic [ref=e357]:
+                - generic [ref=e358]: MECHANICAL
+                - slider "MECHANICAL 0.50" [ref=e359] [cursor=pointer]: "0.5"
+                - generic [ref=e360]: "0.50"
+            - generic [ref=e361]:
+              - generic [ref=e362]: REVERB
+              - generic [ref=e363]:
+                - generic [ref=e364]:
+                  - generic [ref=e365]: TYPE
+                  - combobox "TYPE" [ref=e366]:
+                    - option "Spring" [selected]
+                    - option "Plate"
+                - generic [ref=e367]:
+                  - generic [ref=e368]: AMOUNT
+                  - slider "AMOUNT 5.0" [ref=e369] [cursor=pointer]: "5"
+                  - generic [ref=e370]: "5.0"
+                - generic [ref=e371]:
+                  - generic [ref=e372]: DECAY
+                  - slider "DECAY 7.0" [ref=e373] [cursor=pointer]: "7"
+                  - generic [ref=e374]: "7.0"
+                - generic [ref=e375]:
+                  - generic [ref=e376]: STEREO
+                  - checkbox "STEREO ON" [checked] [ref=e377]
+                  - generic [ref=e378]: "ON"
+          - generic [ref=e379]:
+            - generic [ref=e380]: VELOCITY SENSITIVITY
+            - generic [ref=e381]:
+              - generic [ref=e382]:
+                - generic [ref=e383]: THRESH
+                - slider "THRESH 0" [ref=e384] [cursor=pointer]: "0"
+                - generic [ref=e385]: "0"
+              - generic [ref=e386]:
+                - generic [ref=e387]: DRIVE
+                - slider "DRIVE +0.0" [ref=e388] [cursor=pointer]: "0"
+                - generic [ref=e389]: "+0.0"
+              - generic [ref=e390]:
+                - generic [ref=e391]: COMP
+                - slider "COMP +0.0" [ref=e392] [cursor=pointer]: "0"
+                - generic [ref=e393]: "+0.0"
+              - generic [ref=e394]:
+                - generic [ref=e395]: RANGE
+                - slider "RANGE 127" [ref=e396] [cursor=pointer]: "127"
+                - generic [ref=e397]: "127"
+      - generic [ref=e399]:
+        - generic [ref=e400]:
+          - button "M Memory" [ref=e401] [cursor=pointer]:
+            - generic: M
+            - text: Memory
+          - button "P Perform" [ref=e402] [cursor=pointer]:
+            - generic: P
+            - text: Perform
+        - generic [ref=e403]:
+          - button "<" [ref=e404] [cursor=pointer]
+          - generic "Click to rename bank" [ref=e405] [cursor=pointer]: Bank 1 (0/16)
+          - button ">" [ref=e406] [cursor=pointer]
+          - button "+" [ref=e407] [cursor=pointer]
+          - button "⋯" [ref=e408] [cursor=pointer]
+        - generic [ref=e409]:
+          - button "1" [ref=e410] [cursor=pointer]
+          - button "2" [ref=e411] [cursor=pointer]
+          - button "3" [ref=e412] [cursor=pointer]
+          - button "4" [ref=e413] [cursor=pointer]
+          - button "5" [ref=e414] [cursor=pointer]
+          - button "6" [ref=e415] [cursor=pointer]
+          - button "7" [ref=e416] [cursor=pointer]
+          - button "8" [ref=e417] [cursor=pointer]
+          - button "9" [ref=e418] [cursor=pointer]
+          - button "10" [ref=e419] [cursor=pointer]
+          - button "11" [ref=e420] [cursor=pointer]
+          - button "12" [ref=e421] [cursor=pointer]
+          - button "13" [ref=e422] [cursor=pointer]
+          - button "14" [ref=e423] [cursor=pointer]
+          - button "15" [ref=e424] [cursor=pointer]
+          - button "16" [ref=e425] [cursor=pointer]
+        - generic [ref=e426]:
+          - button "Play All ▶" [ref=e427] [cursor=pointer]
+          - button "MIDI Export All" [ref=e428] [cursor=pointer]
+        - button "MIDI Import" [ref=e430] [cursor=pointer]
+        - generic [ref=e431]:
+          - generic [ref=e432]: Click select
+          - generic [ref=e433]: "|C save"
+          - generic [ref=e434]: "|Opt+key save(all 16)"
+          - generic [ref=e435]: "|Shift+Click delete"
+          - generic [ref=e436]: "|Opt+Drag copy"
+  - link "Music Software Bundles from Pluginboutique.com" [ref=e439] [cursor=pointer]:
+    - /url: https://www.pluginboutique.com/bundles?utm_source=PIB%20bundles&utm_medium=AFRS&utm_campaign=PIB%20bundles&a_aid=5dddfe6ee2cc6&a_bid=81cae465
+    - img "Music Software Bundles from Pluginboutique.com" [ref=e440]
+```

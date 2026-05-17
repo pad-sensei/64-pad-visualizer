@@ -421,9 +421,9 @@ function renderVoicingBoxes(svg, state) {
     if (VoicingState.selectedBoxIdx !== null) resetVoicingSelection();
   }
 
-  // Shell voicing bounding boxes (with +1/+2 extension)
+  // Shell voicing bounding boxes
   if (AppState.mode === 'chord' && VoicingState.shell && hasChordNotes) {
-    const shellIntervals = getShellIntervals(qualityPCS, VoicingState.shell, VoicingState.shellExtension, getBuilderPCS());
+    const shellIntervals = getShellIntervals(qualityPCS, VoicingState.shell, 0, getBuilderPCS());
     if (shellIntervals) {
       let voiced = [...shellIntervals];
       let targetPC = rootPC;
@@ -506,7 +506,6 @@ function renderInfoText(state) {
       const mods = [];
       if (VoicingState.shell) {
         let shellLabel = 'Shell ' + VoicingState.shell.split('').join('-');
-        if (VoicingState.shellExtension > 0) shellLabel += ' +' + VoicingState.shellExtension;
         mods.push(shellLabel);
       }
       if (VoicingState.rootless) mods.push('Rootless');

@@ -540,6 +540,8 @@ I18N.addLang('pt', {
   tips_off: 'Não mostrar dicas',
   whats_new: 'Novidades',
   whats_new_497: 'O tremolo agora \u00E9 fisicamente modelado! Membros HPS obt\u00EAm Pad Sensei MK1 Suitcase.',
+  whats_new_61: 'O manual online já está acessível pelo Guia. Atualmente em construção.',
+  whats_new_123: 'O manual online já está acessível pelo Guia. Atualmente em construção.',
   whats_new_51: 'Modo fixo em Dó maior adicionado! Ative pelo menu Ajuda (?). Push/Launchpad mostrará sempre Dó maior.',
   whats_new_50: 'Reverbs spring e plate adicionados! Baxandall Bass/Treble EQ, amp Suitcase melhorado.',
   whats_new_32427: 'Voicing de guitarra \u2192 refletir no pad (tecla V). Alternância layout estilo guitarra / compacto',
