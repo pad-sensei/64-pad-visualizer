@@ -716,6 +716,26 @@ function applyParsedChordToBuilder(parsed) {
       }
     }
   }
+
+  // 2026-05-19 Fallback: BUILDER_QUALITIES に無い quality (sus4 / sus2 / 7sus4 等) を
+  // PAD_QUALITY_INTERVALS から best match (= 全 pcs が intervalSet 内に含まれる最長一致)
+  // BuilderState.quality として保持し、 chord-name / pad LED / piano を反映する。
+  // Quality 行 UI ボタンは増やさない (= うりなみさん 2026-05-19 設計判断: sus は Quality 行に置かない、 テキスト入力で扱う)。
+  if (!bestQuality && typeof PAD_QUALITY_INTERVALS === 'object') {
+    for (var qKey in PAD_QUALITY_INTERVALS) {
+      var qPcs = PAD_QUALITY_INTERVALS[qKey];
+      if (!Array.isArray(qPcs)) continue;
+      var fbAllMatch = true;
+      for (var fbP = 0; fbP < qPcs.length; fbP++) {
+        if (!intervalSet.has(qPcs[fbP] % 12)) { fbAllMatch = false; break; }
+      }
+      if (fbAllMatch && qPcs.length > bestQLen) {
+        bestQLen = qPcs.length;
+        bestQuality = { name: qKey, label: qKey, pcs: qPcs.slice() };
+      }
+    }
+  }
+
   if (!bestQuality) return;
 
   // Find extra intervals → tension
