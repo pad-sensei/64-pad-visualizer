@@ -93,7 +93,7 @@ document.addEventListener('click', function(e) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+1+Code:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=6.1.2">
+<link rel="stylesheet" href="style.css?v=6.2.0">
 <!-- WebAudioFont player (lazy: only needed if sampler loads) -->
 <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js" async></script>
 <!-- jRhodes3c sampler: loaded in background AFTER page is interactive.
@@ -105,7 +105,7 @@ document.addEventListener('click', function(e) {
 <div class="header-block">
 <div class="header-bar">
   <h1>64 Pad Explorer</h1>
-  <span class="version-tag">V6.1.2</span>
+  <span class="version-tag">V6.2.0</span>
   <select id="lang-select" onchange="I18N.setLang(this.value)" style="font-size:0.6rem;padding:1px 2px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:3px;cursor:pointer;margin-left:4px;" data-info="info.lang">
     <option value="en">EN</option>
     <option value="ja">JA</option>
@@ -410,7 +410,6 @@ document.addEventListener('click', function(e) {
       <button class="mode-btn active" onclick="setMode('scale')" id="mode-scale" title="Scale mode — view scale notes on the pad (Tab to cycle)" data-i18n-title="ui.mode_scale" data-info="info.mode_scale"><span class="kbd-hint">Tab</span>Scale</button>
       <button class="mode-btn" onclick="setMode('chord')" id="mode-chord" title="Chord mode — build chords with voicings (Tab to cycle)" data-i18n-title="ui.mode_chord" data-info="info.mode_chord"><span class="kbd-hint">Tab</span>Chord</button>
       <button class="mode-btn" onclick="setMode('input')" id="mode-input" title="Input mode — tap pads freely to detect chords (Tab to cycle)" data-i18n-title="ui.mode_input" data-info="info.mode_input"><span class="kbd-hint">Tab</span>Input</button>
-      <button class="play-btn" onclick="ensureAudioResumed();var n=getCurrentChordMidiNotes();if(n&&n.length)playMidiNotes(n,1.0);" title="Play current chord (Space)" data-i18n-title="ui.play_chord" style="position:relative;" data-info="info.play"><span class="kbd-hint">Space</span>Play ▶</button>
     </div>
 
     <!-- Key Selection (Major + Minor rows) -->
@@ -480,6 +479,7 @@ document.addEventListener('click', function(e) {
         <div class="builder-nav">
           <button onclick="builderClear()" style="position:relative;" data-info="info.builder_clear"><span class="kbd-hint">X</span>Clear</button>
           <button onclick="builderBack()" style="position:relative;" data-info="info.builder_back"><span class="kbd-hint">⌫</span>Back</button>
+          <button class="play-btn builder-play-btn" onclick="ensureAudioResumed();var n=getCurrentChordMidiNotes();if(n&&n.length)playMidiNotes(n,1.0);" title="Play current chord (Space)" data-i18n-title="ui.play_chord" data-info="info.play"><span class="kbd-hint">Space</span>Play ▶</button>
           <button id="btn-next" onclick="builderNext()" style="display:none">Next →</button>
         </div>
       </div>
@@ -778,25 +778,25 @@ if (new URLSearchParams(window.location.search).has('hps')) {
 <!-- Sound Credits: hidden until new presets are added -->
 
 <!-- i18n (engine → language files) -->
-<script src="i18n.js?v=6.1.2"></script>
-<script src="lang-en.js?v=6.1.2"></script>
-<script src="lang-ja.js?v=6.1.2"></script>
-<script src="lang-zh.js?v=6.1.2"></script>
-<script src="lang-es.js?v=6.1.2"></script>
-<script src="lang-fr.js?v=6.1.2"></script>
-<script src="lang-pt.js?v=6.1.2"></script>
-<script src="lang-de.js?v=6.1.2"></script>
-<script src="lang-ko.js?v=6.1.2"></script>
-<script src="lang-it.js?v=6.1.2"></script>
+<script src="i18n.js?v=6.2.0"></script>
+<script src="lang-en.js?v=6.2.0"></script>
+<script src="lang-ja.js?v=6.2.0"></script>
+<script src="lang-zh.js?v=6.2.0"></script>
+<script src="lang-es.js?v=6.2.0"></script>
+<script src="lang-fr.js?v=6.2.0"></script>
+<script src="lang-pt.js?v=6.2.0"></script>
+<script src="lang-de.js?v=6.2.0"></script>
+<script src="lang-ko.js?v=6.2.0"></script>
+<script src="lang-it.js?v=6.2.0"></script>
 <!-- pad-core (SSOT: theory calculations, data constants, render) -->
-<script src="pad-core/data.js?v=6.1.2"></script>
-<script src="pad-core/theory.js?v=6.1.2"></script>
-<script src="pad-core/render.js?v=6.1.2"></script>
-<script src="pad-core/circle.js?v=6.1.2"></script>
-<script src="pad-core/builder-ui.js?v=6.1.2"></script>
-<script src="pad-core/incremental.js?v=6.1.2"></script>
+<script src="pad-core/data.js?v=6.2.0"></script>
+<script src="pad-core/theory.js?v=6.2.0"></script>
+<script src="pad-core/render.js?v=6.2.0"></script>
+<script src="pad-core/circle.js?v=6.2.0"></script>
+<script src="pad-core/builder-ui.js?v=6.2.0"></script>
+<script src="pad-core/incremental.js?v=6.2.0"></script>
 <!-- App JS -->
-<script src="data.js?v=6.1.2"></script>
+<script src="data.js?v=6.2.0"></script>
 <!-- Phase 3.1-A.c: audio-core + host-adapter + audio-ui-binding are loaded
      ONLY when AUDIO_ENABLED. In silent mode these are skipped entirely —
      pad-core / theory / MIDI / render still run, only sound is absent.
@@ -820,7 +820,7 @@ if (window.AUDIO_ENABLED) {
     'audio-ui-binding.js'
   ];
   _audioScripts.forEach(function(src) {
-    document.write('<script src="' + src + '?v=6.1.2"><\/script>');
+    document.write('<script src="' + src + '?v=6.2.0"><\/script>');
   });
 } else {
   // Silent mode: stub audio APIs that non-audio code calls, so pads/UI don't crash.
@@ -852,21 +852,21 @@ if (window.AUDIO_ENABLED) {
   window._updatePlateRouting = function() {};
 }
 </script>
-<script src="theory.js?v=6.1.2"></script>
-<script src="tasty-stock.js?v=6.1.2"></script>
-<script src="staff.js?v=6.1.2"></script>
-<script src="instruments.js?v=6.1.2"></script>
-<script src="circle-ui.js?v=6.1.2"></script>
-<script src="parent-scales-ui.js?v=6.1.2"></script>
-<script src="play-controls.js?v=6.1.2"></script>
-<script src="render.js?v=6.1.2"></script>
-<script src="plain.js?v=6.1.2"></script>
-<script src="perform.js?v=6.1.2"></script>
-<script src="builder.js?v=6.1.2"></script>
-<script src="midi.js?v=6.1.2"></script>
-<script src="main.js?v=6.1.2"></script>
-<script src="tutorial-data.js?v=6.1.2"></script>
-<script src="tutorial.js?v=6.1.2"></script>
+<script src="theory.js?v=6.2.0"></script>
+<script src="tasty-stock.js?v=6.2.0"></script>
+<script src="staff.js?v=6.2.0"></script>
+<script src="instruments.js?v=6.2.0"></script>
+<script src="circle-ui.js?v=6.2.0"></script>
+<script src="parent-scales-ui.js?v=6.2.0"></script>
+<script src="play-controls.js?v=6.2.0"></script>
+<script src="render.js?v=6.2.0"></script>
+<script src="plain.js?v=6.2.0"></script>
+<script src="perform.js?v=6.2.0"></script>
+<script src="builder.js?v=6.2.0"></script>
+<script src="midi.js?v=6.2.0"></script>
+<script src="main.js?v=6.2.0"></script>
+<script src="tutorial-data.js?v=6.2.0"></script>
+<script src="tutorial.js?v=6.2.0"></script>
 <script>
 // 2026-04-28: Desktop モード (?desktop=1) 後段 override。
 // 音は JUCE host (外部 VST/AU plugin) 側で再生されるため、Web 側 AudioContext を
