@@ -225,6 +225,7 @@ h1 { font-size: 1.3rem; color: var(--accent); text-align: center; margin-bottom:
 .mode-toggle { display: flex; gap: 4px; margin-bottom: 10px; }
 .mode-btn {
   flex: 1;
+  min-width: 0;
   padding: 7px 0;
   font-size: 0.85rem;
   font-weight: 600;
@@ -1568,7 +1569,7 @@ h1 { font-size: 1.3rem; color: var(--accent); text-align: center; margin-bottom:
     font-size: 0.85rem; font-weight: 700; padding: 8px 16px;
     background: var(--surface); color: var(--text-muted);
     border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
-    min-width: 44px; min-height: 36px; text-align: center;
+    width: 72px; min-width: 72px; min-height: 36px; text-align: center;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
   }
