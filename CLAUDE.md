@@ -96,21 +96,29 @@ audio-core `eeca490 → 7c37b0b` (D-1/C-1/C-2 + Tone Balance outputGain 分離 +
 
 ---
 
-## 現在地（2026-05-17 自動更新）
+## 現在地（2026-05-19 夜 自動更新）
 
-- **状態**: V6.1.2 本番デプロイ済 (commit `7260c38` V6.1.1 + pending commit V6.1.2)。V6.1.1 = CHS UI 削除 + cache bump、V6.1.2 = CHS dead code 残骸 4 箇所削除 (plain.js / audio-ui-binding.js / data.js) + 0.01 PATCH bump。Codex 監査 2026-05-17 PASS
-- **残作業**: なし (= V6.1.2 reach state)。今後の paradigm 修正は「修正 → AI 即 `./deploy.sh`」 都度更新 paradigm
+- **状態**: V6.3.3 本番デプロイ済 (commit `e53303b v6.3.3: text-input chord builder fixes + cache bump` + pad-core submodule `9b7d5ba fix(builder): case-sensitive M/m + Major Triad dedup + remove sus from Tension row`)。 v6.2.1 → v6.3.3 で text-input 周りの 4 連続 fix:
+  - v6.2.1 = `incremental.js` exactMatch を case-sensitive (= CM ≠ Cm を区別、 M = major / m = minor の音楽理論的区別)
+  - v6.3.0 (撤回済) = BUILDER_QUALITIES に sus 行追加 (= 後に撤回、 fallback 経路で代替)
+  - v6.3.1 = TENSION_ROWS から sus4 / sus2 削除 (= sus 系統は Quality 集約、 アベイラブルノートスケールの filter 維持)
+  - v6.3.2 = BUILDER_QUALITIES から sus 撤回 + `applyParsedChordToBuilder` に `PAD_QUALITY_INTERVALS` fallback (= テキスト入力 Csus4 / C7sus4 等もビルダー反映、 Quality 行 UI ボタンは増やさない)
+  - v6.3.3 = 空 quality `''` (Major Triad C) を dedup 例外扱い (= C → C6 になるバグ修正)
+- **残作業**: 加えて Codex 監査 = リミット復帰後に v6.3.3 + マニュアル統一 を一括投げる方針。 マニュアル制作の継続 = `~/pad-sensei-docs-sample/` で都度更新中
 - **正規ルール**:
-  - **CHS 系統復活禁止** (= 2026-05-17 確定、Chordcat / Manager がバグでコードセット保存不可、ファイル末尾「CHS 系統廃止」 section 参照)
-  - 本番デプロイは「リリースして」明示 GO のみ ([[忘れやすいこと]] 2026-04-27)、ただしマニュアル連動の小修正 / cache bump は都度更新 OK (うりなみさん 2026-05-17 確定)
+  - **CHS 系統復活禁止** (= 2026-05-17 確定、 Chordcat / Manager がバグでコードセット保存不可、 ファイル末尾「CHS 系統廃止」 section 参照)
+  - 本番デプロイは「リリースして」明示 GO のみ (= [[忘れやすいこと]] 2026-04-27)、 ただしマニュアル連動の小修正 / cache bump / text-input fix は都度更新 OK (= うりなみさん 2026-05-17 確定)
   - release note は うりなみさんの言葉で書く
-  - AMP 系 preset は HPS gate 必須 (本ファイル下の絶対ルール)
-- **次**: マニュアル制作 paradigm 進行中 (= `~/pad-sensei-docs-sample/`、目的別ガイド 10 章 paradigm 完成)。Desktop v1.2.5 release (= Uninstaller + .pkg 同梱) は別 session (うりなみさん「配布版のビルドは後でいい」)
+  - AMP 系 preset は HPS gate 必須 (= 本ファイル下の絶対ルール)
+  - **M/m 区別必須** (= 2026-05-19 確定、 CM7 = メジャー 7 / Cm7 = マイナー 7、 case-insensitive 比較は音楽理論違反)
+- **次**: 別チャットの Push 統合の残作業 (= §4 4 要望のうち Push display スケール表示 + 度数色 LED + Jog 左右 + 機能ボタン LED) と合流して Desktop sync-webui.sh + cmake rebuild の合流タイミングで再反映。 加えて Web 側は マニュアル制作の continued progression
 - **注意**:
-  - V6.1 paradigm 履歴: V6.1.0 (2026-05-17 早朝、Ableton octave default + manual link) / V6.1.1 (CHS UI 削除) / V6.1.2 (CHS dead code 残骸削除)
-  - lang-*.js の `chs_all` translation key は残置 (= 害なし、9 lang 一括 sed の paradigm 違反 risk 回避)
-  - vh_540 → vh_600 rename 済、lang-en/zh/es/fr/pt/de/it/ko の vh_540 残骸あり (= 8 言語翻訳作業時に整理)
-- **判断待ち**: なし
+  - V6.3 paradigm 履歴: v6.2.1 (CM/Cm 識別) → v6.3.0 (sus Quality 追加、 撤回) → v6.3.1 (Tension sus 削除) → v6.3.2 (sus fallback) → v6.3.3 (Major Triad dedup)
+  - `applyParsedChordToBuilder` の `PAD_QUALITY_INTERVALS` fallback paradigm が sus 系を内部処理。 BUILDER_QUALITIES UI には sus 表示しない設計判断 (= うりなみさん 2026-05-19 明言「sus4 / sus2 / 7sus4 は必要ない、 テキスト入力で反映するなら OK」)
+  - V6.1 paradigm 履歴: V6.1.0 (2026-05-17 早朝、 Ableton octave default + manual link) / V6.1.1 (CHS UI 削除) / V6.1.2 (CHS dead code 残骸削除)
+  - lang-*.js の `chs_all` translation key は残置 (= 害なし、 9 lang 一括 sed の違反 risk 回避)
+  - vh_540 → vh_600 rename 済、 lang-en/zh/es/fr/pt/de/it/ko の vh_540 残骸あり (= 8 言語翻訳作業時に整理)
+- **判断待ち**: Codex 監査 (= v6.3.3 + マニュアル統一 + Push 統合 4 要望) を まとめて投げるタイミング
 
 ---
 

@@ -72,33 +72,6 @@ function splitByPadRange(midiNotes) {
   return { inRange: inRange, outOfRange: outOfRange };
 }
 
-// Find best octave position: maximize notes within pad range, prefer lowest
-function findBestPosition(rootMidi, degrees) {
-  var lo = baseMidi();
-  var hi = lo + (ROWS - 1) * ROW_INTERVAL + (COLS - 1);
-  var bestRoot = rootMidi, bestCount = -1, bestNotes = [];
-  // Search LOW to HIGH — prefer lowest position where most notes fit
-  // Compound intervals in TASTY_DEGREE_MAP ensure open voicing spacing
-  for (var shift = -4; shift <= 2; shift++) {
-    var r = rootMidi + shift * 12;
-    if (r < 0) continue;
-    var notes = buildTastyVoicing(r, degrees);
-    if (notes.length === 0) continue;
-    var count = 0;
-    for (var i = 0; i < notes.length; i++) {
-      if (notes[i] >= lo && notes[i] <= hi) count++;
-    }
-    if (count > bestCount) {
-      bestCount = count;
-      bestRoot = r;
-      bestNotes = notes;
-    }
-    // All notes fit at lowest possible position — done
-    if (count === notes.length) break;
-  }
-  return bestNotes;
-}
-
 // ========================================
 // TASTY MODE — Chord Cookbook Cycling
 // ========================================
@@ -203,11 +176,12 @@ function cycleTasty(reverse) {
     : (TastyState.currentIndex + 1) % len;
   var recipe = TastyState.currentMatches[TastyState.currentIndex];
 
-  // Build voicing from degree array → MIDI notes (auto-find best octave position)
-  // rootMidi fixed at C3 register (48) — octaveShift only affects pad range, not voicing register
+  // Build voicing from degree array → MIDI notes
+  // Voicing is SSOT: fixed C3 register (48 + rootPC), pad range is secondary.
+  // 範囲外の音は pad に出ないが、 voicing 自体は変えない (うりなみさん 2026-05-20)。
   var rootPC = BuilderState.root;
   var rootMidi = 48 + rootPC;
-  var midiNotes = findBestPosition(rootMidi, recipe.v);
+  var midiNotes = buildTastyVoicing(rootMidi, recipe.v);
 
   // Split by pad range
   var split = splitByPadRange(midiNotes);
@@ -223,7 +197,7 @@ function cycleTasty(reverse) {
 }
 
 // Transpose current TASTY voicing by delta semitones (called on ArrowLeft/Right)
-// Uses direct MIDI offset instead of findBestPosition to preserve pad position shape
+// Uses direct MIDI offset to preserve voicing shape across transpose
 function refreshTastyVoicing(delta) {
   if (!TastyState.enabled || TastyState.currentIndex < 0) return;
   var recipe = TastyState.currentMatches[TastyState.currentIndex];
@@ -779,7 +753,7 @@ function updateStockUI() {
 if (typeof module !== 'undefined') module.exports = {
   // TASTY
   TASTY_DEGREE_MAP, QUALITY_BASE_DEGREES,
-  buildTastyVoicing, getTastyLabels, buildTastyDegreeMap, splitByPadRange, findBestPosition,
+  buildTastyVoicing, getTastyLabels, buildTastyDegreeMap, splitByPadRange,
   getTastyCategory, findQualityByName, updateTastyMatches, findTensionLabel,
   cycleTasty, refreshTastyVoicing, toggleTasty, disableTasty, setTastyTopFilter,
   getTastyChordDisplayName, getTastyDiffText, getTastyDegreeCategory, renderTastyDegreeBadges, updateTastyUI,

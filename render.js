@@ -154,8 +154,11 @@ function renderPads(svg, state, grid) {
   if (tastyPadPositions && tastyPadPositions.length > 0) {
     tastyPadPosSet = new Set(tastyPadPositions.map(function(p) { return p.row + ',' + p.col; }));
   }
-  // Build position set for selected voicing box (for dimming non-selected pads)
-  const selBox = !grid && VoicingState.selectedBoxIdx !== null ? VoicingState.lastBoxes[VoicingState.selectedBoxIdx] : null;
+  // Build position set for selected voicing box (for dimming non-selected pads).
+  // STOCK/TASTY are their own voicing display; a stale normal voicing-box
+  // selection must not hide their fixed-register pad positions.
+  const specialVoicingActive = tastyMidiSet && tastyMidiSet.size > 0;
+  const selBox = !grid && !specialVoicingActive && VoicingState.selectedBoxIdx !== null ? VoicingState.lastBoxes[VoicingState.selectedBoxIdx] : null;
   const selMidi = selBox ? new Set(selBox.midiNotes) : null;
   const selPos = selBox ? new Set(selBox.alternatives[selBox.currentAlt].positions.map(p => p.row + ',' + p.col)) : null;
   for (let row = 0; row < rows; row++) {
@@ -695,4 +698,3 @@ function render() {
     updateLaunchpadLEDs(ledState);
   }
 }
-
