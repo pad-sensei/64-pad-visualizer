@@ -133,6 +133,13 @@ function getCurrentChordMidiNotes() {
   if (TastyState.enabled && TastyState.midiNotes.length > 0) {
     return [...TastyState.midiNotes];
   }
+  // STOCK voicing: return LH+RH MIDI notes directly
+  // currentIndex >= 0 guard prevents stale lhMidi/rhMidi from leaking
+  // after updateStockMatches resets currentIndex on chord change.
+  if (StockState.enabled && StockState.currentIndex >= 0 &&
+      (StockState.lhMidi.length > 0 || StockState.rhMidi.length > 0)) {
+    return [...StockState.lhMidi, ...StockState.rhMidi].sort((a, b) => a - b);
+  }
   if (AppState.mode === 'input') {
     let notes = [...PlainState.activeNotes];
     if (instrumentInputActive) {

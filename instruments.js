@@ -243,7 +243,7 @@ function renderPianoDisplay(stateOrRootPC, pcsSetOpt) {
   var rootPC = state ? state.rootPC : -1;
   var bassPC = state ? state.bassPC : null;
 
-  const stockPinned = StockState.enabled && StockState.lhMidi && StockState.rhMidi;
+  const stockPinned = StockState.enabled && StockState.currentIndex >= 0 && StockState.lhMidi && StockState.rhMidi;
   const pianoBaseMidi = baseMidi();
   const pianoMidiBase = stockPinned ? 36 : (Math.floor(pianoBaseMidi / 12) - 2 + 2) * 12;
 

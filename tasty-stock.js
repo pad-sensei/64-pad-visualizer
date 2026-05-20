@@ -247,6 +247,13 @@ function toggleTasty() {
   } else {
     // Disable STOCK if active (mutually exclusive)
     if (StockState.enabled) disableStock();
+    // Clear stale state before enable (defensive: prior chord's voicing must not leak)
+    TastyState.currentIndex = -1;
+    TastyState.midiNotes = [];
+    TastyState.outOfRange = [];
+    TastyState.degreeMap = {};
+    TastyState.topNote = null;
+    TastyState.padPositions = [];
     // Enable: save original, find matches, apply first voicing
     TastyState.originalQuality = BuilderState.quality;
     TastyState.originalTension = BuilderState.tension;
@@ -261,7 +268,7 @@ function toggleTasty() {
   }
 }
 
-function disableTasty() {
+function disableTasty(silent) {
   if (!TastyState.enabled) return;
   TastyState.enabled = false;
   TastyState.currentIndex = -1;
@@ -274,7 +281,9 @@ function disableTasty() {
 
   updateTastyUI();
   render();
-  playCurrentChord();
+  // silent=true: caller (e.g. pad-input exit path in midi.js) suppresses
+  // the builder chord re-trigger to avoid double-sounding with the pad note.
+  if (!silent) playCurrentChord();
 }
 
 function setTastyTopFilter(top) {
@@ -310,6 +319,13 @@ var QUALITY_BASE_DEGREES = {
   'm6': ['1','b3','5','6'],
   'm7(b5)': ['1','b3','b5','b7']
 };
+
+function getTastyChordDisplayName() {
+  if (!TastyState.enabled || TastyState.currentIndex < 0) return getBuilderChordName() || '';
+  var text = getTastyDiffText();
+  if (!text) return getBuilderChordName() || '';
+  return text.split(/\s{2,}/)[0] || text;
+}
 
 function getTastyDiffText() {
   if (!TastyState.enabled || TastyState.currentIndex < 0) return '';
@@ -667,6 +683,12 @@ function toggleStock() {
   } else {
     // Disable TASTY if active (mutually exclusive)
     if (TastyState.enabled) disableTasty();
+    // Clear stale state before enable (defensive: prior chord's voicing must not leak)
+    StockState.currentIndex = -1;
+    StockState.lhMidi = [];
+    StockState.rhMidi = [];
+    StockState.degreeMap = {};
+    StockState.padPositions = [];
     StockState.enabled = true;
     updateStockMatches();
     if (StockState.currentMatches.length > 0) {
@@ -698,12 +720,28 @@ function disableStock() {
   render();
 }
 
+function getStockChordDisplayName() {
+  if (!StockState.enabled || StockState.currentIndex < 0) return getBuilderChordName() || '';
+  var entry = StockState.currentMatches[StockState.currentIndex];
+  if (!entry) return getBuilderChordName() || '';
+  var root = BuilderState.root !== null ? pcName(BuilderState.root) : '';
+  var degrees = (entry.LH || []).concat(entry.RH || []);
+  var has = function(d) { return degrees.indexOf(d) >= 0; };
+  if (has('b3') && has('6') && has('9') && !has('b7')) return root + 'm6/9';
+  if (has('b3') && has('6') && !has('b7')) return root + 'm6';
+  if (has('b3') && has('b7') && has('9')) return root + 'm9';
+  if (has('b3') && has('b7')) return root + 'm7';
+  if (has('3') && has('6') && has('9') && !has('b7') && !has('△7')) return root + '6/9';
+  if (has('3') && has('6') && !has('b7') && !has('△7')) return root + '6';
+  return getBuilderChordName() || root;
+}
+
 function getStockInfoText() {
   if (!StockState.enabled || StockState.currentIndex < 0) return '';
   var entry = StockState.currentMatches[StockState.currentIndex];
   if (!entry) return '';
-  // Chord name from builder + all degrees (bottom to top, LH then RH merged)
-  var chord = getBuilderChordName() || '';
+  // Chord name from actual STOCK degrees + all degrees (bottom to top, LH then RH merged)
+  var chord = getStockChordDisplayName();
   var allDegrees = (entry.LH || []).concat(entry.RH || []);
   return allDegrees.length > 0 ? chord + ' ' + allDegrees.join('-') : chord;
 }
@@ -744,10 +782,10 @@ if (typeof module !== 'undefined') module.exports = {
   buildTastyVoicing, getTastyLabels, buildTastyDegreeMap, splitByPadRange, findBestPosition,
   getTastyCategory, findQualityByName, updateTastyMatches, findTensionLabel,
   cycleTasty, refreshTastyVoicing, toggleTasty, disableTasty, setTastyTopFilter,
-  getTastyDiffText, getTastyDegreeCategory, renderTastyDegreeBadges, updateTastyUI,
+  getTastyChordDisplayName, getTastyDiffText, getTastyDegreeCategory, renderTastyDegreeBadges, updateTastyUI,
   // STOCK
   getStockMapping, updateStockMatches, stockDegreesToMidi,
   cycleStock, refreshStockVoicing, toggleStock, disableStock,
-  getStockInfoText, updateStockUI,
+  getStockChordDisplayName, getStockInfoText, updateStockUI,
 };
 

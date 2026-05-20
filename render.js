@@ -123,13 +123,19 @@ function computeRenderState() {
       boxSelected: VoicingState.selectedBoxIdx !== null,
       padPositions: TastyState.padPositions
     },
-    stock: {
-      enabled: StockState.enabled && StockState.currentIndex >= 0,
-      midiNotes: StockState.enabled ? (StockState.lhMidi || []).concat(StockState.rhMidi || []) : [],
-      degreeMap: StockState.degreeMap || {},
-      topNote: StockState.rhMidi && StockState.rhMidi.length > 0 ? StockState.rhMidi[StockState.rhMidi.length - 1] : null,
-      padPositions: StockState.padPositions
-    },
+    stock: (function() {
+      // Single source of truth: gate every Stock field on enabled + currentIndex >= 0
+      // to prevent stale lhMidi/rhMidi/degreeMap from leaking into Push display etc.
+      // after updateStockMatches resets currentIndex but before cycleStock refreshes.
+      var stockActive = StockState.enabled && StockState.currentIndex >= 0;
+      return {
+        enabled: stockActive,
+        midiNotes: stockActive ? (StockState.lhMidi || []).concat(StockState.rhMidi || []) : [],
+        degreeMap: stockActive ? (StockState.degreeMap || {}) : {},
+        topNote: (stockActive && StockState.rhMidi && StockState.rhMidi.length > 0) ? StockState.rhMidi[StockState.rhMidi.length - 1] : null,
+        padPositions: stockActive ? StockState.padPositions : []
+      };
+    })(),
     extNotes: extNotesArr,
     selectedPS: _selectedPS || null,
     noRootLabel: t('builder.select_root')
@@ -349,7 +355,7 @@ function renderPads(svg, state, grid) {
       }
       svg.appendChild(rect);
 
-      const showDegree = rootPC !== null && !_isTastyMiss && (isActive || isRoot || isBass || isOmitted || isChar || isGuide || isAvoid || isOverlay);
+      const showDegree = rootPC !== null && !_isTastyMiss && (isTastyHit || isActive || isRoot || isBass || isOmitted || isChar || isGuide || isAvoid || isOverlay);
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.setAttribute('class', 'pad-label');
       text.setAttribute('x', x + padSize / 2);
@@ -603,7 +609,7 @@ function render() {
   }
 
   // Stock voicing reflect: Stock MIDI → deduped pad positions
-  if (_stockReflectMode && StockState.enabled) {
+  if (_stockReflectMode && StockState.enabled && StockState.currentIndex >= 0) {
     var stockNotes = StockState.lhMidi.concat(StockState.rhMidi);
     if (stockNotes.length >= 2) {
       _instrumentMidiSet = new Set(stockNotes);
