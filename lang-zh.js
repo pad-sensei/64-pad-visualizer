@@ -548,6 +548,7 @@ I18N.addLang('zh', {
   whats_new_50: '弹簧混响 + 板式混响登场！Baxandall Bass/Treble EQ，Suitcase 音箱模型改进。',
   whats_new_32427: '吉他声位\u2192打击垫映射（V键）。吉他式 / 紧凑式布局切换',
   whats_new_33000: '教程系统！点击标题栏的书本图标，学习Scale模式、Chord模式等功能。',
+  whats_new_640: 'V6.4.0 已更新：支持三个张力音判定、UST 分析、Note/Degree 显示，以及根据调性选择 # / b 记谱。',
 
   // Tutorial (first-time onboarding)
   tutorial: {

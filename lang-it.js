@@ -546,6 +546,7 @@ I18N.addLang('it', {
   whats_new_50: 'Riverberi spring e plate aggiunti! Baxandall Bass/Treble EQ, amp Suitcase migliorato.',
   whats_new_32427: 'Voicing chitarra \u2192 riflesso su pad (tasto V). Cambio layout stile chitarra / compatto',
   whats_new_33000: 'Sistema tutorial! Clicca l\'icona del libro nell\'intestazione per imparare Scale mode, Chord mode e altro.',
+  whats_new_640: 'V6.4.0 è disponibile: rilevamento di tre tensioni, analisi UST, visualizzazione Note/Degree e scrittura # / b in base alla tonalità.',
 
   // Tutorial (first-time onboarding)
   tutorial: {

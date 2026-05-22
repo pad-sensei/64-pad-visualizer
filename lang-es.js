@@ -543,6 +543,7 @@ I18N.addLang('es', {
   whats_new_50: '\u00A1Reverberaciones de muelle y placa a\u00F1adidas! Baxandall Bass/Treble EQ, ampli Suitcase mejorado.',
   whats_new_32427: 'Voicing de guitarra \u2192 reflejar en pad (tecla V). Cambio de dise\u00F1o estilo guitarra / compacto',
   whats_new_33000: '\u00A1Sistema de tutoriales! Haz clic en el icono del libro en el encabezado para aprender el modo Scale, el modo Chord y m\u00E1s.',
+  whats_new_640: 'V6.4.0 ya está disponible: detección de tres tensiones, análisis UST, visualización Note/Degree y escritura # / b según la tonalidad.',
 
   // Tutorial (first-time onboarding)
   tutorial: {

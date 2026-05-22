@@ -434,6 +434,7 @@ I18N.addLang('en', {
   whats_new_50: 'Spring & Plate reverb added! Baxandall Bass/Treble EQ, Suitcase amp improved.',
   whats_new_32427: 'Guitar voicing \u2192 Pad reflect (V key). Guitar-like / Compact layout switch.',
   whats_new_33000: 'Tutorial system! Click the book icon in the header to learn Scale mode, Chord mode, and more.',
+  whats_new_640: 'V6.4.0 is live: chord detection now recognizes three tensions, UST analysis, note/degree display, and key-aware sharp/flat spelling.',
 
   // Legacy tutorial keys (backward compat for old lang files)
   tutorial: {

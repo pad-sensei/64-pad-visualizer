@@ -543,6 +543,7 @@ I18N.addLang('fr', {
   whats_new_50: 'R\u00E9verb\u00E9rations \u00E0 ressort et \u00E0 plaque ajout\u00E9es ! \u00C9galiseur Baxandall Bass/Treble, ampli Suitcase am\u00E9lior\u00E9.',
   whats_new_32427: 'Voicing guitare \u2192 reflet sur pad (touche V). Basculement disposition style guitare / compact',
   whats_new_33000: 'Système de tutoriels ! Cliquez sur l\'icône livre dans l\'en-tête pour apprendre le mode Scale, le mode Chord et plus encore.',
+  whats_new_640: 'V6.4.0 est disponible : détection de trois tensions, analyse UST, affichage Note/Degree et notation # / b selon la tonalité.',
 
   // Legacy tutorial keys (backward compat for old lang files)
   tutorial: {

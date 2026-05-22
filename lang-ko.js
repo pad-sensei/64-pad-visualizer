@@ -546,6 +546,7 @@ I18N.addLang('ko', {
   whats_new_50: '\uC2A4\uD504\uB9C1 \uB9AC\uBC84\uBE0C + \uD50C\uB808\uC774\uD2B8 \uB9AC\uBC84\uBE0C \uD0D1\uC7AC! Baxandall Bass/Treble EQ, Suitcase \uC564\uD504 \uBAA8\uB378 \uAC1C\uC120.',
   whats_new_32427: '기타 보이싱 \u2192 패드 반영 (V키). 기타형 / 컴팩트 레이아웃 전환',
   whats_new_33000: '튜토리얼 시스템! 헤더의 책 아이콘을 클릭하여 Scale 모드, Chord 모드 등을 배워보세요.',
+  whats_new_640: 'V6.4.0으로 업데이트되었습니다. 3개 텐션 판정, UST 분석, Note/Degree 표시, 키에 맞춘 # / b 표기를 지원합니다.',
 
   // Tutorial (first-time onboarding)
   tutorial: {

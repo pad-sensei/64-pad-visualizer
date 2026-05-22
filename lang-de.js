@@ -545,6 +545,7 @@ I18N.addLang('de', {
   whats_new_50: 'Spring- und Plate-Reverb hinzugef\u00FCgt! Baxandall Bass/Treble EQ, Suitcase-Amp verbessert.',
   whats_new_32427: 'Gitarren-Voicing \u2192 Pad-Spiegelung (V-Taste). Umschalten Gitarren-Stil / Kompakt-Layout',
   whats_new_33000: 'Tutorial-System! Klicke auf das Buch-Symbol in der Kopfzeile, um Scale-Modus, Chord-Modus und mehr zu lernen.',
+  whats_new_640: 'V6.4.0 ist live: Erkennung von drei Tensions, UST-Analyse, Note/Degree-Anzeige und tonartbewusste # / b-Schreibweise.',
 
   // Tutorial (first-time onboarding)
   tutorial: {

@@ -546,6 +546,7 @@ I18N.addLang('pt', {
   whats_new_50: 'Reverbs spring e plate adicionados! Baxandall Bass/Treble EQ, amp Suitcase melhorado.',
   whats_new_32427: 'Voicing de guitarra \u2192 refletir no pad (tecla V). Alternância layout estilo guitarra / compacto',
   whats_new_33000: 'Sistema de tutoriais! Clique no \u00EDcone do livro no cabe\u00E7alho para aprender o modo Scale, modo Chord e mais.',
+  whats_new_640: 'V6.4.0 já está disponível: deteção de três tensões, análise UST, visualização Note/Degree e escrita # / b conforme a tonalidade.',
 
   // Tutorial (first-time onboarding)
   tutorial: {
