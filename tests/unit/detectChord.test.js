@@ -174,6 +174,13 @@ describe('detectChord', () => {
       expect(results[0].name).toBe('G7(9,11,13)');
       expect(results.slice(0, 4).some(r => r.name === 'F / G')).toBe(false);
     });
+
+    it('reads Gadd9 over B before a false Bm7(b13) interpretation', () => {
+      const results = detectChord([59, 67, 69, 74]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].name).toBe('Gadd9 / B');
+      expect(results.some(r => r.name === 'Bm7(b13)')).toBe(false);
+    });
   });
 
   describe('edge cases', () => {
