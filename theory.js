@@ -699,9 +699,178 @@ function chordDegreeName(interval, qualityPCS, finalPCS) {
       if (qualityPCS && qualityPCS.includes(9) && !qualityPCS.includes(10) && !qualityPCS.includes(11)) return '6';
       return '13';
     case 10: return 'b7';
-    case 11: return '△7';
+    case 11: return '7';
   }
   return '';
+}
+
+function detectedChordQualityFlags(chordName) {
+  var name = chordName || '';
+  return {
+    flat5: /(?:b5|♭5|m7\(b5\)|ø|dim)/i.test(name),
+    sharp5: /(?:#5|♯5|aug|\+)/i.test(name),
+    seventh: /(?:7|6|13|9|11)/.test(name)
+  };
+}
+
+function detectedNoteDegreeName(interval, finalPCS, chordName) {
+  var flags = detectedChordQualityFlags(chordName);
+  switch(interval) {
+    case 0: return '1';
+    case 1: return 'b9';
+    case 2: return '9';
+    case 3:
+      if (finalPCS && finalPCS.has(4)) return '#9';
+      return 'm3';
+    case 4: return '3';
+    case 5:
+      if (finalPCS && (finalPCS.has(3) || finalPCS.has(4))) return '11';
+      return '4';
+    case 6:
+      if (flags.flat5) return 'b5';
+      if (finalPCS && (finalPCS.has(3) || finalPCS.has(4) || flags.seventh)) return '#11';
+      return 'b5';
+    case 7: return '5';
+    case 8:
+      if (flags.sharp5) return '#5';
+      if (finalPCS && (finalPCS.has(3) || finalPCS.has(4) || finalPCS.has(7) || flags.seventh)) return 'b13';
+      return '#5';
+    case 9:
+      if (finalPCS && (finalPCS.has(10) || finalPCS.has(11))) return '13';
+      return '6';
+    case 10: return 'b7';
+    case 11: return '7';
+  }
+  return '';
+}
+
+function pcNameForDetectedDegree(pc, degreeName) {
+  if (degreeName && (degreeName.charAt(0) === 'b' || degreeName === 'm3')) return NOTE_NAMES_FLAT[pc];
+  return NOTE_NAMES_SHARP[pc];
+}
+
+function chordRootDisplayName(chordName) {
+  var match = (chordName || '').match(/^[A-G](?:#|b)?/);
+  return match ? match[0] : '';
+}
+
+function formatDetectedNoteDegreeSummary(notes, rootPC, chordName) {
+  var sorted = notes.slice().sort(function(a, b) { return a - b; });
+  if (rootPC === null || rootPC === undefined) {
+    return {
+      noteNames: sorted.map(function(n) { return NOTE_NAMES_SHARP[n % 12]; }),
+      degreeNames: []
+    };
+  }
+  var finalPCS = new Set(sorted.map(function(n) { return ((n % 12 - rootPC) + 12) % 12; }));
+  var noteNames = [];
+  var degreeNames = [];
+  sorted.forEach(function(n) {
+    var pc = n % 12;
+    var iv = ((pc - rootPC) + 12) % 12;
+    var degreeName = detectedNoteDegreeName(iv, finalPCS, chordName);
+    noteNames.push(iv === 0 ? (chordRootDisplayName(chordName) || pcNameForDetectedDegree(pc, degreeName)) : pcNameForDetectedDegree(pc, degreeName));
+    degreeNames.push(degreeName);
+  });
+  return { noteNames: noteNames, degreeNames: degreeNames };
+}
+
+function formatDetectedNoteDegreeText(notes, rootPC, chordName) {
+  var summary = formatDetectedNoteDegreeSummary(notes, rootPC, chordName);
+  var text = 'Note: ' + summary.noteNames.join(' ');
+  if (summary.degreeNames.length) text += '  Degree: ' + summary.degreeNames.join(' ');
+  return text;
+}
+
+function detectedUstBaseQuality(chordName) {
+  var chord = chordName || '';
+  var rootMatch = chord.match(/^[A-G](?:#|b)?/);
+  var quality = rootMatch ? chord.slice(rootMatch[0].length) : chord;
+  var isMinor = /^m/i.test(quality) && !/^maj/i.test(quality);
+  var isHalfDiminished = /^(m7\(b5\)|m7b5|m7-5|\u00F87|\u00F8)/i.test(quality);
+  var hasMajorSeventh = quality.indexOf('\u25B37') !== -1 || /maj7/i.test(quality);
+  var hasExplicitSeventh = quality.indexOf('7') !== -1;
+  var impliesDominantSeventh = /^(9|11|13)(\(|$)/.test(quality);
+  var impliesMinorSeventh = /^(m9|m11|m13|min9|min11|min13)(\(|$)/i.test(quality);
+  var hasSeventhExtension = hasExplicitSeventh || impliesDominantSeventh || impliesMinorSeventh;
+  if (isHalfDiminished) return '';
+  if (isMinor && hasMajorSeventh) return 'm\u25B37';
+  if (isMinor && hasSeventhExtension) return 'm7';
+  if (hasMajorSeventh) return '\u25B37';
+  if (hasSeventhExtension) return '7';
+  return '';
+}
+
+function detectedUstTriadRootName(rootPC, triadRoot, chordName) {
+  var interval = ((triadRoot - rootPC) + 12) % 12;
+  var rootName = chordRootDisplayName(chordName);
+  if (rootName.indexOf('b') !== -1) return NOTE_NAMES_FLAT[triadRoot];
+  if (rootName.indexOf('#') !== -1) return NOTE_NAMES_SHARP[triadRoot];
+  return (interval === 1 || interval === 3 || interval === 6 || interval === 8 || interval === 10)
+    ? NOTE_NAMES_FLAT[triadRoot]
+    : NOTE_NAMES_SHARP[triadRoot];
+}
+
+function formatDetectedUstText(notes, rootPC, chordName) {
+  if (rootPC === null || rootPC === undefined || !notes || notes.length < 4) return '';
+  var pcs = new Set(notes.map(function(n) { return ((n % 12) + 12) % 12; }));
+  var baseQuality = detectedUstBaseQuality(chordName);
+  if (!baseQuality) return '';
+  var intervals = new Set(notes.map(function(n) { return (((n % 12) - rootPC) + 12) % 12; }));
+  var hasThird = intervals.has(3) || intervals.has(4);
+  var hasSeventh = intervals.has(10) || intervals.has(11);
+  if (!hasThird || !hasSeventh) return '';
+  var qualities = [
+    { suffix: '\u25B3', intervals: [0, 4, 7] },
+    { suffix: 'm', intervals: [0, 3, 7] }
+  ];
+  var fallbackPriority = { 2: 10, 3: 9, 8: 8, 9: 7, 10: 6, 5: 5, 1: 4, 6: 3, 7: 2, 11: 1 };
+  var best = null;
+  for (var offset = 1; offset < 12; offset++) {
+    var triadRoot = (rootPC + offset) % 12;
+    if (triadRoot === rootPC) continue;
+    for (var q = 0; q < qualities.length; q++) {
+      var quality = qualities[q];
+      var ok = quality.intervals.every(function(iv) {
+        return pcs.has((triadRoot + iv) % 12);
+      });
+      if (ok) {
+        var triadOffsets = quality.intervals.map(function(iv) { return (offset + iv) % 12; });
+        var tensionCount = triadOffsets.filter(function(iv) {
+          return iv === 1 || iv === 2 || iv === 3 || iv === 5 || iv === 6 || iv === 8 || iv === 9;
+        }).length;
+        var chordToneCount = triadOffsets.filter(function(iv) {
+          return iv === 0 || iv === 4 || iv === 7 || iv === 10 || iv === 11;
+        }).length;
+        if (tensionCount < 2) continue;
+        var score = tensionCount * 100 - chordToneCount * 10 + (fallbackPriority[offset] || 0);
+        var candidate = { score: score, triadRoot: triadRoot, quality: quality };
+        if (!best || candidate.score > best.score) best = candidate;
+      }
+    }
+  }
+  if (best) {
+    var base = (chordRootDisplayName(chordName) || NOTE_NAMES_SHARP[rootPC]) + baseQuality;
+    return 'UST: ' + detectedUstTriadRootName(rootPC, best.triadRoot, chordName) + best.quality.suffix + ' / ' + base;
+  }
+  return '';
+}
+
+function formatDetectedUstFractionHtml(ustText) {
+  if (!ustText) return '';
+  var text = ustText.replace(/^UST:\s*/, '');
+  var parts = text.split(' / ');
+  if (parts.length !== 2) return '<span style="color:#d7ba7d;">' + ustText + '</span>';
+  return '<span style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle;color:#d7ba7d;margin-left:6px;">'
+    + '<span style="font-size:0.68em;letter-spacing:0.04em;">UST</span>'
+    + '<span style="display:inline-flex;flex-direction:column;align-items:center;line-height:1;">'
+    + '<span style="font-size:0.82em;padding:0 3px 1px;border-bottom:1px solid currentColor;">' + parts[0] + '</span>'
+    + '<span style="font-size:0.82em;padding-top:1px;">' + parts[1] + '</span>'
+    + '</span></span>';
+}
+
+function formatDetectedUstInlineHtml(notes, rootPC, chordName) {
+  return formatDetectedUstFractionHtml(formatDetectedUstText(notes, rootPC, chordName));
 }
 
 function midiNote(row, col) { return baseMidi() + row * ROW_INTERVAL + col * COL_INTERVAL; }
@@ -1177,6 +1346,9 @@ if (typeof module !== 'undefined') module.exports = {
   calcVoicingOffsets, getBassCase, applyOnChordBass,
   calcAllVoicingPositions, calcVoicingPositions,
   getShellIntervals, applyTension, getBuilderPCS,
-  chordDegreeName, getDiatonicTetrads, getBuilderChordName,
+  chordDegreeName, detectedChordQualityFlags, detectedNoteDegreeName,
+  formatDetectedNoteDegreeSummary, formatDetectedNoteDegreeText,
+  formatDetectedUstText, formatDetectedUstFractionHtml, formatDetectedUstInlineHtml,
+  getDiatonicTetrads, getBuilderChordName,
   findParentScales, fifthsDistance, noteNameForKey,
 };

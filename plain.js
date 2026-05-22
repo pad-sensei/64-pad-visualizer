@@ -660,23 +660,18 @@ function updatePlainDisplay() {
     return;
   }
   const candidates = detectChord(notes);
-  // Note names: use degree-aware enharmonic spelling when chord is detected
-  var noteNames;
+  // Note / Degree: bottom-to-top, split for education use.
+  var noteText;
   if (candidates.length > 0) {
-    var rootPC = candidates[0].rootPC;
-    noteNames = notes.map(function(n) {
-      var pc = n % 12;
-      var iv = ((pc - rootPC) + 12) % 12;
-      // b-degree intervals → flat name, #-degree → sharp name
-      var deg = SCALE_DEGREE_NAMES[iv]; // R,b2,2,b3,3,4,b5,5,b6,6,b7,7
-      if (deg && deg.startsWith('b')) return NOTE_NAMES_FLAT[pc];
-      return NOTE_NAMES_SHARP[pc];
-    });
+    noteText = formatDetectedNoteDegreeText(notes, candidates[0].rootPC, candidates[0].name);
   } else {
-    noteNames = notes.map(function(n) { return NOTE_NAMES_SHARP[n % 12]; });
+    noteText = 'Note: ' + notes.map(function(n) { return NOTE_NAMES_SHARP[n % 12]; }).join(' ');
   }
   if (candidates.length > 0) {
-    let html = '<span class="detect-candidate-best" draggable="true" data-candidate-idx="0" onclick="transferDetectedCandidate(0,this)">' + candidates[0].name + '</span>';
+    const ustInline = (typeof formatDetectedUstInlineHtml === 'function')
+      ? formatDetectedUstInlineHtml(notes, candidates[0].rootPC, candidates[0].name)
+      : '';
+    let html = '<span class="detect-candidate-best" draggable="true" data-candidate-idx="0" onclick="transferDetectedCandidate(0,this)">' + candidates[0].name + ustInline + '</span>';
     if (candidates.length > 1) {
       html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">';
       candidates.slice(1).forEach((c, i) => {
@@ -684,7 +679,7 @@ function updatePlainDisplay() {
       });
       html += '</div>';
     }
-    html += '<div style="font-size:0.65rem;color:#aaa;margin-top:2px;letter-spacing:0.5px;">' + t('input.notes_label') + noteNames.join(' ') + '</div>';
+    html += '<div style="font-size:0.65rem;color:#aaa;margin-top:2px;letter-spacing:0.5px;">' + noteText + '</div>';
     detectEl.innerHTML = html;
     // Attach dragstart to candidate labels for D&D to memory slots
     detectEl.querySelectorAll('[data-candidate-idx]').forEach(el => {
@@ -697,7 +692,7 @@ function updatePlainDisplay() {
       });
     });
   } else {
-    detectEl.textContent = noteNames.join(' ');
+    detectEl.textContent = noteText;
   }
   lastDetectedNotes = notes;
   lastDetectedCandidates = candidates;
@@ -1188,4 +1183,3 @@ function parseMidiToSlots(buf) {
 }
 
 // CHS Import / Export / parseChsToSlots は 2026-05-17 削除 (うりなみさん「もう使わない」)
-

@@ -626,7 +626,8 @@ function updateInstrumentInput() {
       lastDetectedNotes = instrNotes;
       lastDetectedCandidates = directCandidates;
       const best = directCandidates[0];
-      let html = '<span class="detect-candidate-best" onclick="transferDetectedCandidate(0,this)">' + best.name + '</span>';
+      const ustInline = (typeof formatDetectedUstInlineHtml === 'function') ? formatDetectedUstInlineHtml(instrNotes, best.rootPC, best.name) : '';
+      let html = '<span class="detect-candidate-best" onclick="transferDetectedCandidate(0,this)">' + best.name + ustInline + '</span>';
       if (directCandidates.length > 1) {
         html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">';
         directCandidates.slice(1).forEach((c, i) => {
@@ -684,14 +685,17 @@ function updateInstrumentInput() {
     detectEl.innerHTML = '';
     return;
   }
-  const noteNames = notesForDetect.map(n => NOTE_NAMES_SHARP[n % 12]);
   const candidates = detectChord(notesForDetect);
+  const noteText = candidates.length > 0
+    ? formatDetectedNoteDegreeText(notesForDetect, candidates[0].rootPC, candidates[0].name)
+    : 'Note: ' + notesForDetect.map(n => NOTE_NAMES_SHARP[n % 12]).join(' ');
   lastDetectedNotes = notesForDetect;
   lastDetectedCandidates = candidates;
   const inputPCS = new Set(instrNotes.map(n => n % 12));
   if (candidates.length > 0) {
     const best = candidates[0];
-    let html = '<span class="detect-candidate-best" onclick="transferDetectedCandidate(0,this)">' + best.name + '</span>';
+    const ustInline = (typeof formatDetectedUstInlineHtml === 'function') ? formatDetectedUstInlineHtml(notesForDetect, best.rootPC, best.name) : '';
+    let html = '<span class="detect-candidate-best" onclick="transferDetectedCandidate(0,this)">' + best.name + ustInline + '</span>';
     if (candidates.length > 1) {
       html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">';
       candidates.slice(1).forEach((c, i) => {
@@ -699,7 +703,7 @@ function updateInstrumentInput() {
       });
       html += '</div>';
     }
-    html += '<div style="font-size:0.6rem;color:var(--text-muted);margin-top:1px;">' + t('input.notes_label') + noteNames.join(' ') + '</div>';
+    html += '<div style="font-size:0.6rem;color:var(--text-muted);margin-top:1px;">' + noteText + '</div>';
     detectEl.innerHTML = html;
     if (AppState.mode === 'chord') {
       const mergedPCS = new Set(lastRenderActivePCS);
@@ -713,7 +717,7 @@ function updateInstrumentInput() {
       renderPianoDisplay(best.rootPC, inputPCS);
     }
   } else {
-    detectEl.textContent = noteNames.join(' ');
+    detectEl.textContent = noteText;
     if (AppState.mode === 'chord') {
       const mergedPCS = new Set(lastRenderActivePCS);
       instrNotes.forEach(n => mergedPCS.add(n % 12));
@@ -811,4 +815,3 @@ function playInstrumentInput() {
 let lastRenderRootPC = 0;
 let lastRenderActivePCS = new Set();
 let lastRenderState = null; // full state for instrument diagram color classification
-

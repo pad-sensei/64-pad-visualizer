@@ -5,7 +5,12 @@ const midiActiveNotes = new Set(); // currently held MIDI notes
 let midiAccess = null;
 
 // Chord detection: delegated to pad-core (padDetectChord, CHORD_DETECT_DB, TRIAD_DETECT_DB, TETRAD_DETECT_DB)
-var detectChord = padDetectChord;
+function detectChord(notes) {
+  var spellingKey = (typeof AppState !== 'undefined')
+    ? padGetParentMajorKey(AppState.scaleIdx, AppState.key)
+    : 0;
+  return padDetectChord(notes, spellingKey);
+}
 var CHORD_DB = CHORD_DETECT_DB;
 var TRIAD_DB = TRIAD_DETECT_DB;
 var TETRAD_DB = TETRAD_DETECT_DB;
@@ -165,11 +170,14 @@ function updateMidiDisplay() {
     return;
   }
   // detectEl always visible (no layout shift)
-  const noteNames = notes.map(n => NOTE_NAMES_SHARP[n % 12]);
   const candidates = detectChord(notes);
+  const noteText = candidates.length > 0
+    ? formatDetectedNoteDegreeText(notes, candidates[0].rootPC, candidates[0].name)
+    : 'Note: ' + notes.map(n => NOTE_NAMES_SHARP[n % 12]).join(' ');
   if (candidates.length > 0) {
     const best = candidates[0];
-    let html = '<div style="color:var(--accent);font-weight:700;font-size:1.1rem;">' + best.name + '</div>';
+    const ustInline = (typeof formatDetectedUstInlineHtml === 'function') ? formatDetectedUstInlineHtml(notes, best.rootPC, best.name) : '';
+    let html = '<div style="color:var(--accent);font-weight:700;font-size:1.1rem;">' + best.name + ustInline + '</div>';
     if (candidates.length > 1) {
       html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">';
       candidates.slice(1).forEach(c => {
@@ -177,10 +185,10 @@ function updateMidiDisplay() {
       });
       html += '</div>';
     }
-    html += '<div style="font-size:0.6rem;color:var(--text-muted);margin-top:1px;">' + t('input.notes_label') + noteNames.join(' ') + '</div>';
+    html += '<div style="font-size:0.6rem;color:var(--text-muted);margin-top:1px;">' + noteText + '</div>';
     detectEl.innerHTML = html;
   } else {
-    detectEl.textContent = noteNames.join(' ');
+    detectEl.textContent = noteText;
   }
   // Update instrument diagrams with MIDI-detected chord, or highlight-only in link mode
   if (linkMode) {

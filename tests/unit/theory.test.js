@@ -39,6 +39,85 @@ describe('noteName', () => {
   });
 });
 
+describe('formatDetectedNoteDegreeText', () => {
+  it('shows note names and detected chord degrees in separate bottom-to-top lists', () => {
+    const notes = [60, 64, 70, 74, 78, 81];
+    expect(formatDetectedNoteDegreeText(notes, 0, 'C7(9,#11,13)'))
+      .toBe('Note: C E Bb D F# A  Degree: 1 3 b7 9 #11 13');
+  });
+
+  it('uses #9 when the major third is also present', () => {
+    expect(formatDetectedNoteDegreeText([60, 63, 64, 70], 0, 'C7(#9)'))
+      .toBe('Note: C D# E Bb  Degree: 1 #9 3 b7');
+  });
+
+  it('uses chord quality to distinguish b5 from #11 when the natural 5th is omitted', () => {
+    expect(formatDetectedNoteDegreeText([60, 64, 70, 78], 0, 'C7(#11)'))
+      .toBe('Note: C E Bb F#  Degree: 1 3 b7 #11');
+    expect(formatDetectedNoteDegreeText([60, 63, 70, 78], 0, 'Cm7(b5)'))
+      .toBe('Note: C Eb Bb Gb  Degree: 1 m3 b7 b5');
+  });
+});
+
+describe('formatDetectedUstText', () => {
+  it('does not infer UST for sus bases without a third', () => {
+    expect(formatDetectedUstText([55, 65, 69, 72], 7, 'G7sus4(9)'))
+      .toBe('');
+  });
+
+  it('does not infer minor upper-structure triads for sus bases without a third', () => {
+    expect(formatDetectedUstText([55, 65, 68, 72], 7, 'G7sus4(b9)'))
+      .toBe('');
+  });
+
+  it('distinguishes dominant seventh and major seventh bases', () => {
+    expect(formatDetectedUstText([60, 62, 64, 66, 69, 71], 0, 'CMaj7(9,#11,13)'))
+      .toBe('UST: D△ / C△7');
+    expect(formatDetectedUstText([60, 62, 64, 66, 69, 70], 0, 'C7(9,#11,13)'))
+      .toBe('UST: D△ / C7');
+  });
+
+  it('uses flat upper-structure roots for flat-side intervals', () => {
+    expect(formatDetectedUstText([60, 64, 70, 74, 77], 0, 'C7(9,11)'))
+      .toBe('UST: Bb△ / C7');
+  });
+
+  it('keeps UST spelling aligned with flat-key chord roots', () => {
+    expect(formatDetectedUstText([61, 65, 71, 75, 79, 82], 1, 'Db7(9,#11,13)'))
+      .toBe('UST: Eb△ / Db7');
+  });
+
+  it('prefers upper triads with more tensions over lower-structure slash readings', () => {
+    expect(formatDetectedUstText([55, 59, 65, 69, 72, 76], 7, 'G7(9,11,13)'))
+      .toBe('UST: Am / G7');
+  });
+
+  it('does not show weak one-tension upper triads as UST', () => {
+    expect(formatDetectedUstText([60, 64, 67, 71, 74], 0, 'CMaj7(9)'))
+      .toBe('');
+  });
+
+  it('keeps minor seventh bases minor when they are UST targets', () => {
+    expect(formatDetectedUstText([50, 55, 60, 64, 65], 2, 'Dm7(9,11)'))
+      .toBe('UST: C△ / Dm7');
+  });
+
+  it('does not treat half-diminished chords as minor UST targets', () => {
+    expect(formatDetectedUstText([50, 53, 60, 65], 2, 'Dm7(b5)'))
+      .toBe('');
+  });
+
+  it('does not infer UST without a seventh shell', () => {
+    expect(formatDetectedUstText([60, 62, 64, 67, 69], 0, 'C6/9'))
+      .toBe('');
+  });
+
+  it('does not infer UST when the dominant third is missing', () => {
+    expect(formatDetectedUstText([55, 65, 69, 72, 76], 7, 'G7sus4(9,13)'))
+      .toBe('');
+  });
+});
+
 describe('baseMidi', () => {
   it('returns BASE_MIDI at default octaveShift', () => {
     AppState.octaveShift = 0;
@@ -231,12 +310,12 @@ describe('getDiatonicTetrads', () => {
 
   it('C Major diatonic tetrads have correct qualities', () => {
     const tetrads = getDiatonicTetrads(SCALES[0].pcs, 0);
-    // I=△7, ii=m7, iii=m7, IV=△7, V=7, vi=m7, vii=m7(b5)
+    // I=Maj7, ii=m7, iii=m7, IV=Maj7, V=7, vi=m7, vii=m7(b5)
     const names = tetrads.map(t => t.quality.name);
-    expect(names[0]).toBe('\u25B37');     // C△7
+    expect(names[0]).toBe('Maj7');       // CMaj7
     expect(names[1]).toBe('m7');          // Dm7
     expect(names[2]).toBe('m7');          // Em7
-    expect(names[3]).toBe('\u25B37');     // F△7
+    expect(names[3]).toBe('Maj7');       // FMaj7
     expect(names[4]).toBe('7');           // G7
     expect(names[5]).toBe('m7');          // Am7
     expect(names[6]).toBe('m7(b5)');      // Bm7(b5)

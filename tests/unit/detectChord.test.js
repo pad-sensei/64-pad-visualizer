@@ -47,16 +47,27 @@ describe('detectChord', () => {
       expect(results[0].name).toBe('Cm7');
     });
 
-    it('C△7 [60,64,67,71]', () => {
+    it('CMaj7 [60,64,67,71]', () => {
       const results = detectChord([60, 64, 67, 71]);
       expect(results.length).toBeGreaterThan(0);
-      expect(results[0].name).toBe('C\u25B37');
+      expect(results[0].name).toBe('CMaj7');
     });
 
     it('C7 [60,64,67,70]', () => {
       const results = detectChord([60, 64, 67, 70]);
       expect(results.length).toBeGreaterThan(0);
       expect(results[0].name).toBe('C7');
+    });
+
+    it('prefers flat root spelling for black-key major seventh chords', () => {
+      const results = detectChord([58, 62, 65, 69]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].name).toBe('BbMaj7');
+    });
+
+    it('uses key context for sharp/flat root spelling', () => {
+      expect(padDetectChord([58, 62, 65, 69], 0)[0].name).toBe('BbMaj7');
+      expect(padDetectChord([58, 62, 65, 69], 2)[0].name).toBe('A#Maj7');
     });
 
     it('Cdim7 [60,63,66,69]', () => {
@@ -79,14 +90,58 @@ describe('detectChord', () => {
       expect(hasMatch(results, 'C7(9)')).toBe(true);
     });
 
-    it('C△7(9) [60,64,67,71,74] detected', () => {
+    it('CMaj7(9) [60,64,67,71,74] detected', () => {
       const results = detectChord([60, 64, 67, 71, 74]);
       expect(results.length).toBeGreaterThan(0);
-      expect(hasMatch(results, 'C\u25B37(9)')).toBe(true);
+      expect(hasMatch(results, 'CMaj7(9)')).toBe(true);
+    });
+
+    it('C7(b9,#11,13) with three tensions detected', () => {
+      const results = detectChord([60, 64, 67, 70, 73, 78, 81]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(hasMatch(results, 'C7(b9,#11,13)')).toBe(true);
+    });
+
+    it('Cm7(9,11,13) with three tensions detected', () => {
+      const results = detectChord([60, 63, 67, 70, 74, 77, 81]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(hasMatch(results, 'Cm7(9,11,13)')).toBe(true);
+    });
+
+    it('CMaj7(9,#11,13) with three tensions detected', () => {
+      const results = detectChord([60, 64, 67, 71, 74, 78, 81]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(hasMatch(results, 'CMaj7(9,#11,13)')).toBe(true);
+    });
+
+    it('C7 shell + D upper structure triad → C7(9,#11,13)', () => {
+      const results = detectChord([60, 64, 70, 74, 78, 81]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].name).toBe('C7(9,#11,13)');
+    });
+
+    it('C lydian 6/9 color detects as C6/9(#11), not a rootless shell chord', () => {
+      const results = detectChord([60, 64, 69, 74, 78]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].name).toBe('C6/9(#11)');
     });
   });
 
   describe('inversions (slash chords)', () => {
+    it('F/G hybrid follows the absorbed G7sus-type interpretation', () => {
+      const results = detectChord([55, 65, 69, 72]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].name).toBe('G7sus4(9)');
+      expect(results[1].name).toBe('F / G');
+    });
+
+    it('Fm/G Phrygian-style hybrid follows the absorbed G7sus b9 interpretation', () => {
+      const results = detectChord([55, 65, 68, 72]);
+      expect(results.length).toBeGreaterThan(1);
+      expect(results[0].name).toBe('G7sus4(b9)');
+      expect(results[1].name).toBe('Fm / G');
+    });
+
     it('E,G,C [64,67,72] → CMaj / E', () => {
       const results = detectChord([64, 67, 72]);
       expect(results.length).toBeGreaterThan(0);
@@ -98,6 +153,26 @@ describe('detectChord', () => {
       const results = detectChord([67, 72, 76]);
       expect(results.length).toBeGreaterThan(0);
       expect(hasMatch(results, 'CMaj / G')).toBe(true);
+    });
+
+    it('uses flat spelling for flat-seventh slash basses', () => {
+      const results = detectChord([58, 60, 64, 67]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(hasMatch(results, 'C7 / Bb')).toBe(true);
+      expect(hasMatch(results, 'C7 / A#')).toBe(false);
+    });
+
+    it('prefers the complete dominant shell over an omit5 minor-six interpretation', () => {
+      const results = detectChord([55, 58, 60, 64]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].name).toBe('C7 / G');
+    });
+
+    it('does not promote b7-over-bass slash chords when the bass already has a dominant shell', () => {
+      const results = detectChord([55, 59, 65, 69, 72, 76]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].name).toBe('G7(9,11,13)');
+      expect(results.slice(0, 4).some(r => r.name === 'F / G')).toBe(false);
     });
   });
 

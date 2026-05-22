@@ -57,6 +57,24 @@ function buildTastyDegreeMap(midiNotes, degrees) {
   return map;
 }
 
+function displayDegreeLabel(deg) {
+  return deg === 'b3' ? 'm3' : deg;
+}
+
+function formatVoicingNoteDegreeText(midiNotes, degrees) {
+  var noteNames = [];
+  var degreeNames = [];
+  var len = Math.min(midiNotes.length, degrees.length);
+  for (var i = 0; i < len; i++) {
+    var degreeName = displayDegreeLabel(degrees[i]);
+    noteNames.push(pcNameForDetectedDegree(midiNotes[i] % 12, degreeName));
+    degreeNames.push(degreeName);
+  }
+  var text = 'Note: ' + noteNames.join(' ');
+  if (degreeNames.length) text += '  Degree: ' + degreeNames.join(' ');
+  return text;
+}
+
 // Split MIDI notes into pad-range and out-of-range
 function splitByPadRange(midiNotes) {
   var lo = baseMidi();
@@ -341,14 +359,15 @@ function getTastyDiffText() {
   var chordName = rootName + qualName;
   if (tensions.length > 0) chordName += '(' + tensions.join(',') + ')';
 
-  // Voicing degrees: bottom to top (the actual voicing structure)
-  var voicingStr = recipe.v.join('-');
+  // Voicing notes/degrees: bottom to top (the actual voicing structure)
+  var voicingStr = formatVoicingNoteDegreeText(TastyState.midiNotes, recipe.v);
 
   // Top note info
   var topStr = '';
   if (TastyState.topNote !== null && TastyState.degreeMap[TastyState.topNote]) {
     var topPC = TastyState.topNote % 12;
-    topStr = 'Top: ' + TastyState.degreeMap[TastyState.topNote] + '(' + pcName(topPC) + ')';
+    var topDegree = displayDegreeLabel(TastyState.degreeMap[TastyState.topNote]);
+    topStr = 'Top: ' + topDegree + '(' + pcNameForDetectedDegree(topPC, topDegree) + ')';
   }
 
   // Labels (Rootless, Omit3, Omit5)
@@ -717,7 +736,8 @@ function getStockInfoText() {
   // Chord name from actual STOCK degrees + all degrees (bottom to top, LH then RH merged)
   var chord = getStockChordDisplayName();
   var allDegrees = (entry.LH || []).concat(entry.RH || []);
-  return allDegrees.length > 0 ? chord + ' ' + allDegrees.join('-') : chord;
+  var allNotes = (StockState.lhMidi || []).concat(StockState.rhMidi || []);
+  return allDegrees.length > 0 ? chord + ' ' + formatVoicingNoteDegreeText(allNotes, allDegrees) : chord;
 }
 
 function updateStockUI() {
@@ -762,4 +782,3 @@ if (typeof module !== 'undefined') module.exports = {
   cycleStock, refreshStockVoicing, toggleStock, disableStock,
   getStockChordDisplayName, getStockInfoText, updateStockUI,
 };
-

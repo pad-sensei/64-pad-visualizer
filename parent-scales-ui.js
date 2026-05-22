@@ -18,6 +18,7 @@ function toggleParentScales() {
   const btn = document.getElementById('ps-toggle');
   if (btn) btn.classList.toggle('active', AppState.showParentScales);
   renderParentScales();
+  if (typeof saveAppSettings === 'function') saveAppSettings();
 }
 
 function togglePSExpand() {
@@ -491,4 +492,3 @@ function applyParentScaleFilter(scaleIdx) {
     }
   });
 }
-

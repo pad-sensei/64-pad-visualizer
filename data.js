@@ -160,18 +160,26 @@ function loadBankMemory() {
 }
 
 // ======== SETTINGS PERSISTENCE ========
+function readToggleState(id, fallback) {
+  try {
+    const el = typeof document !== 'undefined' ? document.getElementById(id) : null;
+    if (el) return el.classList.contains('active');
+  } catch(_) {}
+  return !!fallback;
+}
+
 function saveAppSettings() {
   try {
-    syncMemoryToActiveBank();
+    try { syncMemoryToActiveBank(); } catch(_) {}
     const s = {
       key: AppState.key,
       mode: AppState.mode,
       scaleIdx: AppState.scaleIdx,
       octaveShift: AppState.octaveShift,
-      showGuitar: typeof showGuitar !== 'undefined' ? showGuitar : false,
-      showBass: typeof showBass !== 'undefined' ? showBass : false,
-      showPiano: typeof showPiano !== 'undefined' ? showPiano : false,
-      linkMode: typeof linkMode !== 'undefined' ? linkMode : false,
+      showGuitar: readToggleState('inst-toggle-guitar', typeof showGuitar !== 'undefined' ? showGuitar : false),
+      showBass: readToggleState('inst-toggle-bass', typeof showBass !== 'undefined' ? showBass : false),
+      showPiano: readToggleState('inst-toggle-piano', typeof showPiano !== 'undefined' ? showPiano : false),
+      linkMode: readToggleState('inst-toggle-link', typeof linkMode !== 'undefined' ? linkMode : false),
       showStaff: typeof showStaff !== 'undefined' ? showStaff : false,
       showCircle: typeof showCircle !== 'undefined' ? showCircle : true,
       showSound: typeof showSound !== 'undefined' ? showSound : true,
@@ -185,14 +193,17 @@ function saveAppSettings() {
       showMinorVariants: AppState.showMinorVariants,
       showSecDom: AppState.showSecDom,
       showParallelKey: AppState.showParallelKey,
+      showParentScales: AppState.showParentScales,
       showHarmonicFn: AppState.showHarmonicFn,
-      banks: BankState.banks,
-      activeBankId: BankState.activeBankId,
+      banks: typeof BankState !== 'undefined' ? BankState.banks : [],
+      activeBankId: typeof BankState !== 'undefined' ? BankState.activeBankId : null,
       showTips: AppState.showTips,
       showBadges: AppState.showBadges,
       padCFixed: AppState.padCFixed,
     };
-    localStorage.setItem('64pad-settings', JSON.stringify(s));
+    const serialized = JSON.stringify(s);
+    localStorage.setItem('64pad-settings', serialized);
+    if (typeof _juceInvoke === 'function') _juceInvoke('saveDesktopSettings', serialized);
   } catch(_) {}
 }
 
@@ -223,6 +234,7 @@ function loadAppSettings() {
     if (s.showMinorVariants !== undefined) AppState.showMinorVariants = s.showMinorVariants;
     if (s.showSecDom !== undefined) AppState.showSecDom = s.showSecDom;
     if (s.showParallelKey !== undefined) AppState.showParallelKey = s.showParallelKey;
+    if (s.showParentScales !== undefined) AppState.showParentScales = s.showParentScales;
     if (s.showHarmonicFn !== undefined) AppState.showHarmonicFn = s.showHarmonicFn;
     if (s.showTips === false) AppState.showTips = false;
     if (s.showBadges !== undefined) AppState.showBadges = s.showBadges;
