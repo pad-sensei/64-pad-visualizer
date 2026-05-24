@@ -19,9 +19,11 @@ function _resolve(obj, key) {
 
 // Translate: t('input.status_capturing', {slot: 3})
 function t(key, vars) {
-  var str = _resolve(I18N.langs[I18N.current], key)
-         || _resolve(I18N.langs[I18N.fallback], key)
-         || key;
+  var current = _resolve(I18N.langs[I18N.current], key);
+  var fallback = _resolve(I18N.langs[I18N.fallback], key);
+  var str = current !== undefined && current !== null
+         ? current
+         : (fallback !== undefined && fallback !== null ? fallback : key);
   if (vars) {
     Object.keys(vars).forEach(function(k) {
       str = str.replace(new RegExp('\\{' + k + '\\}', 'g'), vars[k]);
@@ -95,6 +97,25 @@ I18N.setLang = function(code) {
   }
   // Update circle title on language change
   if (typeof renderCircle === 'function') renderCircle();
+  // Re-render dynamic surfaces that build labels in JS.
+  // Without this, position tabs such as "All" can stay in the previous language.
+  if (typeof updateChordDisplay === 'function') updateChordDisplay();
+  if (typeof initChordKeyPicker === 'function') initChordKeyPicker();
+  if (typeof updateChordKeyDisplay === 'function') updateChordKeyDisplay();
+  if (typeof updateRootNotationUI === 'function') updateRootNotationUI();
+  if (typeof renderDiatonicBar === 'function') renderDiatonicBar();
+  if (typeof updateBankUI === 'function') updateBankUI();
+  if (typeof updatePlainUI === 'function') updatePlainUI();
+  if (typeof updateMemorySlotUI === 'function') updateMemorySlotUI();
+  if (typeof updateTastyUI === 'function') updateTastyUI();
+  if (typeof updateStockUI === 'function') updateStockUI();
+  if (typeof updatePlayControls === 'function') updatePlayControls();
+  if (typeof render === 'function') render();
+  if (typeof renderPad32 === 'function') renderPad32();
+  if (typeof syncPlayControls === 'function') syncPlayControls();
+  if (typeof TutorialHints !== 'undefined' && TutorialHints && typeof TutorialHints.updateButtonLabel === 'function') {
+    TutorialHints.updateButtonLabel();
+  }
   // Update lang selector
   var sel = document.getElementById('lang-select');
   if (sel) sel.value = code;

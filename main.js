@@ -66,13 +66,72 @@ function setPaneOrder(preset) {
   localStorage.setItem('64pad-pane-order', preset);
   var sel = document.getElementById('pane-order-select');
   if (sel) sel.value = preset;
+  syncViewSetupControls();
 }
+
+function setPaneView(view) {
+  var mode = /^(all|A|B|C)$/.test(view) ? view : 'all';
+  var panes = {
+    A: document.querySelector('[data-pane="A"]'),
+    B: document.querySelector('[data-pane="B"]'),
+    C: document.querySelector('[data-pane="C"]')
+  };
+  var defaultDisplay = { A: '', B: '', C: 'flex' };
+  Object.keys(panes).forEach(function(key) {
+    if (!panes[key]) return;
+    panes[key].style.display = (mode === 'all' || mode === key) ? defaultDisplay[key] : 'none';
+  });
+  document.body.classList.toggle('pane-view-single', mode !== 'all');
+  document.body.dataset.paneView = mode;
+  localStorage.setItem('64pad-pane-view', mode);
+  var sel = document.getElementById('pane-view-select');
+  if (sel) sel.value = mode;
+  if (typeof updateInfoBarAlignment === 'function') setTimeout(updateInfoBarAlignment, 0);
+  syncViewSetupControls();
+}
+
+function syncViewSetupControls() {
+  var order = localStorage.getItem('64pad-pane-order') || 'ABC';
+  var view = (document.body && document.body.dataset ? document.body.dataset.paneView : '') || localStorage.getItem('64pad-pane-view') || 'all';
+  var orderSelects = document.querySelectorAll('[data-view-setup-order]');
+  orderSelects.forEach(function(sel) { sel.value = order; });
+  var viewSelects = document.querySelectorAll('[data-view-setup-view]');
+  viewSelects.forEach(function(sel) { sel.value = view; });
+  var cFixedToggles = document.querySelectorAll('[data-view-setup-c-fixed]');
+  cFixedToggles.forEach(function(input) { input.checked = AppState.padCFixed === true; });
+  var pushVoicingToggles = document.querySelectorAll('[data-view-setup-push-voicing]');
+  pushVoicingToggles.forEach(function(input) { input.checked = AppState.pushVoicingOverview === true; });
+  var tipsToggles = document.querySelectorAll('[data-view-setup-tips]');
+  tipsToggles.forEach(function(input) { input.checked = AppState.showTips !== false; });
+  var badgeToggles = document.querySelectorAll('[data-view-setup-badges]');
+  badgeToggles.forEach(function(input) { input.checked = AppState.showBadges !== false; });
+}
+
+function setViewSetupFocusField(field) {
+  if (!document.body || !document.body.dataset) return;
+  var allowed = { focus: true, layout: true, 'c-fixed': true, 'push-voicing': true, tips: true, badges: true, reset: true };
+  document.body.dataset.viewSetupField = allowed[field] ? field : 'focus';
+}
+
+function openViewSetupPanel() {
+  syncViewSetupControls();
+  setViewSetupFocusField((document.body && document.body.dataset && document.body.dataset.viewSetupField) || 'focus');
+  var overlay = document.getElementById('view-setup-overlay');
+  if (overlay) overlay.classList.add('active');
+}
+
+function closeViewSetupPanel() {
+  var overlay = document.getElementById('view-setup-overlay');
+  if (overlay) overlay.classList.remove('active');
+}
+
 // Restore saved pane order (default: ABC)
 (function() {
   var saved = localStorage.getItem('64pad-pane-order');
   if (saved && /^[ABC]{3}$/.test(saved) && saved.indexOf('A') >= 0 && saved.indexOf('B') >= 0 && saved.indexOf('C') >= 0) {
     setPaneOrder(saved);
   }
+  setPaneView(localStorage.getItem('64pad-pane-view') || 'all');
 })();
 
 // Mobile responsive init
@@ -151,6 +210,57 @@ _landscapeMediaQuery.addEventListener('change', handleLandscapeChange);
 // (see banner block below). This keeps it visible until the user dismisses it.
 var _versionNoticeShown = false;
 
+function _64peVersionParts(versionText) {
+  var m = String(versionText || '').match(/(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+  if (!m) return [0, 0, 0];
+  return [
+    parseInt(m[1] || '0', 10) || 0,
+    parseInt(m[2] || '0', 10) || 0,
+    parseInt(m[3] || '0', 10) || 0
+  ];
+}
+
+function _64peCompareVersions(a, b) {
+  var av = _64peVersionParts(a);
+  var bv = _64peVersionParts(b);
+  for (var i = 0; i < 3; i++) {
+    if (av[i] !== bv[i]) return av[i] - bv[i];
+  }
+  return 0;
+}
+
+function _64peLocalized(value) {
+  if (value && typeof value === 'object') {
+    var lang = (typeof I18N !== 'undefined' && I18N.current) || 'ja';
+    return value[lang] || value.ja || value.en || '';
+  }
+  return value || '';
+}
+
+function _64peBannerHashStr(s) {
+  var h = 0;
+  for (var i = 0; i < s.length; i++) {
+    h = ((h << 5) - h) + s.charCodeAt(i);
+    h |= 0;
+  }
+  return h.toString(36);
+}
+
+function _64peShowUpdateNotice(contentHash, onClose) {
+  var banner = document.getElementById('update-notice');
+  var closeBtn = document.getElementById('update-notice-close');
+  if (!banner) return;
+  if (localStorage.getItem('64pad-notice-dismissed') === contentHash) return;
+  banner.style.display = '';
+  if (closeBtn) {
+    closeBtn.onclick = function() {
+      banner.style.display = 'none';
+      try { localStorage.setItem('64pad-notice-dismissed', contentHash); } catch(_) {}
+      if (typeof onClose === 'function') onClose();
+    };
+  }
+}
+
 // ========================================
 // STARTUP TIPS (returning users)
 // ========================================
@@ -187,13 +297,25 @@ function disableStartupTips() {
 function toggleStartupTips(on) {
   AppState.showTips = on;
   saveAppSettings();
+  var toggles = document.querySelectorAll('[data-view-setup-tips]');
+  toggles.forEach(function(input) { input.checked = AppState.showTips !== false; });
 }
 
 // C-fixed mode: lock pad to C Major scale (urinami Pad OS philosophy, 2026-04-14)
 function toggleCFixed(on) {
   AppState.padCFixed = on === true;
   saveAppSettings();
+  var toggles = document.querySelectorAll('[data-view-setup-c-fixed]');
+  toggles.forEach(function(input) { input.checked = AppState.padCFixed === true; });
   if (typeof render === 'function') render();
+  if (typeof refreshLaunchpadLEDs === 'function') refreshLaunchpadLEDs();
+}
+
+function togglePushVoicingOverview(on) {
+  AppState.pushVoicingOverview = on === true;
+  saveAppSettings();
+  var toggles = document.querySelectorAll('[data-view-setup-push-voicing]');
+  toggles.forEach(function(input) { input.checked = AppState.pushVoicingOverview === true; });
   if (typeof refreshLaunchpadLEDs === 'function') refreshLaunchpadLEDs();
 }
 
@@ -380,8 +502,6 @@ document.addEventListener('keydown', (e) => {
   if (key === '?') {
     const helpOverlay = document.getElementById('help-overlay');
     helpOverlay.classList.toggle('active');
-    var tc = document.getElementById('tips-toggle');
-    if (tc) tc.checked = AppState.showTips !== false;
     return;
   }
 
@@ -666,27 +786,58 @@ function toggleSection(name) {
     var msg = bannerText.textContent.trim();
     if (!msg) return;
     // Content hash で dismiss 管理 (RSS 更新で content 変われば自動再表示、Pad Sensei Keys と同じパターン、2026-05-11 修正)
-    function _bannerHashStr(s) {
-      var h = 0;
-      for (var i = 0; i < s.length; i++) {
-        h = ((h << 5) - h) + s.charCodeAt(i);
-        h |= 0;
-      }
-      return h.toString(36);
-    }
-    var contentHash = _bannerHashStr(msg);
-    var dismissed = localStorage.getItem('64pad-notice-dismissed');
-    if (dismissed === contentHash) return;
-    banner.style.display = '';
-    var closeBtn = document.getElementById('update-notice-close');
-    if (closeBtn) {
-      closeBtn.addEventListener('click', function() {
-        banner.style.display = 'none';
-        try { localStorage.setItem('64pad-notice-dismissed', contentHash); } catch(_) {}
-        // Record that this version's release notice has been seen
-        if (_versionNoticeShown) localStorage.setItem(noticeSeenKey, '1');
-      });
-    }
+    var contentHash = _64peBannerHashStr(msg);
+    _64peShowUpdateNotice(contentHash, function() {
+      // Record that this version's release notice has been seen
+      if (_versionNoticeShown) localStorage.setItem(noticeSeenKey, '1');
+    });
+  } catch(_) {}
+})();
+
+// Remote Desktop update notice. The app loads a tiny JS manifest from the blog:
+//   window.__64PE_UPDATE__ = {
+//     enabled: true,
+//     latestDesktopVersion: "1.5.1",
+//     title: { ja: "64Pad Explorer Desktop v1.5.1", en: "64Pad Explorer Desktop v1.5.1" },
+//     message: { ja: "更新版があります。", en: "A desktop update is available." },
+//     url: "https://padsensei.gumroad.com/l/bklonh",
+//     cta: { ja: "Gumroadでダウンロード", en: "Download on Gumroad" }
+//   };
+(function() {
+  try {
+    var currentText = (document.querySelector('.version-tag') || {}).textContent || '';
+    var isDesktop = /^Desktop\b/i.test(currentText) || !!window._desktopVersion;
+    if (!isDesktop) return;
+
+    window.__64PE_UPDATE__ = null;
+    var script = document.createElement('script');
+    script.src = 'https://murinaikurashi.com/apps/64-pad/64-pad-explorer-update.js?v=' + Date.now();
+    script.async = true;
+    script.onload = function() {
+      try {
+        var data = window.__64PE_UPDATE__ || {};
+        if (data.enabled === false) return;
+        var latest = data.latestDesktopVersion || data.latestVersion || '';
+        var current = window._desktopVersion || currentText;
+        if (!latest || _64peCompareVersions(current, latest) >= 0) return;
+
+        var title = _64peLocalized(data.title) || ('64Pad Explorer Desktop v' + latest);
+        var message = _64peLocalized(data.message) || '';
+        var url = data.url || 'https://padsensei.gumroad.com/l/bklonh';
+        var cta = _64peLocalized(data.cta) || 'Gumroad';
+        var html = '\uD83D\uDCE6 <b>' + title + '</b> ' + message +
+          ' <a href="' + url + '" target="_blank" rel="noopener">' + cta + '</a>&nbsp;&nbsp;';
+
+        var bannerText = document.getElementById('update-notice-text');
+        if (!bannerText) return;
+        var hash = _64peBannerHashStr('desktop-update:' + latest + ':' + message + ':' + url);
+        if (localStorage.getItem('64pad-notice-dismissed') === hash) return;
+        bannerText.innerHTML = html + bannerText.innerHTML;
+        _versionNoticeShown = true;
+        _64peShowUpdateNotice(hash);
+      } catch(_) {}
+    };
+    document.head.appendChild(script);
   } catch(_) {}
 })();
 
@@ -725,8 +876,18 @@ function toggleHeader() {
     var panel = document.getElementById('staff-ep-panel');
     var row = document.querySelector('.header-row');
     if (!panel || !row) return;
+    var panelStyle = window.getComputedStyle(panel);
+    if (panelStyle.display === 'none' || panel.offsetParent === null) {
+      bar.style.display = 'none';
+      return;
+    }
     var panelRect = panel.getBoundingClientRect();
     var rowRect = row.getBoundingClientRect();
+    if (panelRect.width < 80 || panelRect.right <= panelRect.left) {
+      bar.style.display = 'none';
+      return;
+    }
+    bar.style.display = 'flex';
     bar.style.left = (panelRect.left - rowRect.left) + 'px';
     bar.style.right = (rowRect.right - panelRect.right) + 'px';
   }

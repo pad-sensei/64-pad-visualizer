@@ -658,10 +658,11 @@ function initWebMIDI() {
 
 // ======== LAUNCHPAD LED CONTROL ========
 // HPS exclusive feature (?hps gate): Push LED control without Ableton
-// - Scale colors on pads + white highlight on press (Scale mode only)
+// - Scale pads keep the long-standing 64PE look: root yellow-green, scale white.
 // - Ableton不要でPushをスケール練習デバイスとして使える
-// Map 64PE pad state to Launchpad palette color index (0-127)
-// Launchpad palette: 0=off, 5=red, 9=orange, 21=green, 37=cyan, 45=blue, 53=purple, 79=yellow
+// Map 64PE pad state to device palette indices (0-127).
+// Do not infer Push colors from Launchpad names. Push 2/3 use a different
+// palette (for example 5=brown, 9=yellow-green). Validate on hardware first.
 function _padColorToLP(state, row, col) {
   if (_lpLEDMode === 'off') return 0;
 
@@ -670,20 +671,22 @@ function _padColorToLP(state, row, col) {
   var pc = midi % 12;
   var rootPC = state.rootPC;
 
-  // Highlight currently pressed pads (orange for Push 3, white for Launchpad)
-  // Push palette: 3=orange(255,100,0), see [[Push 2/3 LEDカラーパレット]]
-  if (midiActiveNotes.has(midi)) return _isPush ? 3 : 3;
+  // Highlight currently pressed pads. Keep it away from white because scale
+  // notes are white on Push.
+  if (midiActiveNotes.has(midi)) return _isPush ? 22 : 3;
 
   // Root-only mode: only light up root pitch class
   if (_lpLEDMode === 'root') {
-    if (pc === rootPC && rootPC !== null) return 9; // Orange
+    if (pc === rootPC && rootPC !== null) return 3; // Push: orange
     return 0;
   }
 
   // Push LED: always show scale colors from AppState (mode-independent)
   // In Input/TASTY/Stock modes, state.activePCS lacks scale info, so compute directly
-  var scale = SCALES[AppState.scaleIdx];
-  var scaleRoot = AppState.key;
+  var cFixed = AppState.padCFixed === true;
+  var scaleIdx = cFixed ? 0 : AppState.scaleIdx;
+  var scale = SCALES[scaleIdx];
+  var scaleRoot = cFixed ? 0 : AppState.key;
   var scalePCS = new Set(scale.pcs.map(function(p) { return (p + scaleRoot) % 12; }));
 
   // Use scale-derived root for consistent display
@@ -712,14 +715,19 @@ function _padColorToLP(state, row, col) {
   var isTension = AppState.mode === 'chord' && tensionPCS.has(pc) && !isRoot && !isGuide3 && !isGuide7;
   var isAvoid = AppState.mode === 'chord' && avoidPCS.has(pc) && !isRoot;
 
-  if (isRoot && isActive) return 9;       // Orange — root
-  if (isBass) return 9;                    // Orange — bass
-  if (isGuide3) return 21;                 // Green — guide tone 3rd
-  if (isGuide7) return 53;                 // Purple — guide tone 7th
-  if (isAvoid) return 5;                   // Red — avoid note
-  if (isTension) return 37;                // Cyan — tension
-  if (isActive) return 45;                 // Blue — scale/chord tone
-  if (overlayPCS && overlayPCS.has(pc)) return 1; // Dim — scale overlay
+  if (AppState.mode === 'scale') {
+    if (pc === scaleRoot) return 9;        // Push: yellow-green — scale root
+    if (scalePCS.has(pc)) return 122;      // Push: white — scale tone
+    return 0;
+  }
+  if (isRoot && isActive) return 3;       // Push: orange — root
+  if (isBass) return 3;                   // Push: orange — bass
+  if (isGuide3) return 26;                // Push: hot pink — guide tone 3rd
+  if (isGuide7) return 10;                // Push: bright green — guide tone 7th
+  if (isAvoid) return 25;                 // Push: pink-red — avoid note
+  if (isTension) return 16;               // Push: cyan — tension
+  if (isActive) return 18;                // Push: sky blue — chord tone
+  if (overlayPCS && overlayPCS.has(pc)) return 121; // Push: dim white — selected scale overlay
   return 0;                                // Off
 }
 

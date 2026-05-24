@@ -49,6 +49,7 @@ const AppState = {
   showTips: true,    // startup tips for returning users
   showBadges: true,  // voicing box badge (A, B, C…) visibility
   padCFixed: false,  // Pad OS: lock pad display to C Major scale (urinami 2026-04-14)
+  pushVoicingOverview: false, // Push 3: show chord/degree colors when no voicing box is selected
 };
 
 const BuilderState = {
@@ -200,6 +201,7 @@ function saveAppSettings() {
       showTips: AppState.showTips,
       showBadges: AppState.showBadges,
       padCFixed: AppState.padCFixed,
+      pushVoicingOverview: AppState.pushVoicingOverview,
     };
     const serialized = JSON.stringify(s);
     localStorage.setItem('64pad-settings', serialized);
@@ -239,6 +241,7 @@ function loadAppSettings() {
     if (s.showTips === false) AppState.showTips = false;
     if (s.showBadges !== undefined) AppState.showBadges = s.showBadges;
     if (s.padCFixed === true) AppState.padCFixed = true;
+    if (s.pushVoicingOverview !== undefined) AppState.pushVoicingOverview = s.pushVoicingOverview === true;
     // Migration: banks
     if (Array.isArray(s.banks) && s.banks.length > 0) {
       BankState.banks = s.banks;

@@ -749,6 +749,37 @@ function pcNameForDetectedDegree(pc, degreeName) {
   return NOTE_NAMES_SHARP[pc];
 }
 
+function pcNameForChordDegree(pc, rootName, degreeName) {
+  if (!rootName || !degreeName) return pcNameForDetectedDegree(pc, degreeName);
+  var letters = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  var naturalPCS = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  var rootLetter = rootName.charAt(0).toUpperCase();
+  var rootIndex = letters.indexOf(rootLetter);
+  if (rootIndex < 0) return pcNameForDetectedDegree(pc, degreeName);
+
+  var stepByDegree = {
+    '1': 0,
+    'b9': 1, '9': 1, '#9': 1,
+    'm3': 2, '3': 2,
+    '4': 3, '11': 3, '#11': 3,
+    'b5': 4, '5': 4, '#5': 4,
+    '6': 5, '13': 5, 'b13': 5,
+    'b7': 6, '7': 6
+  };
+  var step = stepByDegree[degreeName];
+  if (step === undefined) return pcNameForDetectedDegree(pc, degreeName);
+
+  var letter = letters[(rootIndex + step) % 7];
+  var natural = naturalPCS[letter];
+  var diff = ((pc - natural + 18) % 12) - 6;
+  if (diff === -2) return letter + 'bb';
+  if (diff === -1) return letter + 'b';
+  if (diff === 0) return letter;
+  if (diff === 1) return letter + '#';
+  if (diff === 2) return letter + '##';
+  return pcNameForDetectedDegree(pc, degreeName);
+}
+
 function chordRootDisplayName(chordName) {
   var match = (chordName || '').match(/^[A-G](?:#|b)?/);
   return match ? match[0] : '';
@@ -765,11 +796,12 @@ function formatDetectedNoteDegreeSummary(notes, rootPC, chordName) {
   var finalPCS = new Set(sorted.map(function(n) { return ((n % 12 - rootPC) + 12) % 12; }));
   var noteNames = [];
   var degreeNames = [];
+  var rootName = chordRootDisplayName(chordName);
   sorted.forEach(function(n) {
     var pc = n % 12;
     var iv = ((pc - rootPC) + 12) % 12;
     var degreeName = detectedNoteDegreeName(iv, finalPCS, chordName);
-    noteNames.push(iv === 0 ? (chordRootDisplayName(chordName) || pcNameForDetectedDegree(pc, degreeName)) : pcNameForDetectedDegree(pc, degreeName));
+    noteNames.push(iv === 0 ? (rootName || pcNameForDetectedDegree(pc, degreeName)) : pcNameForChordDegree(pc, rootName, degreeName));
     degreeNames.push(degreeName);
   });
   return { noteNames: noteNames, degreeNames: degreeNames };
@@ -1027,7 +1059,10 @@ function renderDiatonicBar() {
     bar.style.display = 'none';
     bar.innerHTML = '';
     if (extTogglesEl) extTogglesEl.style.display = 'none';
-    if (extContainerEl) extContainerEl.innerHTML = '';
+    if (extContainerEl) {
+      extContainerEl.innerHTML = '';
+      extContainerEl.style.display = 'none';
+    }
     return;
   }
   // Diatonic bar stays visible in chord mode for quick chord switching
@@ -1036,7 +1071,10 @@ function renderDiatonicBar() {
     bar.style.display = 'none';
     bar.innerHTML = '';
     if (extTogglesEl) extTogglesEl.style.display = 'none';
-    if (extContainerEl) extContainerEl.innerHTML = '';
+    if (extContainerEl) {
+      extContainerEl.innerHTML = '';
+      extContainerEl.style.display = 'none';
+    }
     return;
   }
   bar.style.display = 'flex';
@@ -1079,6 +1117,7 @@ function renderDiatonicBar() {
   var extContainer = document.getElementById('diatonic-ext');
   if (!extToggles || !extContainer) return;
   extContainer.innerHTML = '';
+  extContainer.style.display = 'block';
 
   // Determine if current scale is one of the 3 minor types
   var isMinorVariant = [5, 7, 14].indexOf(AppState.scaleIdx) !== -1;
@@ -1091,7 +1130,7 @@ function renderDiatonicBar() {
   var minorBtn = document.getElementById('ext-minor-btn');
   if (minorBtn) {
     minorBtn.style.display = (isMinorVariant || isMajorDiatonic) ? '' : 'none';
-    minorBtn.textContent = isMajorDiatonic ? t('diatonic.relative') : 'Harm/Mel';
+    minorBtn.textContent = isMajorDiatonic ? t('diatonic.relative') : t('diatonic.harm_mel');
   }
 
   // Update toggle button states
@@ -1115,11 +1154,11 @@ function renderDiatonicBar() {
   }
 }
 
-function toggleBadges() {
-  AppState.showBadges = !AppState.showBadges;
+function toggleBadges(on) {
+  AppState.showBadges = typeof on === 'boolean' ? on : !AppState.showBadges;
   document.body.classList.toggle('hide-badges', !AppState.showBadges);
-  var cb = document.getElementById('badge-toggle');
-  if (cb) cb.checked = AppState.showBadges;
+  var toggles = document.querySelectorAll('[data-view-setup-badges]');
+  toggles.forEach(function(input) { input.checked = AppState.showBadges !== false; });
   saveAppSettings();
 }
 

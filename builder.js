@@ -414,7 +414,7 @@ function initChordKeyPicker() {
   // Major row
   var majLabel = document.createElement('div');
   majLabel.className = 'key-row-label';
-  majLabel.textContent = 'Major';
+  majLabel.textContent = t('builder.major');
   picker.appendChild(majLabel);
   var majRow = document.createElement('div');
   majRow.className = 'key-row-btns';
@@ -434,7 +434,7 @@ function initChordKeyPicker() {
   // Minor row
   var minLabel = document.createElement('div');
   minLabel.className = 'key-row-label';
-  minLabel.textContent = 'Minor';
+  minLabel.textContent = t('builder.minor');
   picker.appendChild(minLabel);
   var minRow = document.createElement('div');
   minRow.className = 'key-row-btns';

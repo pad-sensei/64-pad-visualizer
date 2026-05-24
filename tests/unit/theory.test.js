@@ -57,6 +57,11 @@ describe('formatDetectedNoteDegreeText', () => {
     expect(formatDetectedNoteDegreeText([60, 63, 70, 78], 0, 'Cm7(b5)'))
       .toBe('Note: C Eb Bb Gb  Degree: 1 m3 b7 b5');
   });
+
+  it('spells detected notes from the chord root and degree in flat keys', () => {
+    expect(formatDetectedNoteDegreeText([61, 65, 71, 75, 80], 1, 'Db7(9)'))
+      .toBe('Note: Db F Cb Eb Ab  Degree: 1 3 b7 9 5');
+  });
 });
 
 describe('formatDetectedUstText', () => {
