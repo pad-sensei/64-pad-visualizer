@@ -98,11 +98,11 @@ audio-core `eeca490 → 7c37b0b` (D-1/C-1/C-2 + Tone Balance outputGain 分離 +
 
 ## 現在地（自動更新）
 
-- 状態: **Web SSOT は Desktop v1.5.0 バグ修正・表示設定・i18n 対応まで反映済み**。Gadd9/B 系のコード判定、Degree/Note 表示、表示設定ギア、表示範囲/並び順 UI、全言語の i18n キーを更新し、Desktop 側へ `sync-webui.sh` で同期済み。ローカル確認用 no-cache server は `http://127.0.0.1:8081/?v=view-settings-i18n` で起動中。
-- 残作業: **Gumroad 商品ページ文言の差し替え準備が次**。現行 Gumroad ページを MD に取り込み、うりなみさん文体に寄せて日本語/英語の見せ方を判断する。写真は「Push でできること」と「64 Pad Explorer 全体がつながっていること」が伝わるものを優先する。
+- 状態: **Web SSOT は Desktop v1.5.0 の表示設定 / 更新通知 / Push表示色方針まで反映済み**。Web commit `a375d21 feat: add desktop view setup and push update controls`、pad-core commit `0e23889 docs: update pad-core current state`。Web版は auto-bump で `6.4.3`。表示設定ギア、表示範囲/並び順、C固定、Push voicing overview toggle、更新通知 manifest `64-pad-explorer-update.js`、Gadd9/B 系コード判定、MIDI入力で本体表示が崩れる問題、Push用のスケール/押下色方針を反映済み。Desktop 側へ `sync-webui.sh` 済み。
+- 残作業: **Gumroad 商品ページ文言の差し替え**、**ブログの 64Pad Explorer / Push 3 操作説明反映**、**ブログ記事・製品ページの導線整理**、残バグフィックス。ブログに Push 3 操作や Desktop版の価値がまだ十分反映されていない。
 - 正規ルール: 理論判断の SSOT は `pad-core/theory.js` / `pad-core/data.js`。Web で修正 → Desktop は `sync-webui.sh` 経由で同期。Desktop 側 `WebUI/` は生成物として扱う。i18n は見える文言を全言語ファイルに追加する。PWA のため確認サーバーは必ず `_nocache_server.py` を使う。
-- 次: Gumroad 現行ページ文の MD 化 → 64 Pad Explorer らしい販売文へ整理 → 必要なら英語版に差し替え案作成。v1.5.0 は Desktop 版として正式リリース前なので、公開文では「確認中」「Web 版では先行して試せる」を維持する。
-- 注意: ブラウザ版/Web版・VST3/AU plugin では Push 3 Control Surface を操作できると誤解させない。Push 3 の Setup で表示設定を開けるのは Desktop 版だけ。PUSH2 は対応外。`G B A D` は `Gadd9 / B` 系を優先し、`Bm7(b13)` へ寄せない。教育用 Degree は `m3` 表記を使う。
+- 次: Gumroad 現行ページ文の MD 化 → 64 Pad Explorer らしい販売文へ整理 → 必要なら英語版に差し替え案作成。ブログは `app-64-pad-explorer` と `pad-sensei-products` のURL/導線/写真/Push 3説明を整える。
+- 注意: ブラウザ版/Web版・VST3/AU plugin では Push 3 Control Surface を操作できると誤解させない。Push 3 の Setup で表示設定を開けるのは Desktop 版だけ。PUSH2 は完全対応ではなく、ディスプレイ表示と部分的対応。`G B A D` は `Gadd9 / B` 系を優先し、`Bm7(b13)` へ寄せない。教育用 Degree は `m3` 表記を使う。
 - 判断待ち: Gumroad を英語中心にするか、日本語本文+英語併記にするか。v1.5.0 の正式リリース日と、Web 版 production deploy のタイミング。
 
 ---
