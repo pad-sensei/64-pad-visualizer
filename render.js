@@ -169,8 +169,8 @@ function renderPads(svg, state, grid) {
       const y = margin + (rows - 1 - row) * (padSize + padGap);
       const interval = ((pc - rootPC) + 12) % 12;
       // Voicing filter: pad-position filter (deduped, WYSIWYG) > MIDI filter > no filter
-      const _padPosFilter = !grid && _instrumentPadSet;
-      const _instrFilter = !grid && !_padPosFilter && _instrumentMidiSet;
+      const _padPosFilter = !grid && !selBox && _instrumentPadSet;
+      const _instrFilter = !grid && !selBox && !_padPosFilter && _instrumentMidiSet;
       const _voicingPass = (tastyMidiSet && tastyMidiSet.size > 0)
         ? true  // TASTY mode: bypass instrument filters entirely (_isTastyMiss handles dimming)
         : (_padPosFilter ? _padPosFilter.has(row * cols + col) : (_instrFilter ? _instrFilter.has(midi) : true));

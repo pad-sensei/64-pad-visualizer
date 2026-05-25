@@ -88,6 +88,16 @@ function renderParentScales() {
   const toggleWrap = document.getElementById('parent-scale-toggle');
   const panel = document.getElementById('parent-scale-panel');
   if (!toggleWrap || !panel) return;
+  var keyDisplayOff = false;
+  try {
+    var sectionState = JSON.parse(localStorage.getItem('64pad-sections') || '{}');
+    keyDisplayOff = AppState.mode === 'chord' && sectionState.key === false;
+  } catch(_) {}
+  if (keyDisplayOff) {
+    toggleWrap.style.visibility = 'hidden';
+    panel.style.display = 'none';
+    return;
+  }
 
   // Determine chord context from current mode
   let psRoot = null;

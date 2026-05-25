@@ -198,7 +198,8 @@ h1 { font-size: 1.3rem; color: var(--accent); text-align: center; margin-bottom:
   font-size: 0.78rem;
   font-weight: 700;
 }
-.view-setup-row select {
+.view-setup-row select,
+.view-setup-row button {
   width: 100%;
   padding: 6px 8px;
   background: var(--bg);
@@ -207,10 +208,18 @@ h1 { font-size: 1.3rem; color: var(--accent); text-align: center; margin-bottom:
   border-radius: 6px;
   font-size: 0.82rem;
 }
+.view-setup-row button {
+  cursor: pointer;
+}
 body[data-view-setup-field="focus"] .view-setup-row[data-view-setup-field="focus"] label,
 body[data-view-setup-field="layout"] .view-setup-row[data-view-setup-field="layout"] label,
 body[data-view-setup-field="c-fixed"] .view-setup-row[data-view-setup-field="c-fixed"] label,
 body[data-view-setup-field="push-voicing"] .view-setup-row[data-view-setup-field="push-voicing"] label,
+body[data-view-setup-field="color-root"] .view-setup-row[data-view-setup-field="color-root"] label,
+body[data-view-setup-field="color-scale"] .view-setup-row[data-view-setup-field="color-scale"] label,
+body[data-view-setup-field="color-pressed"] .view-setup-row[data-view-setup-field="color-pressed"] label,
+body[data-view-setup-field="color-memory"] .view-setup-row[data-view-setup-field="color-memory"] label,
+body[data-view-setup-field="color-perform"] .view-setup-row[data-view-setup-field="color-perform"] label,
 body[data-view-setup-field="tips"] .view-setup-row[data-view-setup-field="tips"] label,
 body[data-view-setup-field="badges"] .view-setup-row[data-view-setup-field="badges"] label,
 body[data-view-setup-field="reset"] .view-setup-row[data-view-setup-field="reset"] label {
@@ -220,6 +229,11 @@ body[data-view-setup-field="focus"] .view-setup-row[data-view-setup-field="focus
 body[data-view-setup-field="layout"] .view-setup-row[data-view-setup-field="layout"] select,
 body[data-view-setup-field="c-fixed"] .view-setup-row[data-view-setup-field="c-fixed"] input,
 body[data-view-setup-field="push-voicing"] .view-setup-row[data-view-setup-field="push-voicing"] input,
+body[data-view-setup-field="color-root"] .view-setup-row[data-view-setup-field="color-root"] button,
+body[data-view-setup-field="color-scale"] .view-setup-row[data-view-setup-field="color-scale"] button,
+body[data-view-setup-field="color-pressed"] .view-setup-row[data-view-setup-field="color-pressed"] button,
+body[data-view-setup-field="color-memory"] .view-setup-row[data-view-setup-field="color-memory"] button,
+body[data-view-setup-field="color-perform"] .view-setup-row[data-view-setup-field="color-perform"] button,
 body[data-view-setup-field="tips"] .view-setup-row[data-view-setup-field="tips"] input,
 body[data-view-setup-field="badges"] .view-setup-row[data-view-setup-field="badges"] input,
 body[data-view-setup-field="reset"] .view-setup-row[data-view-setup-field="reset"] button {
@@ -230,6 +244,31 @@ body[data-view-setup-field="reset"] .view-setup-row[data-view-setup-field="reset
   color: var(--text-muted);
   font-size: 0.72rem;
   margin-top: 12px !important;
+}
+
+.push-color-pick-modal {
+  width: min(460px, calc(100vw - 28px));
+}
+.push-color-pick-target {
+  color: var(--accent);
+  font-size: 1rem;
+  font-weight: 800;
+  margin: 6px 0 2px;
+}
+.push-color-pick-page {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.push-color-pick-instruction {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 800;
+  padding: 12px;
 }
 
 /* === Layout === */
@@ -319,7 +358,7 @@ body.pane-view-single #staff-ep-panel {
 .key-label { font-size: 0.65rem; color: var(--text-muted); margin-bottom: 2px; }
 .key-rows { margin-bottom: 6px; }
 .key-row { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
-.key-row-label { font-size: 0.55rem; color: var(--text-muted); }
+.key-row-label { display: none; }
 .key-row-btns { display: flex; gap: 2px; flex: 1; }
 .chord-key-row { position: relative; margin-bottom: 4px; }
 .chord-key-btn {
@@ -1274,6 +1313,19 @@ body.pane-view-single #staff-ep-panel {
   transition: all 0.15s;
 }
 .bank-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+.bank-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: var(--border);
+  color: var(--text-muted);
+  box-shadow: none;
+}
+.bank-nav-btn.bank-add-lit:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+              0 0 10px color-mix(in srgb, var(--accent) 35%, transparent);
+}
 .bank-label {
   font-size: 0.65rem;
   font-weight: 600;

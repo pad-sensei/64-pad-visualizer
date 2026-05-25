@@ -30,6 +30,10 @@ let _isPush = false;         // true when Push 3 User Mode detected
 const _prevLEDState = new Array(64).fill(-1); // -1 = never sent
 let _lpLEDMode = 'full'; // 'full' | 'root' | 'off'
 let _lastLEDState = null; // cached render state for LED refresh on noteOn/noteOff
+let _pushColorPickRole = null; // Push-style palette picker role
+let _pushColorPickPaletteVisible = false;
+let _pushColorPickReadyAt = 0;
+const _pushLedColorRoleOrder = ['root', 'scale', 'pressed', 'memorySlot', 'performActive'];
 
 // PUSHシリアル配列(row間8半音) → 4度クロマチック配列(row間5半音) 変換
 // baseMidi() を使用: octaveShift + semitoneShift 両方反映
@@ -658,7 +662,7 @@ function initWebMIDI() {
 
 // ======== LAUNCHPAD LED CONTROL ========
 // HPS exclusive feature (?hps gate): Push LED control without Ableton
-// - Scale pads keep the long-standing 64PE look: root yellow-green, scale white.
+// - Scale pads keep the long-standing 64PE look: root orange, scale white.
 // - Ableton不要でPushをスケール練習デバイスとして使える
 // Map 64PE pad state to device palette indices (0-127).
 // Do not infer Push colors from Launchpad names. Push 2/3 use a different
@@ -673,7 +677,7 @@ function _padColorToLP(state, row, col) {
 
   // Highlight currently pressed pads. Keep it away from white because scale
   // notes are white on Push.
-  if (midiActiveNotes.has(midi)) return _isPush ? 22 : 3;
+  if (midiActiveNotes.has(midi)) return _isPush ? (AppState.pushPressedColor || 25) : 3;
 
   // Root-only mode: only light up root pitch class
   if (_lpLEDMode === 'root') {
@@ -715,13 +719,13 @@ function _padColorToLP(state, row, col) {
   var isTension = AppState.mode === 'chord' && tensionPCS.has(pc) && !isRoot && !isGuide3 && !isGuide7;
   var isAvoid = AppState.mode === 'chord' && avoidPCS.has(pc) && !isRoot;
 
-  if (AppState.mode === 'scale') {
-    if (pc === scaleRoot) return 9;        // Push: yellow-green — scale root
-    if (scalePCS.has(pc)) return 122;      // Push: white — scale tone
+  if (AppState.mode === 'scale' || (_isPush && cFixed)) {
+    if (pc === scaleRoot) return AppState.pushScaleRootColor || 3;
+    if (scalePCS.has(pc)) return AppState.pushScaleToneColor || 122;
     return 0;
   }
-  if (isRoot && isActive) return 3;       // Push: orange — root
-  if (isBass) return 3;                   // Push: orange — bass
+  if (isRoot && isActive) return AppState.pushScaleRootColor || 3;
+  if (isBass) return AppState.pushScaleRootColor || 3;
   if (isGuide3) return 26;                // Push: hot pink — guide tone 3rd
   if (isGuide7) return 10;                // Push: bright green — guide tone 7th
   if (isAvoid) return 25;                 // Push: pink-red — avoid note
@@ -729,6 +733,228 @@ function _padColorToLP(state, row, col) {
   if (isActive) return 18;                // Push: sky blue — chord tone
   if (overlayPCS && overlayPCS.has(pc)) return 121; // Push: dim white — selected scale overlay
   return 0;                                // Off
+}
+
+function _pushPaletteColors64(first) {
+  const start = first || 1;
+  const colors = [];
+  for (let i = 0; i < 64; i++) {
+    const color = start + i;
+    colors.push(color <= 127 ? color : 0);
+  }
+  return colors;
+}
+
+function _pushIsColorPickActive() {
+  return !!(_pushColorPickRole || (typeof window !== 'undefined' && window.__pushLedColorPickRole));
+}
+
+function _pushCurrentLedColorForRole(role) {
+  if (typeof AppState === 'undefined') return 1;
+  if (role === 'root') return AppState.pushScaleRootColor || 3;
+  if (role === 'scale') return AppState.pushScaleToneColor || 122;
+  if (role === 'pressed') return AppState.pushPressedColor || 25;
+  if (role === 'memorySlot') return AppState.pushMemorySlotColor || 45;
+  if (role === 'performActive') return AppState.pushPerformActiveColor || 9;
+  return 1;
+}
+
+function _pushLedColorRoleLabel(role) {
+  if (role === 'root') return 'Root';
+  if (role === 'scale') return 'Scale notes';
+  if (role === 'pressed') return 'Pressed pads';
+  if (role === 'memorySlot') return 'Memory slots';
+  if (role === 'performActive') return 'Perform active';
+  return 'Push color';
+}
+
+function _pushColorPageLabel(first) {
+  return first > 64 ? '明るい色 / 白を含む' : '基本色';
+}
+
+function _pushEnsureColorPickOverlay() {
+  if (typeof document === 'undefined') return null;
+  var overlay = document.getElementById('push-color-pick-overlay');
+  if (overlay) return overlay;
+  overlay = document.createElement('div');
+  overlay.id = 'push-color-pick-overlay';
+  overlay.className = 'help-overlay';
+  overlay.innerHTML = [
+    '<div class="help-modal push-color-pick-modal">',
+      '<h2>Push Color Select</h2>',
+      '<div class="push-color-pick-target"></div>',
+      '<div class="push-color-pick-page"></div>',
+      '<div class="push-color-pick-instruction">Push 3 の光っているパッドから色を選びます。</div>',
+      '<p class="view-setup-note">十字キー上下で対象、左右で色ページを切り替えます。Undo で設定に戻ります。</p>',
+      '<button class="close-btn" type="button" onclick="returnPushLedColorPick()">設定に戻る</button>',
+    '</div>'
+  ].join('');
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+function _pushRenderColorPickOverlay(role, first) {
+  var overlay = _pushEnsureColorPickOverlay();
+  if (!overlay) return;
+  overlay.classList.add('active');
+  var target = overlay.querySelector('.push-color-pick-target');
+  if (target) target.textContent = _pushLedColorRoleLabel(role);
+  var page = overlay.querySelector('.push-color-pick-page');
+  if (page) page.textContent = _pushColorPageLabel(first);
+}
+
+function _pushUpdateColorPickDisplay(role, first, savedColor) {
+  if (typeof _juceInvoke !== 'function') return;
+  var pageLabel = first > 64 ? 'BRIGHT / WHITE' : 'BASIC COLORS';
+  _juceInvoke('updatePushBuilderChord', 'PICK COLOR', [], [
+    'PUSH_COLOR',
+    'TARGET ' + _pushLedColorRoleLabel(role).toUpperCase(),
+    'PAGE ' + pageLabel,
+    savedColor !== undefined ? ('SAVED ' + savedColor) : 'PRESS A LIT PAD'
+  ]);
+}
+
+function _pushShowColorPickPalette(first) {
+  const colors = _pushPaletteColors64(first);
+  _pushColorPickPaletteVisible = true;
+  _pushColorPickReadyAt = Date.now() + 140;
+  for (var i = 0; i < 64; i++) _prevLEDState[i] = -1;
+  if (typeof _juceInvoke === 'function') {
+    _juceInvoke('updatePushLEDs', colors);
+    setTimeout(function() { if (_pushIsColorPickActive()) _juceInvoke('updatePushLEDs', colors); }, 80);
+    setTimeout(function() { if (_pushIsColorPickActive()) _juceInvoke('updatePushLEDs', colors); }, 220);
+  }
+}
+
+function _pushHideColorPickOverlay() {
+  if (typeof document === 'undefined') return;
+  var overlay = document.getElementById('push-color-pick-overlay');
+  if (overlay) overlay.classList.remove('active');
+}
+
+function _pushApplyLedColorRole(role, color) {
+  if (typeof AppState === 'undefined') return false;
+  const value = Math.max(0, Math.min(127, Number(color) || 0));
+  if (role === 'root') AppState.pushScaleRootColor = value;
+  else if (role === 'scale') AppState.pushScaleToneColor = value;
+  else if (role === 'pressed') {
+    AppState.pushPressedColor = value;
+    if (typeof _juceInvoke === 'function') _juceInvoke('setPushHeldColor', value);
+  }
+  else if (role === 'memorySlot') AppState.pushMemorySlotColor = value;
+  else if (role === 'performActive') AppState.pushPerformActiveColor = value;
+  else return false;
+
+  if (typeof saveAppSettings === 'function') saveAppSettings();
+  return true;
+}
+
+function _pushSetLedColorRole(role, color) {
+  if (!_pushApplyLedColorRole(role, color)) return false;
+  _pushColorPickPaletteVisible = false;
+  _pushColorPickReadyAt = 0;
+  _pushHideColorPickOverlay();
+  for (var i = 0; i < 64; i++) _prevLEDState[i] = -1;
+  if (typeof window !== 'undefined' && typeof window._pushRefreshPadLEDs === 'function') window._pushRefreshPadLEDs();
+  else refreshLaunchpadLEDs();
+  if (typeof window !== 'undefined' && typeof window._pushRestoreMainDisplayAfterColorPick === 'function') {
+    window._pushRestoreMainDisplayAfterColorPick();
+  }
+  return true;
+}
+
+function startPushLedColorPick(role, first) {
+  _pushColorPickRole = role;
+  const currentColor = _pushCurrentLedColorForRole(role);
+  const start = first || (currentColor > 64 ? 65 : 1);
+  if (typeof window !== 'undefined') {
+    window.__pushLedColorPickRole = role;
+    window.__pushLedColorPickFirst = start;
+  }
+  if (typeof _juceInvoke === 'function') _juceInvoke('setPushPadPlaybackBlocked', true);
+  _pushShowColorPickPalette(start);
+  _pushRenderColorPickOverlay(role, start);
+  _pushUpdateColorPickDisplay(role, start);
+  return true;
+}
+
+function switchPushLedColorPickRole(delta) {
+  const role = _pushColorPickRole || (typeof window !== 'undefined' ? window.__pushLedColorPickRole : null);
+  if (!role) return false;
+  var idx = _pushLedColorRoleOrder.indexOf(role);
+  if (idx < 0) idx = 0;
+  idx = (idx + (delta > 0 ? 1 : -1) + _pushLedColorRoleOrder.length) % _pushLedColorRoleOrder.length;
+  const nextRole = _pushLedColorRoleOrder[idx];
+  const first = (typeof window !== 'undefined' && window.__pushLedColorPickFirst) ? window.__pushLedColorPickFirst : 1;
+  _pushColorPickRole = nextRole;
+  if (typeof window !== 'undefined') window.__pushLedColorPickRole = nextRole;
+  _pushShowColorPickPalette(first);
+  _pushRenderColorPickOverlay(nextRole, first);
+  _pushUpdateColorPickDisplay(nextRole, first);
+  return true;
+}
+
+function switchPushLedColorPickPage(delta) {
+  const role = _pushColorPickRole || (typeof window !== 'undefined' ? window.__pushLedColorPickRole : null);
+  if (!role) return false;
+  const currentFirst = (typeof window !== 'undefined' && window.__pushLedColorPickFirst) ? window.__pushLedColorPickFirst : 1;
+  const nextFirst = currentFirst > 64 ? 1 : 65;
+  if (typeof window !== 'undefined') window.__pushLedColorPickFirst = nextFirst;
+  _pushShowColorPickPalette(nextFirst);
+  _pushRenderColorPickOverlay(role, nextFirst);
+  _pushUpdateColorPickDisplay(role, nextFirst);
+  return true;
+}
+
+function cancelPushLedColorPick() {
+  _pushColorPickRole = null;
+  if (typeof window !== 'undefined') {
+    window.__pushLedColorPickRole = null;
+    window.__pushLedColorPickFirst = null;
+  }
+  if (typeof window !== 'undefined' && typeof window._pushSyncPadPlaybackBlock === 'function') window._pushSyncPadPlaybackBlock();
+  else if (typeof _juceInvoke === 'function') _juceInvoke('setPushPadPlaybackBlocked', false);
+  _pushColorPickPaletteVisible = false;
+  _pushColorPickReadyAt = 0;
+  _pushHideColorPickOverlay();
+  for (var i = 0; i < 64; i++) _prevLEDState[i] = -1;
+  refreshLaunchpadLEDs();
+  if (typeof window !== 'undefined' && typeof window._pushRestoreMainDisplayAfterColorPick === 'function') {
+    window._pushRestoreMainDisplayAfterColorPick();
+  }
+}
+
+function returnPushLedColorPick() {
+  if (typeof window !== 'undefined' && typeof window._pushReturnToViewSetupFromColorPick === 'function') {
+    window._pushReturnToViewSetupFromColorPick();
+    return;
+  }
+  cancelPushLedColorPick();
+}
+
+function handlePushLedColorPickPad(padIdx) {
+  const role = _pushColorPickRole || (typeof window !== 'undefined' ? window.__pushLedColorPickRole : null);
+  if (!role) return false;
+  if (!_pushColorPickPaletteVisible || Date.now() < _pushColorPickReadyAt) return true;
+  const idx = Number(padIdx);
+  if (!Number.isFinite(idx) || idx < 0 || idx >= 64) return true;
+  const first = (typeof window !== 'undefined' && window.__pushLedColorPickFirst) ? window.__pushLedColorPickFirst : 1;
+  const value = Math.max(0, Math.min(127, first + idx));
+  if (!_pushApplyLedColorRole(role, value)) return true;
+  _pushShowColorPickPalette(first);
+  _pushRenderColorPickOverlay(role, first);
+  _pushUpdateColorPickDisplay(role, first, value);
+  return true;
+}
+
+if (typeof window !== 'undefined') {
+  window.startPushLedColorPick = startPushLedColorPick;
+  window.cancelPushLedColorPick = cancelPushLedColorPick;
+  window.returnPushLedColorPick = returnPushLedColorPick;
+  window.handlePushLedColorPickPad = handlePushLedColorPickPad;
+  window.switchPushLedColorPickRole = switchPushLedColorPickRole;
+  window.switchPushLedColorPickPage = switchPushLedColorPickPage;
+  window._pushSetLedColorRole = _pushSetLedColorRole;
 }
 
 function setLEDMode(mode) {
@@ -782,6 +1008,7 @@ function _exitLaunchpadProgrammerMode() {
 
 function updateLaunchpadLEDs(state) {
   _lastLEDState = state;
+  if (_isPush && _pushIsColorPickActive()) return;
   if (!midiOutput || !_lpOutputActive || !_lpProgrammerMode) return;
   // urinami 2026-04-14: PUSH は楽器としての scale 表示に徹する。render.js で
   // padApplyScaleOnlyOverride を通した state が渡ってくるので、ここでは
@@ -811,6 +1038,7 @@ function updateLaunchpadLEDs(state) {
 
 // Re-run LED update with cached state (for noteOn/noteOff feedback)
 function refreshLaunchpadLEDs() {
+  if (_isPush && _pushIsColorPickActive()) return;
   if (_lastLEDState) updateLaunchpadLEDs(_lastLEDState);
 }
 

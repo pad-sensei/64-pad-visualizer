@@ -1,7 +1,10 @@
 // ========================================
-// GENRE PRESET WEIGHTS (URL ?preset=jazz|bossa|funk)
+// GENRE PRESET WEIGHTS (URL ?preset=folk|bossa|jazz|funk)
 // ========================================
 var GENRE_WEIGHTS = {
+  folk:  { rootBass:100, fifthBass:20, rootStr6:40, rootStr5:35, rootStr4:20,
+           top4:10, guideTone:30, openStr:55, stringCount:35, avgFret:12,
+           span:10, gaps:20, fullFret:0, closedAForm:0, major7OpenCluster:0 },
   jazz:  { rootBass:60, fifthBass:0, rootStr6:20, rootStr5:30, rootStr4:40,
            top4:100, guideTone:50, openStr:0, stringCount:20, avgFret:6,
            span:10, gaps:15, fullFret:20 },
@@ -435,6 +438,8 @@ function calcShellPositions(rootRow, rootCol, thirdInterval, seventhInterval, sh
 // ========================================
 // GUITAR/BASS POSITION ALTERNATIVES (v3.19, groups v3.21)
 // ========================================
+var INSTRUMENT_POSITION_MAX_RESULTS = 10;
+
 function groupGuitarForms(alternatives, openMidi, rootPC) {
   var numStrings = openMidi.length;
   var groups = [];
@@ -516,7 +521,7 @@ function updateGuitarPositions() {
   var key = BuilderState.root + ':' + pcs.join(',');
   if (key !== GuitarPositionState._lastKey) {
     GuitarPositionState._lastKey = key;
-    GuitarPositionState.alternatives = padEnumGuitarChordForms(pcs, BuilderState.root, GUITAR_OPEN_MIDI, 21, 4, { maxResults: 30, weights: _presetWeights, noOpen: _presetNoOpen });
+    GuitarPositionState.alternatives = padEnumGuitarChordForms(pcs, BuilderState.root, GUITAR_OPEN_MIDI, 21, 4, { maxResults: INSTRUMENT_POSITION_MAX_RESULTS, weights: _presetWeights, noOpen: _presetNoOpen });
     GuitarPositionState.groups = groupGuitarForms(GuitarPositionState.alternatives, GUITAR_OPEN_MIDI, BuilderState.root);
     _resetPositionState(GuitarPositionState);
     GuitarPositionState.enabled = GuitarPositionState.alternatives.length > 0;
@@ -547,7 +552,7 @@ function updateBassPositions() {
   var key = BuilderState.root + ':' + pcs.join(',');
   if (key !== BassPositionState._lastKey) {
     BassPositionState._lastKey = key;
-    BassPositionState.alternatives = padEnumGuitarChordForms(pcs, BuilderState.root, PAD_BASS_TUNING, 21, 4, { maxResults: 30, weights: _presetWeights, noOpen: _presetNoOpen });
+    BassPositionState.alternatives = padEnumGuitarChordForms(pcs, BuilderState.root, PAD_BASS_TUNING, 21, 4, { maxResults: INSTRUMENT_POSITION_MAX_RESULTS, weights: _presetWeights, noOpen: _presetNoOpen });
     BassPositionState.groups = groupGuitarForms(BassPositionState.alternatives, PAD_BASS_TUNING, BuilderState.root);
     _resetPositionState(BassPositionState);
     BassPositionState.enabled = BassPositionState.alternatives.length > 0;
@@ -650,9 +655,9 @@ function updatePositionBar(which) {
     var g = state.groups[state.currentGroupIdx];
     if (g) {
       var groupLabel = state.groups.length > 1 ? t(g.labelKey) + ': ' : '';
-      label.textContent = groupLabel + (state.currentAltInGroup + 1) + '/' + g.forms.length;
+      label.textContent = groupLabel + (state.currentAltInGroup + 1);
     } else {
-      label.textContent = (state.currentAlt + 1) + '/' + state.alternatives.length;
+      label.textContent = String(state.currentAlt + 1);
     }
   } else {
     bar.style.display = 'none';
@@ -952,6 +957,8 @@ function drawVoicingBoxes(svg, vpArray, strokeColor, badgeColor, dupSet, cycleab
     boxRect.setAttribute('stroke-width', sel ? 3 : 2);
     boxRect.setAttribute('stroke-dasharray', isDup ? '4 6' : '6 3');
     boxRect.setAttribute('opacity', sel ? '1' : '0.7');
+    boxRect.style.cursor = 'pointer';
+    boxRect.addEventListener('click', () => selectVoicingBox(idx));
     if (isDup && !sel) {
       const anim = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
       anim.setAttribute('attributeName', 'opacity');
@@ -972,13 +979,15 @@ function drawVoicingBoxes(svg, vpArray, strokeColor, badgeColor, dupSet, cycleab
     br.setAttribute('x', bX); br.setAttribute('y', bY);
     br.setAttribute('width', bsz); br.setAttribute('height', bsz);
     br.setAttribute('rx', 4);
-    br.setAttribute('fill', sel ? '#000' : '#fff');
+    br.setAttribute('fill', sel ? '#fff' : 'rgba(0,0,0,0.72)');
+    br.setAttribute('stroke', 'rgba(255,255,255,0.75)');
+    br.setAttribute('stroke-width', 1);
     br.setAttribute('opacity', '0.9');
     g.appendChild(br);
     const bt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     bt.setAttribute('x', bX + bsz / 2); bt.setAttribute('y', bY + bsz / 2 + 1);
     bt.setAttribute('text-anchor', 'middle'); bt.setAttribute('dominant-baseline', 'middle');
-    bt.setAttribute('fill', sel ? '#fff' : '#000');
+    bt.setAttribute('fill', sel ? '#000' : '#fff');
     bt.setAttribute('font-weight', '800');
     const boxLetter = String.fromCharCode(65 + idx); // A, B, C, ...
     if (isCycleable && sel) {
@@ -1055,6 +1064,21 @@ function renderDiatonicBar() {
   if (!bar) return;
   var extTogglesEl = document.getElementById('diatonic-ext-toggles');
   var extContainerEl = document.getElementById('diatonic-ext');
+  var keyDisplayOff = false;
+  try {
+    var sectionState = JSON.parse(localStorage.getItem('64pad-sections') || '{}');
+    keyDisplayOff = AppState.mode === 'chord' && sectionState.key === false;
+  } catch(_) {}
+  if (keyDisplayOff) {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    if (extTogglesEl) extTogglesEl.style.display = 'none';
+    if (extContainerEl) {
+      extContainerEl.innerHTML = '';
+      extContainerEl.style.display = 'none';
+    }
+    return;
+  }
   if (AppState.mode === 'input') {
     bar.style.display = 'none';
     bar.innerHTML = '';

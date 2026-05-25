@@ -28,6 +28,7 @@ function loadBank(bankId) {
   undoStack.length = 0;
   BankState.activeBankId = bankId;
   loadBankMemory();
+  updateBankUI();
   updateMemorySlotUI();
   if (typeof updatePlainUI === 'function') updatePlainUI();
   if (typeof updatePlainDisplay === 'function') updatePlainDisplay();
@@ -42,9 +43,16 @@ function addBank() {
     return;
   }
   syncMemoryToActiveBank();
-  var newBank = { id: String(Date.now()), name: 'Bank ' + (BankState.banks.length + 1), memory: Array(16).fill(null) };
+  var newBank = { id: String(Date.now()), name: nextBankName(), memory: Array(16).fill(null) };
   BankState.banks.push(newBank);
   loadBank(newBank.id);
+}
+
+function nextBankName() {
+  var used = new Set(BankState.banks.map(function(bank) { return bank.name; }));
+  var n = 1;
+  while (used.has('Bank ' + n)) n++;
+  return 'Bank ' + n;
 }
 
 function duplicateBank() {
@@ -103,8 +111,20 @@ function updateBankUI() {
   var bank = getActiveBank();
   if (!bank) return;
   var count = PlainState.memory.filter(function(s) { return s !== null; }).length;
-  nameEl.textContent = bank.name + ' (' + count + '/16)';
-  nameEl.title = t('bank.click_rename');
+  var bankIndex = BankState.banks.findIndex(function(b) { return b.id === bank.id; }) + 1;
+  var bankTotal = BankState.banks.length;
+  nameEl.textContent = '[' + bankIndex + '/' + bankTotal + '] ' + bank.name + ' (' + count + '/16)';
+  nameEl.title = bank.name + ' / Bank ' + bankIndex + ' of ' + bankTotal + ' / Slots ' + count + '/16';
+  var addBtn = document.getElementById('bank-add');
+  if (addBtn) {
+    var canAdd = BankState.banks.length < 16;
+    addBtn.disabled = !canAdd;
+    addBtn.classList.toggle('bank-add-lit', canAdd);
+    addBtn.title = canAdd ? 'Add Bank' : t('bank.limit_reached');
+  }
+  if (typeof window !== 'undefined' && typeof window._pushSetAddLED === 'function') {
+    window._pushSetAddLED(BankState.banks.length < 16);
+  }
 }
 
 function pushUndoState() {

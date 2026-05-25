@@ -93,7 +93,7 @@ document.addEventListener('click', function(e) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+1+Code:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=6.4.3">
+<link rel="stylesheet" href="style.css?v=6.4.4">
 <!-- WebAudioFont player (lazy: only needed if sampler loads) -->
 <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js" async></script>
 <!-- jRhodes3c sampler: loaded in background AFTER page is interactive.
@@ -352,6 +352,26 @@ document.addEventListener('click', function(e) {
       <label for="view-push-voicing-toggle" data-i18n="help.push_voicing_toggle">ボイシング全体表示</label>
       <input type="checkbox" id="view-push-voicing-toggle" data-view-setup-push-voicing onchange="togglePushVoicingOverview(this.checked)">
     </div>
+    <div class="view-setup-row" data-view-setup-field="color-root">
+      <label>Push Root 色</label>
+      <button type="button" onclick="startViewSetupPushColorPick('root')">選ぶ <span data-push-color-label="root">3</span></button>
+    </div>
+    <div class="view-setup-row" data-view-setup-field="color-scale">
+      <label>Push Scale 色</label>
+      <button type="button" onclick="startViewSetupPushColorPick('scale')">選ぶ <span data-push-color-label="scale">122</span></button>
+    </div>
+    <div class="view-setup-row" data-view-setup-field="color-pressed">
+      <label>Push 押下色</label>
+      <button type="button" onclick="startViewSetupPushColorPick('pressed')">選ぶ <span data-push-color-label="pressed">25</span></button>
+    </div>
+    <div class="view-setup-row" data-view-setup-field="color-memory">
+      <label>Memory slot 色</label>
+      <button type="button" onclick="startViewSetupPushColorPick('memorySlot')">選ぶ <span data-push-color-label="memorySlot">45</span></button>
+    </div>
+    <div class="view-setup-row" data-view-setup-field="color-perform">
+      <label>Perform active 色</label>
+      <button type="button" onclick="startViewSetupPushColorPick('performActive')">選ぶ <span data-push-color-label="performActive">9</span></button>
+    </div>
     <div class="view-setup-row" data-view-setup-field="tips">
       <label for="view-tips-toggle" data-i18n="help.tips_toggle">起動時にヒントを表示</label>
       <input type="checkbox" id="view-tips-toggle" data-view-setup-tips onchange="toggleStartupTips(this.checked)">
@@ -372,7 +392,7 @@ document.addEventListener('click', function(e) {
 <div class="app-layout">
   <!-- Left: Pad Grid -->
   <div class="pad-area" data-pane="A">
-    <div id="midi-detect" style="line-height:1.3;height:64px;padding:4px 8px;background:rgba(0,0,0,0.3);border-radius:6px;margin-bottom:4px;color:var(--text-muted);font-size:0.7rem;overflow:hidden;word-break:break-word;box-sizing:border-box;"></div>
+    <div id="midi-detect" style="line-height:1.3;min-height:76px;padding:4px 8px;background:rgba(0,0,0,0.3);border-radius:6px;margin-bottom:4px;color:var(--text-muted);font-size:0.7rem;overflow:visible;word-break:break-word;box-sizing:border-box;"></div>
     <svg id="pad-grid" class="grid-container"></svg>
     <div class="pad-footer" style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
       <div class="legend" id="legend-wrap">
@@ -409,9 +429,10 @@ document.addEventListener('click', function(e) {
             <div id="guitar-pos-groups" class="pos-groups" style="display:none;"></div>
             <select id="genre-preset-select" onchange="setGenrePreset(this.value)" style="display:none;font-size:0.6rem;padding:1px 4px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:3px;cursor:pointer;" data-info="info.genre_preset">
               <option value="" data-i18n="pos.genre_default">Standard</option>
+              <option value="folk" data-i18n="pos.genre_folk">Folk/Open</option>
               <option value="jazz" data-i18n="pos.genre_jazz">Jazz</option>
               <option value="bossa" data-i18n="pos.genre_bossa">Bossa</option>
-              <option value="funk" data-i18n="pos.genre_funk">Funk</option>
+              <option value="funk" data-i18n="pos.genre_funk">Funk/Soul</option>
             </select>
             <button class="pos-nav-btn" onclick="cycleGuitarPosition(-1)" data-info="info.pos_nav"><span class="kbd-hint">,</span>&#9664;</button>
             <span id="guitar-pos-label">A 1/1</span>
@@ -813,25 +834,25 @@ if (new URLSearchParams(window.location.search).has('hps')) {
 <!-- Sound Credits: hidden until new presets are added -->
 
 <!-- i18n (engine → language files) -->
-<script src="i18n.js?v=6.4.3"></script>
-<script src="lang-en.js?v=6.4.3"></script>
-<script src="lang-ja.js?v=6.4.3"></script>
-<script src="lang-zh.js?v=6.4.3"></script>
-<script src="lang-es.js?v=6.4.3"></script>
-<script src="lang-fr.js?v=6.4.3"></script>
-<script src="lang-pt.js?v=6.4.3"></script>
-<script src="lang-de.js?v=6.4.3"></script>
-<script src="lang-ko.js?v=6.4.3"></script>
-<script src="lang-it.js?v=6.4.3"></script>
+<script src="i18n.js?v=6.4.4"></script>
+<script src="lang-en.js?v=6.4.4"></script>
+<script src="lang-ja.js?v=6.4.4"></script>
+<script src="lang-zh.js?v=6.4.4"></script>
+<script src="lang-es.js?v=6.4.4"></script>
+<script src="lang-fr.js?v=6.4.4"></script>
+<script src="lang-pt.js?v=6.4.4"></script>
+<script src="lang-de.js?v=6.4.4"></script>
+<script src="lang-ko.js?v=6.4.4"></script>
+<script src="lang-it.js?v=6.4.4"></script>
 <!-- pad-core (SSOT: theory calculations, data constants, render) -->
-<script src="pad-core/data.js?v=6.4.3"></script>
-<script src="pad-core/theory.js?v=6.4.3"></script>
-<script src="pad-core/render.js?v=6.4.3"></script>
-<script src="pad-core/circle.js?v=6.4.3"></script>
-<script src="pad-core/builder-ui.js?v=6.4.3"></script>
-<script src="pad-core/incremental.js?v=6.4.3"></script>
+<script src="pad-core/data.js?v=6.4.4"></script>
+<script src="pad-core/theory.js?v=6.4.4"></script>
+<script src="pad-core/render.js?v=6.4.4"></script>
+<script src="pad-core/circle.js?v=6.4.4"></script>
+<script src="pad-core/builder-ui.js?v=6.4.4"></script>
+<script src="pad-core/incremental.js?v=6.4.4"></script>
 <!-- App JS -->
-<script src="data.js?v=6.4.3"></script>
+<script src="data.js?v=6.4.4"></script>
 <!-- Phase 3.1-A.c: audio-core + host-adapter + audio-ui-binding are loaded
      ONLY when AUDIO_ENABLED. In silent mode these are skipped entirely —
      pad-core / theory / MIDI / render still run, only sound is absent.
@@ -855,7 +876,7 @@ if (window.AUDIO_ENABLED) {
     'audio-ui-binding.js'
   ];
   _audioScripts.forEach(function(src) {
-    document.write('<script src="' + src + '?v=6.4.3"><\/script>');
+    document.write('<script src="' + src + '?v=6.4.4"><\/script>');
   });
 } else {
   // Silent mode: stub audio APIs that non-audio code calls, so pads/UI don't crash.
@@ -887,21 +908,21 @@ if (window.AUDIO_ENABLED) {
   window._updatePlateRouting = function() {};
 }
 </script>
-<script src="theory.js?v=6.4.3"></script>
-<script src="tasty-stock.js?v=6.4.3"></script>
-<script src="staff.js?v=6.4.3"></script>
-<script src="instruments.js?v=6.4.3"></script>
-<script src="circle-ui.js?v=6.4.3"></script>
-<script src="parent-scales-ui.js?v=6.4.3"></script>
-<script src="play-controls.js?v=6.4.3"></script>
-<script src="render.js?v=6.4.3"></script>
-<script src="plain.js?v=6.4.3"></script>
-<script src="perform.js?v=6.4.3"></script>
-<script src="builder.js?v=6.4.3"></script>
-<script src="midi.js?v=6.4.3"></script>
-<script src="main.js?v=6.4.3"></script>
-<script src="tutorial-data.js?v=6.4.3"></script>
-<script src="tutorial.js?v=6.4.3"></script>
+<script src="theory.js?v=6.4.4"></script>
+<script src="tasty-stock.js?v=6.4.4"></script>
+<script src="staff.js?v=6.4.4"></script>
+<script src="instruments.js?v=6.4.4"></script>
+<script src="circle-ui.js?v=6.4.4"></script>
+<script src="parent-scales-ui.js?v=6.4.4"></script>
+<script src="play-controls.js?v=6.4.4"></script>
+<script src="render.js?v=6.4.4"></script>
+<script src="plain.js?v=6.4.4"></script>
+<script src="perform.js?v=6.4.4"></script>
+<script src="builder.js?v=6.4.4"></script>
+<script src="midi.js?v=6.4.4"></script>
+<script src="main.js?v=6.4.4"></script>
+<script src="tutorial-data.js?v=6.4.4"></script>
+<script src="tutorial.js?v=6.4.4"></script>
 <script>
 // 2026-04-28: Desktop モード (?desktop=1) 後段 override。
 // 音は JUCE host (外部 VST/AU plugin) 側で再生されるため、Web 側 AudioContext を

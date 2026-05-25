@@ -101,6 +101,17 @@ function syncViewSetupControls() {
   cFixedToggles.forEach(function(input) { input.checked = AppState.padCFixed === true; });
   var pushVoicingToggles = document.querySelectorAll('[data-view-setup-push-voicing]');
   pushVoicingToggles.forEach(function(input) { input.checked = AppState.pushVoicingOverview === true; });
+  var pushColorLabels = document.querySelectorAll('[data-push-color-label]');
+  pushColorLabels.forEach(function(el) {
+    var role = el.getAttribute('data-push-color-label');
+    var value = '';
+    if (role === 'root') value = AppState.pushScaleRootColor || 3;
+    else if (role === 'scale') value = AppState.pushScaleToneColor || 122;
+    else if (role === 'pressed') value = AppState.pushPressedColor || 25;
+    else if (role === 'memorySlot') value = AppState.pushMemorySlotColor || 45;
+    else if (role === 'performActive') value = AppState.pushPerformActiveColor || 9;
+    el.textContent = String(value);
+  });
   var tipsToggles = document.querySelectorAll('[data-view-setup-tips]');
   tipsToggles.forEach(function(input) { input.checked = AppState.showTips !== false; });
   var badgeToggles = document.querySelectorAll('[data-view-setup-badges]');
@@ -109,8 +120,26 @@ function syncViewSetupControls() {
 
 function setViewSetupFocusField(field) {
   if (!document.body || !document.body.dataset) return;
-  var allowed = { focus: true, layout: true, 'c-fixed': true, 'push-voicing': true, tips: true, badges: true, reset: true };
+  var allowed = {
+    focus: true,
+    layout: true,
+    'c-fixed': true,
+    'push-voicing': true,
+    'color-root': true,
+    'color-scale': true,
+    'color-pressed': true,
+    'color-memory': true,
+    'color-perform': true,
+    tips: true,
+    badges: true,
+    reset: true
+  };
   document.body.dataset.viewSetupField = allowed[field] ? field : 'focus';
+}
+
+function startViewSetupPushColorPick(role) {
+  closeViewSetupPanel();
+  if (typeof startPushLedColorPick === 'function') startPushLedColorPick(role, 1);
 }
 
 function openViewSetupPanel() {
@@ -309,6 +338,9 @@ function toggleCFixed(on) {
   toggles.forEach(function(input) { input.checked = AppState.padCFixed === true; });
   if (typeof render === 'function') render();
   if (typeof refreshLaunchpadLEDs === 'function') refreshLaunchpadLEDs();
+  if (typeof window !== 'undefined' && typeof window._pushNotifyCFixedChanged === 'function') {
+    window._pushNotifyCFixedChanged();
+  }
 }
 
 function togglePushVoicingOverview(on) {
@@ -443,6 +475,8 @@ document.addEventListener('keydown', (e) => {
 
   // Escape: Close help modal → exit Plain edit → deselect slot → deselect voicing box
   if (key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
     const helpOverlay = document.getElementById('help-overlay');
     if (helpOverlay.classList.contains('active')) {
       helpOverlay.classList.remove('active');
@@ -709,24 +743,60 @@ function toggleKeyDisplay() {
 
 render();
 
-// Section toggle (Chord panel collapsible sections)
-function toggleSection(name) {
-  var section = document.getElementById('section-' + name) || (name === 'key' ? document.getElementById('chord-key-row') : null);
+function _sectionElementFor(name) {
+  return document.getElementById('section-' + name) || (name === 'key' ? document.getElementById('chord-key-row') : null);
+}
+
+function _isSectionEnabled(name) {
+  try {
+    var s = JSON.parse(localStorage.getItem('64pad-sections') || '{}');
+    return s[name] !== false;
+  } catch(_) {
+    return true;
+  }
+}
+
+function _setSectionStored(name, visible) {
+  try {
+    var s = JSON.parse(localStorage.getItem('64pad-sections') || '{}');
+    s[name] = !!visible;
+    localStorage.setItem('64pad-sections', JSON.stringify(s));
+  } catch(_) {}
+}
+
+function setSectionVisible(name, visible, shouldPersist) {
+  var section = _sectionElementFor(name);
   var btn = document.getElementById('sect-' + name);
   if (!section) return;
-  var visible = section.style.display !== 'none';
-  section.style.display = visible ? 'none' : '';
-  if (btn) btn.classList.toggle('active', !visible);
+
+  if (name === 'key') {
+    var showInChord = !!visible && typeof AppState !== 'undefined' && AppState.mode === 'chord';
+    section.style.display = showInChord ? '' : 'none';
+    if (btn) btn.classList.toggle('active', !!visible);
+    if (shouldPersist !== false) _setSectionStored(name, visible);
+    if (typeof renderDiatonicBar === 'function') renderDiatonicBar();
+    if (typeof renderParentScales === 'function') renderParentScales();
+    return;
+  }
+
+  section.style.display = visible ? '' : 'none';
+  if (btn) btn.classList.toggle('active', !!visible);
+
   // Quality toggles Root together
   if (name === 'quality') {
     var rootSect = document.getElementById('section-root');
-    if (rootSect) rootSect.style.display = visible ? 'none' : '';
+    if (rootSect) rootSect.style.display = visible ? '' : 'none';
   }
-  try {
-    var s = JSON.parse(localStorage.getItem('64pad-sections') || '{}');
-    s[name] = !visible;
-    localStorage.setItem('64pad-sections', JSON.stringify(s));
-  } catch(_) {}
+
+  if (shouldPersist !== false) _setSectionStored(name, visible);
+}
+
+// Section toggle (Chord panel collapsible sections)
+function toggleSection(name) {
+  var section = document.getElementById('section-' + name) || (name === 'key' ? document.getElementById('chord-key-row') : null);
+  if (!section) return;
+  var visible = name === 'key' ? _isSectionEnabled('key') : section.style.display !== 'none';
+  setSectionVisible(name, !visible);
 }
 // Restore section states
 (function() {
@@ -734,7 +804,7 @@ function toggleSection(name) {
     var s = JSON.parse(localStorage.getItem('64pad-sections') || '{}');
     ['key', 'input', 'quality', 'voicing', 'memory'].forEach(function(name) {
       if (s[name] === false) {
-        toggleSection(name);
+        setSectionVisible(name, false, false);
       }
     });
   } catch(_) {}

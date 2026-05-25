@@ -242,8 +242,17 @@ function renderPianoDisplay(stateOrRootPC, pcsSetOpt) {
   if (!pcsSet) pcsSet = new Set();
   var rootPC = state ? state.rootPC : -1;
   var bassPC = state ? state.bassPC : null;
+  var activeMidiSet = null;
 
   const stockPinned = StockState.enabled && StockState.currentIndex >= 0 && StockState.lhMidi && StockState.rhMidi;
+  const selectedVoicingBox = !stockPinned
+    && AppState.mode === 'chord'
+    && VoicingState.selectedBoxIdx !== null
+    && VoicingState.lastBoxes
+    && VoicingState.lastBoxes[VoicingState.selectedBoxIdx];
+  if (selectedVoicingBox && selectedVoicingBox.midiNotes) {
+    activeMidiSet = new Set(selectedVoicingBox.midiNotes);
+  }
   const pianoBaseMidi = baseMidi();
   const pianoMidiBase = stockPinned ? 36 : (Math.floor(pianoBaseMidi / 12) - 2 + 2) * 12;
 
@@ -287,6 +296,7 @@ function renderPianoDisplay(stateOrRootPC, pcsSetOpt) {
     pcsSet: pcsSet,
     bassPC: bassPC,
     renderState: state || {},
+    activeMidiSet: activeMidiSet,
     overlayPCS: state ? state.overlayPCS : null,
     overlayCharPCS: state ? state.overlayCharPCS : null,
     chordMode: AppState.mode === 'chord',

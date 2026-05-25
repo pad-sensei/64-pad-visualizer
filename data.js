@@ -50,6 +50,12 @@ const AppState = {
   showBadges: true,  // voicing box badge (A, B, C…) visibility
   padCFixed: false,  // Pad OS: lock pad display to C Major scale (urinami 2026-04-14)
   pushVoicingOverview: false, // Push 3: show chord/degree colors when no voicing box is selected
+  pushScaleRootColor: 3, // Push 3 palette index: scale root
+  pushScaleToneColor: 122, // Push 3 palette index: scale tone
+  pushPressedColor: 25, // Push 3 palette index: held/same-note highlight
+  pushMemorySlotColor: 45, // Push 3 palette index: saved Memory slot
+  pushPerformActiveColor: 9, // Push 3 palette index: active Perform slot
+  pushLedColorSettingsVersion: 2,
 };
 
 const BuilderState = {
@@ -202,6 +208,12 @@ function saveAppSettings() {
       showBadges: AppState.showBadges,
       padCFixed: AppState.padCFixed,
       pushVoicingOverview: AppState.pushVoicingOverview,
+      pushScaleRootColor: AppState.pushScaleRootColor,
+      pushScaleToneColor: AppState.pushScaleToneColor,
+      pushPressedColor: AppState.pushPressedColor,
+      pushMemorySlotColor: AppState.pushMemorySlotColor,
+      pushPerformActiveColor: AppState.pushPerformActiveColor,
+      pushLedColorSettingsVersion: AppState.pushLedColorSettingsVersion,
     };
     const serialized = JSON.stringify(s);
     localStorage.setItem('64pad-settings', serialized);
@@ -242,6 +254,14 @@ function loadAppSettings() {
     if (s.showBadges !== undefined) AppState.showBadges = s.showBadges;
     if (s.padCFixed === true) AppState.padCFixed = true;
     if (s.pushVoicingOverview !== undefined) AppState.pushVoicingOverview = s.pushVoicingOverview === true;
+    if (s.pushLedColorSettingsVersion === AppState.pushLedColorSettingsVersion) {
+      if (s.pushScaleRootColor !== undefined && s.pushScaleRootColor >= 0 && s.pushScaleRootColor <= 127) AppState.pushScaleRootColor = s.pushScaleRootColor;
+      if (s.pushScaleToneColor !== undefined && s.pushScaleToneColor >= 0 && s.pushScaleToneColor <= 127) AppState.pushScaleToneColor = s.pushScaleToneColor;
+      if (s.pushPressedColor !== undefined && s.pushPressedColor >= 0 && s.pushPressedColor <= 127) AppState.pushPressedColor = s.pushPressedColor;
+      if (s.pushMemorySlotColor !== undefined && s.pushMemorySlotColor >= 0 && s.pushMemorySlotColor <= 127) AppState.pushMemorySlotColor = s.pushMemorySlotColor;
+      if (s.pushPerformActiveColor !== undefined && s.pushPerformActiveColor >= 0 && s.pushPerformActiveColor <= 127) AppState.pushPerformActiveColor = s.pushPerformActiveColor;
+    }
+    if (typeof _juceInvoke === 'function') _juceInvoke('setPushHeldColor', AppState.pushPressedColor);
     // Migration: banks
     if (Array.isArray(s.banks) && s.banks.length > 0) {
       BankState.banks = s.banks;
