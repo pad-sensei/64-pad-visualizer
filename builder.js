@@ -252,6 +252,7 @@ function updateChordDisplay() {
   var activeVoicingSummary = null;
   if (typeof getStockActiveSummary === 'function') activeVoicingSummary = getStockActiveSummary();
   if (!activeVoicingSummary && typeof getTastyActiveSummary === 'function') activeVoicingSummary = getTastyActiveSummary();
+  if (!activeVoicingSummary && typeof getGuitarActiveSummary === 'function') activeVoicingSummary = getGuitarActiveSummary();
   nameEl.textContent = (activeVoicingSummary && activeVoicingSummary.chordName) || getBuilderChordName() || '—';
   // Auto bass from voicing (inversion/drop) when no explicit on-chord bass
   let displayBass = BuilderState.bass;
@@ -293,6 +294,7 @@ function builderClear() {
       updateStockUI();
     }
   }
+  if (typeof disableGuitarEngine === 'function') disableGuitarEngine({ render: false });
   BuilderState.root = null; BuilderState.quality = null; BuilderState.tension = null; BuilderState.bass = null;
   BuilderState.bassInputMode = false;
   BuilderState._fromDiatonic = false;
@@ -308,6 +310,7 @@ function builderClear() {
 }
 
 function builderBack() {
+  if (typeof disableGuitarEngine === 'function') disableGuitarEngine({ render: false });
   if (BuilderState.bassInputMode) {
     BuilderState.bassInputMode = false;
     if (BuilderState.quality) setBuilderStep(2);
@@ -340,6 +343,7 @@ function builderNext() {
 function selectRoot(pc) {
   if (TastyState.enabled) disableTasty();
   if (StockState.enabled) disableStock();
+  if (typeof disableGuitarEngine === 'function') disableGuitarEngine({ render: false });
   if (BuilderState.bassInputMode) {
     // In bass input mode, set bass note instead of root
     BuilderState.bass = pc;
@@ -367,6 +371,7 @@ function selectRoot(pc) {
 function selectQuality(q) {
   if (TastyState.enabled) disableTasty();
   if (StockState.enabled) disableStock();
+  if (typeof disableGuitarEngine === 'function') disableGuitarEngine({ render: false });
   BuilderState.quality = q;
   BuilderState.tension = null;
   resetVoicingSelection();
@@ -381,6 +386,7 @@ function selectQuality(q) {
 function selectTension(t, el) {
   if (TastyState.enabled) disableTasty();
   if (StockState.enabled) disableStock();
+  if (typeof disableGuitarEngine === 'function') disableGuitarEngine({ render: false });
   if (BuilderState.tension && BuilderState.tension.label === t.label) {
     BuilderState.tension = null;
     clearTensionSelection();

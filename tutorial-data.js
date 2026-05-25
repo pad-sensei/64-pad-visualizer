@@ -689,9 +689,9 @@ TutorialRegistry.add('stock', {
     },
     {
       type: 'info',
-      id: 'to_pad',
-      targets: ['#chord-engine-to-pad'],
-      highlight: '#chord-engine-to-pad',
+      id: 'pad_display',
+      targets: ['#pad-grid'],
+      highlight: '#pad-grid',
       titleKey: 'tut.stock.step4_title',
       msgKey: 'tut.stock.step4_msg',
       waitFor: 'close',

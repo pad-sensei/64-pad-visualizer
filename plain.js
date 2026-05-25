@@ -160,6 +160,11 @@ function getCurrentChordMidiNotes() {
       (StockState.lhMidi.length > 0 || StockState.rhMidi.length > 0)) {
     return [...StockState.lhMidi, ...StockState.rhMidi].sort((a, b) => a - b);
   }
+  if (typeof isGuitarEngineActive === 'function' && isGuitarEngineActive() &&
+      typeof getGuitarEngineMidiNotes === 'function') {
+    var guitarNotes = getGuitarEngineMidiNotes();
+    if (guitarNotes.length > 0) return guitarNotes;
+  }
   if (AppState.mode === 'input') {
     let notes = [...PlainState.activeNotes];
     if (instrumentInputActive) {

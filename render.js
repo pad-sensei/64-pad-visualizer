@@ -660,6 +660,10 @@ function render() {
     if (state.tastyMidiSet && state.tastyMidiSet.size > 0) {
       boxMidi = TastyState.midiNotes;
     }
+    if (typeof isGuitarEngineActive === 'function' && isGuitarEngineActive() &&
+        typeof getGuitarEngineMidiNotes === 'function') {
+      boxMidi = getGuitarEngineMidiNotes();
+    }
     renderStaff(AppState.mode, state.rootPC, state.activePCS, state.omittedPCS, state.qualityPCS, boxMidi, state.bassPC, state.activeIvPCS);
   }
 

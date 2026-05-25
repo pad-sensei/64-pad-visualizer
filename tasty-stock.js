@@ -363,6 +363,7 @@ function toggleTasty() {
   } else {
     // Disable STOCK if active (mutually exclusive)
     if (StockState.enabled) disableStock();
+    if (typeof disableGuitarEngine === 'function') disableGuitarEngine({ render: false });
     // Clear stale state before enable (defensive: prior chord's voicing must not leak)
     TastyState.currentIndex = -1;
     TastyState.midiNotes = [];
@@ -645,14 +646,21 @@ function updateChordEngineTabs() {
   if (!tabs) return;
   var tastyBtn = document.getElementById('chord-engine-tasty');
   var stockBtn = document.getElementById('chord-engine-stock');
+  var guitarBtn = document.getElementById('chord-engine-guitar');
   var nav = document.getElementById('chord-engine-nav');
   var counter = document.getElementById('chord-engine-counter');
+  var chordDisplay = tabs.closest('.chord-display');
   var chordReady = AppState.mode === 'chord' && BuilderState.root !== null && BuilderState.quality;
   var canUseTasty = !!(chordReady && TastyState.hpsUnlocked && getTastyCategory(BuilderState.quality) !== null);
   var canUseStock = !!(chordReady && StockState.hpsUnlocked && getStockMapping(BuilderState.quality, BuilderState.tension));
+  var showGuitar = !!(chordReady && typeof isGuitarEngineVisible === 'function' && isGuitarEngineVisible());
+  var canUseGuitar = !!(chordReady && typeof isGuitarEngineAvailable === 'function' && isGuitarEngineAvailable());
   var tastyActive = !!(TastyState.enabled && TastyState.currentIndex >= 0);
   var stockActive = !!(StockState.enabled && StockState.currentIndex >= 0);
-  tabs.style.display = (canUseTasty || canUseStock) ? 'flex' : 'none';
+  var guitarActive = !!(typeof isGuitarEngineActive === 'function' && isGuitarEngineActive());
+  var showTabs = canUseTasty || canUseStock || showGuitar;
+  tabs.style.display = showTabs ? 'flex' : 'none';
+  if (chordDisplay) chordDisplay.classList.toggle('has-engine-tabs', !!showTabs);
   if (tastyBtn) {
     tastyBtn.disabled = !canUseTasty;
     tastyBtn.classList.toggle('active', tastyActive);
@@ -661,10 +669,17 @@ function updateChordEngineTabs() {
     stockBtn.disabled = !canUseStock;
     stockBtn.classList.toggle('active', stockActive);
   }
-  if (nav) nav.style.display = (tastyActive || stockActive) ? 'flex' : 'none';
+  if (guitarBtn) {
+    guitarBtn.style.display = showGuitar ? '' : 'none';
+    guitarBtn.disabled = !showGuitar;
+    guitarBtn.classList.toggle('is-unavailable', showGuitar && !canUseGuitar);
+    guitarBtn.classList.toggle('active', guitarActive);
+  }
+  if (nav) nav.style.display = (tastyActive || stockActive || guitarActive) ? 'flex' : 'none';
   if (counter) {
     if (tastyActive) counter.textContent = (TastyState.currentIndex + 1) + '/' + TastyState.currentMatches.length;
     else if (stockActive) counter.textContent = (StockState.currentIndex + 1) + '/' + StockState.currentMatches.length;
+    else if (guitarActive && typeof getGuitarEngineCounter === 'function') counter.textContent = getGuitarEngineCounter();
     else counter.textContent = '';
   }
   updateChordEngineDetail();
@@ -677,6 +692,11 @@ function cycleActiveVoicing(reverse) {
   }
   if (StockState.enabled && StockState.currentIndex >= 0) {
     cycleStock(!!reverse);
+    return;
+  }
+  if (typeof isGuitarEngineActive === 'function' && isGuitarEngineActive() &&
+      typeof cycleGuitarEngine === 'function') {
+    cycleGuitarEngine(!!reverse);
   }
 }
 
@@ -698,7 +718,8 @@ function updateChordEngineDetail() {
   if (!detail || !textEl || !filterEl) return;
   var tastyActive = TastyState.enabled && TastyState.currentIndex >= 0;
   var stockActive = StockState.enabled && StockState.currentIndex >= 0;
-  if (!tastyActive && !stockActive) {
+  var guitarActive = typeof isGuitarEngineActive === 'function' && isGuitarEngineActive();
+  if (!tastyActive && !stockActive && !guitarActive) {
     detail.style.display = 'none';
     textEl.textContent = '';
     filterEl.innerHTML = '';
@@ -716,7 +737,8 @@ function updateChordEngineDetail() {
       filterEl.innerHTML = '';
     }
   } else {
-    textEl.textContent = getStockInfoText();
+    textEl.textContent = stockActive ? getStockInfoText() :
+      (typeof getGuitarEngineDetailText === 'function' ? getGuitarEngineDetailText() : '');
     filterEl.innerHTML = '';
   }
 }
@@ -863,6 +885,7 @@ function toggleStock() {
   } else {
     // Disable TASTY if active (mutually exclusive)
     if (TastyState.enabled) disableTasty();
+    if (typeof disableGuitarEngine === 'function') disableGuitarEngine({ render: false });
     // Clear stale state before enable (defensive: prior chord's voicing must not leak)
     StockState.currentIndex = -1;
     StockState.lhMidi = [];

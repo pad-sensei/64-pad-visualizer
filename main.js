@@ -653,12 +653,15 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // z/x: TASTY or STOCK prev/next (paired keys)
+  // z/x: active builder voicing engine prev/next (TASTY/STOCK/Guitar)
   if (lk === 'z' || lk === 'x') {
     if (AppState.mode === 'chord') {
       var reverse = lk === 'z';
-      if (TastyState.enabled) { cycleTasty(reverse); return; }
-      if (StockState.enabled) { cycleStock(reverse); return; }
+      if (TastyState.enabled || StockState.enabled ||
+          (typeof isGuitarEngineActive === 'function' && isGuitarEngineActive())) {
+        cycleActiveVoicing(reverse);
+        return;
+      }
     }
   }
 
@@ -671,7 +674,7 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // v: Toggle Voicing Reflect (guitar → pad layout)
+  // v: Toggle Guitar builder engine (guitar voicing → pad layout)
   if (lk === 'v') {
     if (AppState.mode === 'chord' && !TastyState.enabled && !StockState.enabled && typeof toggleVoicingReflect === 'function') {
       toggleVoicingReflect();

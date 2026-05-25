@@ -85,6 +85,26 @@ function toggleInstrument(which) {
   saveAppSettings();
 }
 
+function ensureInstrumentVisible(which) {
+  if (which === 'guitar') showGuitar = true;
+  if (which === 'bass') showBass = true;
+  if (which === 'piano') showPiano = true;
+  var guitarBtn = document.getElementById('inst-toggle-guitar');
+  var bassBtn = document.getElementById('inst-toggle-bass');
+  var pianoBtn = document.getElementById('inst-toggle-piano');
+  var guitarWrap = document.getElementById('guitar-wrap');
+  var bassWrap = document.getElementById('bass-wrap');
+  var pianoWrap = document.getElementById('piano-wrap-display');
+  var labelBtn = document.getElementById('guitar-label-btn');
+  if (guitarBtn) guitarBtn.classList.toggle('active', showGuitar);
+  if (bassBtn) bassBtn.classList.toggle('active', showBass);
+  if (pianoBtn) pianoBtn.classList.toggle('active', showPiano);
+  if (guitarWrap) guitarWrap.style.display = showGuitar ? '' : 'none';
+  if (bassWrap) bassWrap.style.display = showBass ? '' : 'none';
+  if (pianoWrap) pianoWrap.style.display = showPiano ? '' : 'none';
+  if (labelBtn) labelBtn.style.display = (showGuitar || showBass) ? '' : 'none';
+}
+
 // Staff / Circle exclusive toggle (theory view — right panel)
 function toggleTheoryView(which) {
   if (which === 'staff') {
@@ -421,52 +441,190 @@ function _computeVoicingPadPositions(midiSet) {
   return { padSet: padSet, dualCount: duals.length, layoutCount: unique.length };
 }
 
-function toggleVoicingReflect() {
-  var btn = document.getElementById('voicing-reflect-btn');
-  if (_voicingReflectMode) {
-    // Already ON: cycle alt layout if more layouts exist, otherwise turn off
-    if (_voicingLayoutCount > 1 && _voicingAltMode < _voicingLayoutCount - 1) {
-      _voicingAltMode++;
-    } else {
-      _voicingReflectMode = false;
-      _voicingAltMode = 0;
-      _instrumentMidiSet = null;
-      _instrumentPadSet = null;
-      _voicingDualCount = 0;
-      _voicingLayoutCount = 1;
-      if (btn) {
-        btn.style.background = 'var(--surface)'; btn.style.color = 'var(--text)'; btn.innerHTML = '<span class="kbd-hint">V</span>' + t('pos.to_pad');
-        btn.style.borderColor = 'var(--accent, #f80)';
-        // Hide if position bar also hidden
-        if (!GuitarPositionState.enabled) btn.style.display = 'none';
-      }
-      render();
-      return;
-    }
-  } else {
-    // Turn ON — disable Stock reflect if active
-    if (_stockReflectMode) {
-      _stockReflectMode = false;
-      syncStockReflectButtons(false);
-    }
-    _voicingReflectMode = true;
-    _voicingAltMode = 0;
-    // Always center voicing on pad grid
-    var notes = [];
-    for (var s = 0; s < 6; s++) {
-      if (guitarSelectedFrets[s] !== null) notes.push(GUITAR_OPEN_MIDI[s] + guitarSelectedFrets[s]);
-    }
-    if (notes.length >= 2) {
-      notes.sort(function(a, b) { return a - b; });
-      var mid = Math.round((notes[0] + notes[notes.length - 1]) / 2);
-      var gridRange = (ROWS - 1) * ROW_INTERVAL + (COLS - 1);
-      var padMid = BASE_MIDI + gridRange / 2;
-      var needed = Math.round((mid - padMid) / 12);
-      setOctaveShift(Math.round((mid - padMid) / 12));
-    }
-    if (btn) { btn.style.display = 'inline-block'; btn.style.background = 'var(--accent, #f80)'; btn.style.color = '#000'; btn.style.borderColor = 'var(--accent, #f80)'; }
+function getGuitarEngineMidiNotes() {
+  var notes = [];
+  for (var s = 0; s < 6; s++) {
+    if (guitarSelectedFrets[s] !== null) notes.push(GUITAR_OPEN_MIDI[s] + guitarSelectedFrets[s]);
   }
+  return notes.sort(function(a, b) { return a - b; });
+}
+
+function centerPadOnMidiNotes(notes) {
+  if (!notes || notes.length < 2) return;
+  var sorted = notes.slice().sort(function(a, b) { return a - b; });
+  var mid = Math.round((sorted[0] + sorted[sorted.length - 1]) / 2);
+  var gridRange = (ROWS - 1) * ROW_INTERVAL + (COLS - 1);
+  var padMid = BASE_MIDI + gridRange / 2;
+  setOctaveShift(Math.round((mid - padMid) / 12));
+}
+
+function isGuitarEngineVisible() {
+  var hpsUnlocked = !!((typeof TastyState !== 'undefined' && TastyState.hpsUnlocked) ||
+    (typeof StockState !== 'undefined' && StockState.hpsUnlocked));
+  if (!hpsUnlocked) return false;
+  return AppState.mode === 'chord' && BuilderState.root !== null && !!BuilderState.quality;
+}
+
+function refreshGuitarEnginePositionsForBuilder(applyCurrent) {
+  if (!isGuitarEngineVisible()) return false;
+  if (typeof getBuilderPCS !== 'function' || typeof padEnumGuitarChordForms !== 'function') return false;
+  var pcs = getBuilderPCS();
+  if (!pcs) return false;
+
+  var key = 'engine:' + BuilderState.root + ':' + pcs.join(',');
+  if (key !== GuitarPositionState._engineKey || GuitarPositionState.alternatives.length === 0 || !GuitarPositionState.enabled) {
+    GuitarPositionState._engineKey = key;
+    GuitarPositionState.alternatives = padEnumGuitarChordForms(pcs, BuilderState.root, GUITAR_OPEN_MIDI, 21, 4, {
+      maxResults: INSTRUMENT_POSITION_MAX_RESULTS,
+      weights: typeof _presetWeights !== 'undefined' ? _presetWeights : null,
+      noOpen: typeof _presetNoOpen !== 'undefined' ? _presetNoOpen : false,
+    });
+    GuitarPositionState.groups = groupGuitarForms(GuitarPositionState.alternatives, GUITAR_OPEN_MIDI, BuilderState.root);
+    _resetPositionState(GuitarPositionState);
+    GuitarPositionState.enabled = GuitarPositionState.alternatives.length > 0;
+  }
+  if (GuitarPositionState.enabled && applyCurrent) {
+    applyGuitarEngineAlt(GuitarPositionState.currentAlt || 0);
+  }
+  return !!(GuitarPositionState.enabled && GuitarPositionState.alternatives.length > 0);
+}
+
+function isGuitarEngineAvailable() {
+  return refreshGuitarEnginePositionsForBuilder(false);
+}
+
+function isGuitarEngineActive() {
+  return !!(_voicingReflectMode && GuitarPositionState.enabled && _guitarSyncSource === 'position');
+}
+
+function resetGuitarEngineFilters() {
+  _voicingReflectMode = false;
+  _voicingAltMode = 0;
+  _instrumentMidiSet = null;
+  _instrumentPadSet = null;
+  _voicingDualCount = 0;
+  _voicingLayoutCount = 1;
+  var btn = document.getElementById('voicing-reflect-btn');
+  if (btn) {
+    btn.style.background = 'var(--surface)';
+    btn.style.color = 'var(--text)';
+    btn.innerHTML = '<span class="kbd-hint">V</span>' + t('pos.to_pad');
+    btn.style.borderColor = 'var(--accent, #f80)';
+    btn.style.display = 'none';
+  }
+}
+
+function enableGuitarEngine() {
+  if (!isGuitarEngineAvailable()) return;
+  if (TastyState.enabled && typeof disableTasty === 'function') disableTasty(true);
+  if (StockState.enabled && typeof disableStock === 'function') disableStock();
+  if (_stockReflectMode) {
+    _stockReflectMode = false;
+    syncStockReflectButtons(false);
+  }
+  _voicingReflectMode = true;
+  _voicingAltMode = 0;
+  refreshGuitarEnginePositionsForBuilder(true);
+  ensureInstrumentVisible('guitar');
+  centerPadOnMidiNotes(getGuitarEngineMidiNotes());
   render();
+  if (typeof updateChordDisplay === 'function') updateChordDisplay();
+}
+
+function disableGuitarEngine(options) {
+  options = options || {};
+  var wasActive = _voicingReflectMode;
+  resetGuitarEngineFilters();
+  if (wasActive && options.render !== false) {
+    render();
+    if (typeof updateChordDisplay === 'function') updateChordDisplay();
+  } else if (typeof updateChordEngineTabs === 'function') {
+    updateChordEngineTabs();
+  }
+}
+
+function toggleGuitarEngine() {
+  if (isGuitarEngineActive()) disableGuitarEngine();
+  else enableGuitarEngine();
+}
+
+function applyGuitarEngineAlt(index) {
+  if (!GuitarPositionState.enabled || GuitarPositionState.alternatives.length === 0) return false;
+  var len = GuitarPositionState.alternatives.length;
+  GuitarPositionState.currentAlt = (index + len) % len;
+  var form = GuitarPositionState.alternatives[GuitarPositionState.currentAlt];
+  for (var gi = 0; gi < GuitarPositionState.groups.length; gi++) {
+    var localIdx = GuitarPositionState.groups[gi].forms.indexOf(form);
+    if (localIdx >= 0) {
+      GuitarPositionState.currentGroupIdx = gi;
+      GuitarPositionState.currentAltInGroup = localIdx;
+      break;
+    }
+  }
+  applyGuitarForm(form);
+  updatePositionBar('guitar');
+  return true;
+}
+
+function cycleGuitarEngine(reverse) {
+  if (!isGuitarEngineActive()) return;
+  if (!applyGuitarEngineAlt(GuitarPositionState.currentAlt + (reverse ? -1 : 1))) return;
+  centerPadOnMidiNotes(getGuitarEngineMidiNotes());
+  render();
+  if (typeof updateChordDisplay === 'function') updateChordDisplay();
+  var notes = getGuitarEngineMidiNotes();
+  if (notes.length > 0 && typeof playMidiNotes === 'function') playMidiNotes(notes, 1.0);
+}
+
+function getGuitarEngineCounter() {
+  if (!GuitarPositionState.enabled || GuitarPositionState.alternatives.length === 0) return '';
+  return (GuitarPositionState.currentAlt + 1) + '/' + GuitarPositionState.alternatives.length;
+}
+
+function getGuitarEngineDegreeParts() {
+  var notes = getGuitarEngineMidiNotes();
+  var finalPCS = typeof getBuilderPCS === 'function' ? getBuilderPCS() : null;
+  var finalSet = finalPCS ? new Set(finalPCS.map(function(iv) { return ((iv % 12) + 12) % 12; })) : null;
+  var qualityPCS = BuilderState.quality ? BuilderState.quality.pcs : null;
+  var noteNames = [];
+  var degreeNames = [];
+  notes.forEach(function(n) {
+    var pc = n % 12;
+    var degreeName = '';
+    if (BuilderState.root !== null && typeof chordDegreeName === 'function') {
+      degreeName = chordDegreeName(((pc - BuilderState.root) + 12) % 12, qualityPCS, finalSet);
+    }
+    noteNames.push(NOTE_NAMES_SHARP[pc]);
+    degreeNames.push(degreeName || NOTE_NAMES_SHARP[pc]);
+  });
+  return { noteText: noteNames.join(' '), degreeText: degreeNames.join(' ') };
+}
+
+function getGuitarEngineDetailText() {
+  if (!isGuitarEngineActive()) return '';
+  var group = GuitarPositionState.groups[GuitarPositionState.currentGroupIdx];
+  var groupLabel = group ? t(group.labelKey) : 'Guitar';
+  var frets = guitarSelectedFrets.map(function(f) { return f === null ? 'x' : String(f); }).join(' ');
+  var parts = getGuitarEngineDegreeParts();
+  return 'Guitar ' + getGuitarEngineCounter() + ' · ' + groupLabel + ' · Frets: ' + frets +
+    (parts.degreeText ? ' · Degree: ' + parts.degreeText : '');
+}
+
+function getGuitarActiveSummary() {
+  if (!isGuitarEngineActive()) return null;
+  var parts = getGuitarEngineDegreeParts();
+  return {
+    kind: 'Guitar',
+    count: getGuitarEngineCounter(),
+    chordName: getBuilderChordName(),
+    noteText: parts.noteText,
+    degreeText: parts.degreeText,
+    topText: ''
+  };
+}
+
+function toggleVoicingReflect() {
+  toggleGuitarEngine();
 }
 
 function syncStockReflectButtons(active) {

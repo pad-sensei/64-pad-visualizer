@@ -684,9 +684,9 @@ function updatePositionBar(which) {
   if (which === 'guitar') {
     var vrBtn = document.getElementById('voicing-reflect-btn');
     if (vrBtn) {
-      // Show when position bar is visible OR voicing reflect is active
-      var showReflect = (state.enabled && state.alternatives.length > 0) || _voicingReflectMode;
-      vrBtn.style.display = showReflect ? 'inline-block' : 'none';
+      // The left side is the instrument area. Guitar-to-pad selection now lives
+      // in the builder engine tabs alongside TASTY/STOCK.
+      vrBtn.style.display = 'none';
     }
   }
 }
