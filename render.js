@@ -359,24 +359,13 @@ function renderPads(svg, state, grid) {
       svg.appendChild(rect);
 
       const showDegree = rootPC !== null && !_isTastyMiss && (isTastyHit || isActive || isRoot || isBass || isOmitted || isChar || isGuide || isAvoid || isOverlay);
-      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      text.setAttribute('class', 'pad-label');
-      text.setAttribute('x', x + padSize / 2);
-      text.setAttribute('y', showDegree ? y + padSize * 0.24 : y + padSize / 2 - 4);
-      text.setAttribute('text-anchor', 'middle'); text.setAttribute('dominant-baseline', 'middle');
-      text.setAttribute('fill', textColor);
-      text.setAttribute('font-size', padSize < 50 ? '8px' : (showDegree ? '10px' : '9px'));
-      text.setAttribute('font-weight', showDegree ? '600' : '400');
-      text.textContent = pcName(pc);
-      if (isDimmed) text.setAttribute('opacity', isDimChordTone ? '0' : (isOverlayPad ? '0.9' : '0.4'));
-      if (isTastyActive && _isTastyMiss) text.setAttribute('opacity', '0.05');
-      svg.appendChild(text);
-
+      let degName = '';
+      let voicingDegreeRaw = null;
       if (showDegree) {
-        let degName;
-        // TASTY mode: use recipe degree (e.g. "b7", "#11") instead of computed interval name
+        // TASTY/Stock mode: use recipe degree (e.g. "b7", "#11") instead of computed interval name
         if (tastyDegreeMap && tastyMidiSet && tastyMidiSet.has(midi) && tastyDegreeMap[midi]) {
-          degName = tastyDegreeMap[midi];
+          voicingDegreeRaw = tastyDegreeMap[midi];
+          degName = displayDegreeLabel(voicingDegreeRaw);
         } else if (isOverlay) {
           // Overlay notes use scale degree names (not chord degree names)
           degName = SCALE_DEGREE_NAMES[interval];
@@ -388,6 +377,24 @@ function renderPads(svg, state, grid) {
         if (!tastyDegreeMap && (isTension || isAvoid) && AppState.mode === 'chord') {
           degName = '(' + degName + ')';
         }
+      }
+
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('class', 'pad-label');
+      text.setAttribute('x', x + padSize / 2);
+      text.setAttribute('y', showDegree ? y + padSize * 0.24 : y + padSize / 2 - 4);
+      text.setAttribute('text-anchor', 'middle'); text.setAttribute('dominant-baseline', 'middle');
+      text.setAttribute('fill', textColor);
+      text.setAttribute('font-size', padSize < 50 ? '8px' : (showDegree ? '10px' : '9px'));
+      text.setAttribute('font-weight', showDegree ? '600' : '400');
+      text.textContent = voicingDegreeRaw
+        ? formatVoicingNoteName(midi, voicingDegreeRaw, pcName(rootPC))
+        : pcName(pc);
+      if (isDimmed) text.setAttribute('opacity', isDimChordTone ? '0' : (isOverlayPad ? '0.9' : '0.4'));
+      if (isTastyActive && _isTastyMiss) text.setAttribute('opacity', '0.05');
+      svg.appendChild(text);
+
+      if (showDegree) {
         const degText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         degText.setAttribute('class', 'pad-label');
         degText.setAttribute('x', x + padSize / 2);

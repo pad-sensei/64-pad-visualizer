@@ -45,8 +45,8 @@ function setOctaveShift(value) {
 }
 
 function shiftOctave(delta) {
-  if (TastyState.enabled) {
-    if (typeof refreshTastyPadLayout === 'function') refreshTastyPadLayout();
+  if (TastyState.enabled || StockState.enabled) {
+    if (typeof refreshActiveVoicingPadLayout === 'function') refreshActiveVoicingPadLayout();
     render();
     return;
   }
@@ -79,9 +79,10 @@ function updateOctaveLabel() {
   const lo = baseMidi();
   const hi = lo + (ROWS - 1) * ROW_INTERVAL + (COLS - 1);
   document.getElementById('oct-label').textContent = noteName(lo) + ' — ' + noteName(hi);
-  var tastyAutoFit = TastyState.enabled && TastyState.currentIndex >= 0;
-  document.getElementById('oct-down').disabled = tastyAutoFit || (AppState.octaveShift <= -1);
-  document.getElementById('oct-up').disabled = tastyAutoFit || (AppState.octaveShift >= 3);
+  var hpsAutoFit = (TastyState.enabled && TastyState.currentIndex >= 0) ||
+    (StockState.enabled && StockState.currentIndex >= 0);
+  document.getElementById('oct-down').disabled = hpsAutoFit || (AppState.octaveShift <= -1);
+  document.getElementById('oct-up').disabled = hpsAutoFit || (AppState.octaveShift >= 3);
   // 32-pad labels
   var octLabel32 = document.getElementById('oct-label-32');
   if (octLabel32) {
@@ -1427,6 +1428,7 @@ if (typeof module !== 'undefined') module.exports = {
   calcAllVoicingPositions, calcVoicingPositions,
   getShellIntervals, applyTension, getBuilderPCS,
   chordDegreeName, detectedChordQualityFlags, detectedNoteDegreeName,
+  pcNameForDetectedDegree, pcNameForChordDegree,
   formatDetectedNoteDegreeSummary, formatDetectedNoteDegreeText,
   formatDetectedUstText, formatDetectedUstFractionHtml, formatDetectedUstInlineHtml,
   getDiatonicTetrads, getBuilderChordName,

@@ -122,6 +122,17 @@ describe('TASTY functional chord display', () => {
     expect(getTastyFitOctaveShift([48, 55, 64, 71, 74])).toBe(0);
     AppState.octaveShift = 0;
   });
+
+  it('fits STOCK left/right hand voicings to a visible pad octave range', () => {
+    AppState.octaveShift = 2;
+    AppState.semitoneShift = 0;
+    expect(getStockFitOctaveShift([36, 43, 52, 59])).toBe(-1);
+
+    AppState.octaveShift = -1;
+    expect(getStockFitOctaveShift([47, 54, 64, 71, 83])).toBe(1);
+
+    AppState.octaveShift = 0;
+  });
 });
 
 describe('Stock voicing quality mapping', () => {
@@ -159,6 +170,20 @@ describe('Stock voicing display and builder selection', () => {
     expect(stockEntryNameToDisplay('F', 'Cm11(b5)')).toBe('Fm11(b5)');
     expect(stockEntryNameToDisplay('F', 'C13(sus4)')).toBe('F13(sus4)');
     expect(stockEntryNameToDisplay('F', 'Dom13 (Type A)')).toBe('F13 (Type A)');
+  });
+
+  it('spells Stock voicing notes from the selected builder root', () => {
+    expect(formatVoicingNoteDegreeParts([46, 50, 53, 57], ['1', '3', '5', '7'], 'Bb').noteText)
+      .toBe('Bb D F A');
+    expect(formatVoicingNoteDegreeText([58, 62, 65, 68], ['1', '3', '5', 'b7'], 'Bb'))
+      .toBe('Note: Bb D F Ab  Degree: 1 3 5 b7');
+    expect(formatVoicingTopText([58, 62, 65, 68], { 68: 'b7' }, 'Bb'))
+      .toBe('Top: b7(Ab)');
+    expect(formatVoicingNoteDegreeText([44, 50, 59, 66, 69], ['1', 'b5', 'b3', 'b7', 'b9'], 'Ab'))
+      .toBe('Note: Ab Ebb Cb Gb Bbb  Degree: 1 b5 m3 b7 b9');
+    expect(formatVoicingNoteDegreeText([48, 51, 54, 57], ['1', 'b3', 'b5', 'bb7'], 'C'))
+      .toBe('Note: C Eb Gb A  Degree: 1 m3 b5 6');
+    expect(pcNameForChordDegree(9, 'C', 'bb7')).toBe('A');
   });
 
   it('maps stock chord types back to builder quality and tension labels', () => {

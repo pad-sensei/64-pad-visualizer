@@ -58,23 +58,30 @@ function buildTastyDegreeMap(midiNotes, degrees) {
 }
 
 function displayDegreeLabel(deg) {
+  // Diminished 7th is written as 6 in practical chord charts to reduce reading load.
+  if (deg === 'bb7') return '6';
   return deg === 'b3' ? 'm3' : deg;
 }
 
-function formatVoicingNoteDegreeText(midiNotes, degrees) {
-  var parts = formatVoicingNoteDegreeParts(midiNotes, degrees);
+function formatVoicingNoteName(midi, degree, rootName) {
+  var degreeName = displayDegreeLabel(degree);
+  return pcNameForChordDegree(midi % 12, rootName, degreeName);
+}
+
+function formatVoicingNoteDegreeText(midiNotes, degrees, rootName) {
+  var parts = formatVoicingNoteDegreeParts(midiNotes, degrees, rootName);
   var text = parts.noteText ? 'Note: ' + parts.noteText : '';
   if (parts.degreeText) text += (text ? '  ' : '') + 'Degree: ' + parts.degreeText;
   return text;
 }
 
-function formatVoicingNoteDegreeParts(midiNotes, degrees) {
+function formatVoicingNoteDegreeParts(midiNotes, degrees, rootName) {
   var noteNames = [];
   var degreeNames = [];
   var len = Math.min(midiNotes.length, degrees.length);
   for (var i = 0; i < len; i++) {
     var degreeName = displayDegreeLabel(degrees[i]);
-    noteNames.push(pcNameForDetectedDegree(midiNotes[i] % 12, degreeName));
+    noteNames.push(formatVoicingNoteName(midiNotes[i], degrees[i], rootName));
     degreeNames.push(degreeName);
   }
   return {
@@ -83,13 +90,13 @@ function formatVoicingNoteDegreeParts(midiNotes, degrees) {
   };
 }
 
-function formatVoicingTopText(midiNotes, degreeMap) {
+function formatVoicingTopText(midiNotes, degreeMap, rootName) {
   if (!midiNotes || midiNotes.length === 0 || !degreeMap) return '';
   var topNote = Math.max.apply(null, midiNotes);
   var topDegreeRaw = degreeMap[topNote];
   if (!topDegreeRaw) return '';
   var topDegree = displayDegreeLabel(topDegreeRaw);
-  return 'Top: ' + topDegree + '(' + pcNameForDetectedDegree(topNote % 12, topDegree) + ')';
+  return 'Top: ' + topDegree + '(' + formatVoicingNoteName(topNote, topDegreeRaw, rootName) + ')';
 }
 
 function formatActiveVoicingSummary(summary) {
@@ -137,7 +144,7 @@ function splitByPadRange(midiNotes) {
   return { inRange: inRange, outOfRange: outOfRange };
 }
 
-function getTastyFitOctaveShift(midiNotes) {
+function getVoicingFitOctaveShift(midiNotes) {
   if (!midiNotes || midiNotes.length === 0) return AppState.octaveShift;
   var min = Math.min.apply(null, midiNotes);
   var max = Math.max.apply(null, midiNotes);
@@ -162,8 +169,24 @@ function getTastyFitOctaveShift(midiNotes) {
   return best;
 }
 
+function getTastyFitOctaveShift(midiNotes) {
+  return getVoicingFitOctaveShift(midiNotes);
+}
+
 function fitTastyVoicingToPad(midiNotes) {
   var next = getTastyFitOctaveShift(midiNotes);
+  if (next === AppState.octaveShift) return false;
+  AppState.octaveShift = next;
+  updateOctaveLabel();
+  return true;
+}
+
+function getStockFitOctaveShift(midiNotes) {
+  return getVoicingFitOctaveShift(midiNotes);
+}
+
+function fitStockVoicingToPad(midiNotes) {
+  var next = getStockFitOctaveShift(midiNotes);
   if (next === AppState.octaveShift) return false;
   AppState.octaveShift = next;
   updateOctaveLabel();
@@ -422,20 +445,21 @@ function getTastyDiffText() {
   if (!TastyState.enabled || TastyState.currentIndex < 0) return '';
   var recipe = TastyState.currentMatches[TastyState.currentIndex];
   if (!recipe) return '';
+  var rootName = BuilderState.root !== null ? pcName(BuilderState.root) : '';
 
   // TASTY keeps the functional chord type fixed (Maj7 / m7 / 7).
   // Added/omitted tones are shown in Note/Degree/Top instead of changing the chord name.
   var chordName = getTastyFunctionChordName();
 
   // Voicing notes/degrees: bottom to top (the actual voicing structure)
-  var voicingStr = formatVoicingNoteDegreeText(TastyState.midiNotes, recipe.v);
+  var voicingStr = formatVoicingNoteDegreeText(TastyState.midiNotes, recipe.v, rootName);
 
   // Top note info
   var topStr = '';
   if (TastyState.topNote !== null && TastyState.degreeMap[TastyState.topNote]) {
     var topPC = TastyState.topNote % 12;
     var topDegree = displayDegreeLabel(TastyState.degreeMap[TastyState.topNote]);
-    topStr = 'Top: ' + topDegree + '(' + pcNameForDetectedDegree(topPC, topDegree) + ')';
+    topStr = 'Top: ' + topDegree + '(' + formatVoicingNoteName(TastyState.topNote, TastyState.degreeMap[TastyState.topNote], rootName) + ')';
   }
 
   // Labels (Rootless, Omit3, Omit5)
@@ -457,14 +481,15 @@ function getTastyActiveSummary() {
   if (!TastyState.enabled || TastyState.currentIndex < 0) return null;
   var recipe = TastyState.currentMatches[TastyState.currentIndex];
   if (!recipe) return null;
-  var parts = formatVoicingNoteDegreeParts(TastyState.midiNotes, recipe.v);
+  var rootName = BuilderState.root !== null ? pcName(BuilderState.root) : '';
+  var parts = formatVoicingNoteDegreeParts(TastyState.midiNotes, recipe.v, rootName);
   return {
     kind: 'Tasty',
     count: (TastyState.currentIndex + 1) + '/' + TastyState.currentMatches.length,
     chordName: getTastyChordDisplayName(),
     noteText: parts.noteText,
     degreeText: parts.degreeText,
-    topText: formatVoicingTopText(TastyState.midiNotes, TastyState.degreeMap)
+    topText: formatVoicingTopText(TastyState.midiNotes, TastyState.degreeMap, rootName)
   };
 }
 
@@ -692,10 +717,7 @@ function updateChordEngineDetail() {
     }
   } else {
     textEl.textContent = getStockInfoText();
-    var toPadLabel = (typeof t === 'function') ? t('pos.to_pad') : 'To Pad';
-    var activeClass = (typeof _stockReflectMode !== 'undefined' && _stockReflectMode) ? ' active' : '';
-    filterEl.innerHTML = '<button type="button" id="chord-engine-to-pad" class="stock-reflect-inline-btn' +
-      activeClass + '" onclick="toggleStockReflect()">' + toPadLabel + '</button>';
+    filterEl.innerHTML = '';
   }
 }
 
@@ -788,6 +810,7 @@ function cycleStock(reverse) {
   }
   StockState.degreeMap = degMap;
   var allNotes = StockState.lhMidi.concat(StockState.rhMidi);
+  fitStockVoicingToPad(allNotes);
   StockState.padPositions = padFindCompactPositions(allNotes, ROWS, COLS, baseMidi(), ROW_INTERVAL);
 
   updateStockUI();
@@ -817,6 +840,7 @@ function refreshStockVoicing(delta) {
   }
   StockState.degreeMap = degMap;
   var allNotes = StockState.lhMidi.concat(StockState.rhMidi);
+  fitStockVoicingToPad(allNotes);
   StockState.padPositions = padFindCompactPositions(allNotes, ROWS, COLS, baseMidi(), ROW_INTERVAL);
   updateStockUI();
 }
@@ -1076,9 +1100,10 @@ function getStockInfoText() {
   if (!entry) return '';
   // Chord name from actual STOCK degrees + all degrees (bottom to top, LH then RH merged)
   var chord = getStockChordDisplayName();
+  var rootName = BuilderState.root !== null ? pcName(BuilderState.root) : '';
   var allDegrees = (entry.LH || []).concat(entry.RH || []);
   var allNotes = (StockState.lhMidi || []).concat(StockState.rhMidi || []);
-  return allDegrees.length > 0 ? chord + ' ' + formatVoicingNoteDegreeText(allNotes, allDegrees) : chord;
+  return allDegrees.length > 0 ? chord + ' ' + formatVoicingNoteDegreeText(allNotes, allDegrees, rootName) : chord;
 }
 
 function getStockActiveSummary() {
@@ -1087,14 +1112,15 @@ function getStockActiveSummary() {
   if (!entry) return null;
   var allDegrees = (entry.LH || []).concat(entry.RH || []);
   var allNotes = (StockState.lhMidi || []).concat(StockState.rhMidi || []);
-  var parts = formatVoicingNoteDegreeParts(allNotes, allDegrees);
+  var rootName = BuilderState.root !== null ? pcName(BuilderState.root) : '';
+  var parts = formatVoicingNoteDegreeParts(allNotes, allDegrees, rootName);
   return {
     kind: 'Stock',
     count: (StockState.currentIndex + 1) + '/' + StockState.currentMatches.length,
     chordName: getStockChordDisplayName(),
     noteText: parts.noteText,
     degreeText: parts.degreeText,
-    topText: formatVoicingTopText(allNotes, StockState.degreeMap)
+    topText: formatVoicingTopText(allNotes, StockState.degreeMap, rootName)
   };
 }
 
@@ -1138,9 +1164,10 @@ if (typeof module !== 'undefined') module.exports = {
   // TASTY
   TASTY_DEGREE_MAP, QUALITY_BASE_DEGREES,
   buildTastyVoicing, getTastyLabels, buildTastyDegreeMap,
-  formatVoicingNoteDegreeParts, formatVoicingTopText, formatActiveVoicingSummary,
+  formatVoicingNoteName, formatVoicingNoteDegreeText, formatVoicingNoteDegreeParts, formatVoicingTopText, formatActiveVoicingSummary,
   getPracticalVoicingAudioNotes, getTastyPlaybackNotes, getStockPlaybackNotes,
   splitByPadRange, getTastyFitOctaveShift, fitTastyVoicingToPad,
+  getVoicingFitOctaveShift, getStockFitOctaveShift, fitStockVoicingToPad,
   getTastyCategory, findQualityByName, updateTastyMatches, findTensionLabel,
   cycleTasty, refreshTastyVoicing, refreshTastyPadLayout, refreshActiveVoicingPadLayout,
   toggleTasty, disableTasty, setTastyTopFilter,

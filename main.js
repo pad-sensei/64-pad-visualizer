@@ -673,7 +673,7 @@ document.addEventListener('keydown', (e) => {
 
   // v: Toggle Voicing Reflect (guitar → pad layout)
   if (lk === 'v') {
-    if (AppState.mode === 'chord' && typeof toggleVoicingReflect === 'function') {
+    if (AppState.mode === 'chord' && !TastyState.enabled && !StockState.enabled && typeof toggleVoicingReflect === 'function') {
       toggleVoicingReflect();
     }
     return;
