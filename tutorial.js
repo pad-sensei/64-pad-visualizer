@@ -464,8 +464,8 @@ var TutorialHints = {
     { sel: '#section-memory', id: 'memory' },
     { sel: '#shell-bar', id: 'voicing' },
     { sel: '#sound-expand-btn', id: 'sound' },
-    { sel: '#tasty-bar', id: 'tasty' },
-    { sel: '#stock-bar', id: 'stock' },
+    { sel: '#chord-engine-tasty', id: 'tasty' },
+    { sel: '#chord-engine-stock', id: 'stock' },
     { sel: '#inst-toggle-circle', id: 'circle' },
     { sel: '#inst-toggle-guitar', id: 'guitar' },
     { sel: '#inst-toggle-bar', id: 'settings' }

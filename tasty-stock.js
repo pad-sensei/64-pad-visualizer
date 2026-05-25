@@ -62,6 +62,13 @@ function displayDegreeLabel(deg) {
 }
 
 function formatVoicingNoteDegreeText(midiNotes, degrees) {
+  var parts = formatVoicingNoteDegreeParts(midiNotes, degrees);
+  var text = parts.noteText ? 'Note: ' + parts.noteText : '';
+  if (parts.degreeText) text += (text ? '  ' : '') + 'Degree: ' + parts.degreeText;
+  return text;
+}
+
+function formatVoicingNoteDegreeParts(midiNotes, degrees) {
   var noteNames = [];
   var degreeNames = [];
   var len = Math.min(midiNotes.length, degrees.length);
@@ -70,9 +77,49 @@ function formatVoicingNoteDegreeText(midiNotes, degrees) {
     noteNames.push(pcNameForDetectedDegree(midiNotes[i] % 12, degreeName));
     degreeNames.push(degreeName);
   }
-  var text = 'Note: ' + noteNames.join(' ');
-  if (degreeNames.length) text += '  Degree: ' + degreeNames.join(' ');
-  return text;
+  return {
+    noteText: noteNames.join(' '),
+    degreeText: degreeNames.join(' ')
+  };
+}
+
+function formatVoicingTopText(midiNotes, degreeMap) {
+  if (!midiNotes || midiNotes.length === 0 || !degreeMap) return '';
+  var topNote = Math.max.apply(null, midiNotes);
+  var topDegreeRaw = degreeMap[topNote];
+  if (!topDegreeRaw) return '';
+  var topDegree = displayDegreeLabel(topDegreeRaw);
+  return 'Top: ' + topDegree + '(' + pcNameForDetectedDegree(topNote % 12, topDegree) + ')';
+}
+
+function formatActiveVoicingSummary(summary) {
+  if (!summary) return '';
+  var parts = [];
+  var head = summary.kind || '';
+  if (summary.count) head += (head ? ' ' : '') + summary.count;
+  if (head) parts.push(head);
+  if (summary.topText) parts.push(summary.topText);
+  if (summary.degreeText) parts.push('Degree: ' + summary.degreeText);
+  return parts.join(' · ');
+}
+
+function getPracticalVoicingAudioNotes(midiNotes, opts) {
+  if (!midiNotes || midiNotes.length === 0) return [];
+  opts = opts || {};
+  var low = opts.low !== undefined ? opts.low : 43; // MIDI note floor; octave names vary by Ableton/scientific notation.
+  var min = Math.min.apply(null, midiNotes);
+  var shift = 0;
+  while (min + shift < low) shift += 12;
+  if (!shift) return midiNotes.slice();
+  return midiNotes.map(function(n) { return n + shift; });
+}
+
+function getTastyPlaybackNotes(midiNotes) {
+  return getPracticalVoicingAudioNotes(midiNotes, { low: 48 });
+}
+
+function getStockPlaybackNotes(midiNotes) {
+  return getPracticalVoicingAudioNotes(midiNotes, { low: 48 });
 }
 
 // Split MIDI notes into pad-range and out-of-range
@@ -90,24 +137,71 @@ function splitByPadRange(midiNotes) {
   return { inRange: inRange, outOfRange: outOfRange };
 }
 
+function getTastyFitOctaveShift(midiNotes) {
+  if (!midiNotes || midiNotes.length === 0) return AppState.octaveShift;
+  var min = Math.min.apply(null, midiNotes);
+  var max = Math.max.apply(null, midiNotes);
+  var range = (ROWS - 1) * ROW_INTERVAL + (COLS - 1);
+  var current = Math.max(-1, Math.min(3, AppState.octaveShift));
+  var best = current;
+  var bestScore = Infinity;
+  var voicingCenter = (min + max) / 2;
+  for (var s = -1; s <= 3; s++) {
+    var lo = BASE_MIDI + s * 12 + AppState.semitoneShift;
+    var hi = lo + range;
+    var below = Math.max(0, lo - min);
+    var above = Math.max(0, max - hi);
+    var outside = below + above;
+    var gridCenter = (lo + hi) / 2;
+    var score = outside * 1000 + Math.abs(voicingCenter - gridCenter) + Math.abs(s - current) * 0.01;
+    if (score < bestScore) {
+      bestScore = score;
+      best = s;
+    }
+  }
+  return best;
+}
+
+function fitTastyVoicingToPad(midiNotes) {
+  var next = getTastyFitOctaveShift(midiNotes);
+  if (next === AppState.octaveShift) return false;
+  AppState.octaveShift = next;
+  updateOctaveLabel();
+  return true;
+}
+
 // ========================================
 // TASTY MODE — Chord Cookbook Cycling
 // ========================================
 
 function getTastyCategory(quality) {
   if (!quality) return null;
-  var pcs = quality.pcs;
-  // TASTY requires 4-note chords (7th/6th) — triads excluded
+  var pcs = quality.pcs || [];
+  var has = function(pc) { return pcs.indexOf(pc) >= 0; };
+  // TASTY is grouped by the three functional seventh families: Maj7 / m7 / 7.
   if (pcs.length < 4) return null;
-  // Dominant: major 3rd + minor 7th (must check before generic major)
-  if (pcs.includes(4) && pcs.includes(10)) return 'dominant';
-  // Major 7th
-  if (pcs.includes(4) && pcs.includes(11)) return 'major';
-  // 6 chord (major 3rd + 6th, no 7th)
-  if (pcs.includes(4) && pcs.includes(9) && !pcs.includes(10) && !pcs.includes(11)) return 'major';
-  // Minor: has minor 3rd
-  if (pcs.includes(3)) return 'minor';
+  // Dominant: major 3rd + minor 7th.
+  if (has(4) && has(10)) return 'dominant';
+  // Major 7th: major 3rd + major 7th. 6 chords are intentionally not included.
+  if (has(4) && has(11)) return 'major';
+  // Minor 7th: minor 3rd + minor 7th. Exclude half-diminished from the m7 family.
+  if (has(3) && has(10) && !has(6)) return 'minor';
   return null;
+}
+
+function getTastyFunctionQualityName(quality) {
+  var cat = getTastyCategory(quality);
+  if (cat === 'major') return 'Maj7';
+  if (cat === 'minor') return 'm7';
+  if (cat === 'dominant') return '7';
+  return quality && quality.name ? quality.name : '';
+}
+
+function getTastyFunctionChordName() {
+  var rootName = BuilderState.root !== null ? pcName(BuilderState.root) : '';
+  var qualName = getTastyFunctionQualityName(TastyState.originalQuality || BuilderState.quality);
+  if (!rootName || !qualName) return getBuilderChordName() || '';
+  return rootName + qualName;
 }
 
 function findQualityByName(name) {
@@ -195,11 +289,13 @@ function cycleTasty(reverse) {
   var recipe = TastyState.currentMatches[TastyState.currentIndex];
 
   // Build voicing from degree array → MIDI notes
-  // Voicing is SSOT: fixed C3 register (48 + rootPC), pad range is secondary.
+  // Voicing is SSOT: fixed MIDI 48 + root register; pad range is secondary.
   // 範囲外の音は pad に出ないが、 voicing 自体は変えない (うりなみさん 2026-05-20)。
   var rootPC = BuilderState.root;
   var rootMidi = 48 + rootPC;
   var midiNotes = buildTastyVoicing(rootMidi, recipe.v);
+
+  fitTastyVoicingToPad(midiNotes);
 
   // Split by pad range
   var split = splitByPadRange(midiNotes);
@@ -211,7 +307,7 @@ function cycleTasty(reverse) {
 
   updateTastyUI();
   render();
-  playMidiNotes(midiNotes);
+  playMidiNotes(getTastyPlaybackNotes(midiNotes));
 }
 
 // Transpose current TASTY voicing by delta semitones (called on ArrowLeft/Right)
@@ -221,6 +317,7 @@ function refreshTastyVoicing(delta) {
   var recipe = TastyState.currentMatches[TastyState.currentIndex];
   if (!recipe) return;
   var midiNotes = TastyState.midiNotes.map(function(n) { return n + delta; });
+  fitTastyVoicingToPad(midiNotes);
   var split = splitByPadRange(midiNotes);
   TastyState.midiNotes = midiNotes;
   TastyState.outOfRange = split.outOfRange;
@@ -228,6 +325,10 @@ function refreshTastyVoicing(delta) {
   TastyState.topNote = midiNotes.length > 0 ? Math.max.apply(null, midiNotes) : null;
   TastyState.padPositions = padFindCompactPositions(midiNotes, ROWS, COLS, baseMidi(), ROW_INTERVAL);
   updateTastyUI();
+}
+
+function refreshTastyPadLayout() {
+  refreshTastyVoicing(0);
 }
 
 function toggleTasty() {
@@ -314,9 +415,7 @@ var QUALITY_BASE_DEGREES = {
 
 function getTastyChordDisplayName() {
   if (!TastyState.enabled || TastyState.currentIndex < 0) return getBuilderChordName() || '';
-  var text = getTastyDiffText();
-  if (!text) return getBuilderChordName() || '';
-  return text.split(/\s{2,}/)[0] || text;
+  return getTastyFunctionChordName();
 }
 
 function getTastyDiffText() {
@@ -324,40 +423,9 @@ function getTastyDiffText() {
   var recipe = TastyState.currentMatches[TastyState.currentIndex];
   if (!recipe) return '';
 
-  // Build chord name: Root + OriginalQuality + (added tensions)
-  // e.g. Cm7(9,11) — builder-style notation, showing what's added to the original
-  var rootName = pcName(BuilderState.root);
-  var qualName = TastyState.originalQuality ? TastyState.originalQuality.name : '';
-  var base = QUALITY_BASE_DEGREES[qualName] || ['1','3','5'];
-
-  // Find unique degrees in recipe, determine which are tensions (not in base)
-  var seen = {};
-  var tensions = [];
-  // Tension display order by semitone value
-  var TENSION_ORDER = ['b9','9','#9','11','#11','b13','13'];
-  var tensionSet = {};
-  for (var i = 0; i < recipe.v.length; i++) {
-    var d = recipe.v[i];
-    if (!seen[d]) {
-      seen[d] = true;
-      if (base.indexOf(d) === -1 && d !== '1' && d !== '3' && d !== 'b3' && d !== '5' && d !== 'b5' && d !== '#5') {
-        tensionSet[d] = true;
-      }
-    }
-  }
-  // Sort tensions in standard order
-  for (var t = 0; t < TENSION_ORDER.length; t++) {
-    if (tensionSet[TENSION_ORDER[t]]) tensions.push(TENSION_ORDER[t]);
-  }
-  // Check for sus4 (has 11 but no 3/b3)
-  if (seen['11'] && !seen['3'] && !seen['b3'] && base.indexOf('3') !== -1) {
-    qualName = qualName.replace(/^(m?)/, '$1') + 'sus4';
-    // Remove 11 from tensions since it's the sus
-    tensions = tensions.filter(function(t) { return t !== '11'; });
-  }
-
-  var chordName = rootName + qualName;
-  if (tensions.length > 0) chordName += '(' + tensions.join(',') + ')';
+  // TASTY keeps the functional chord type fixed (Maj7 / m7 / 7).
+  // Added/omitted tones are shown in Note/Degree/Top instead of changing the chord name.
+  var chordName = getTastyFunctionChordName();
 
   // Voicing notes/degrees: bottom to top (the actual voicing structure)
   var voicingStr = formatVoicingNoteDegreeText(TastyState.midiNotes, recipe.v);
@@ -383,6 +451,21 @@ function getTastyDiffText() {
   }
 
   return text;
+}
+
+function getTastyActiveSummary() {
+  if (!TastyState.enabled || TastyState.currentIndex < 0) return null;
+  var recipe = TastyState.currentMatches[TastyState.currentIndex];
+  if (!recipe) return null;
+  var parts = formatVoicingNoteDegreeParts(TastyState.midiNotes, recipe.v);
+  return {
+    kind: 'Tasty',
+    count: (TastyState.currentIndex + 1) + '/' + TastyState.currentMatches.length,
+    chordName: getTastyChordDisplayName(),
+    noteText: parts.noteText,
+    degreeText: parts.degreeText,
+    topText: formatVoicingTopText(TastyState.midiNotes, TastyState.degreeMap)
+  };
 }
 
 // Degree → color category (matches pad colors)
@@ -449,6 +532,7 @@ function updateTastyUI() {
   var btn = document.getElementById('btn-tasty');
   var canUseTasty = getTastyCategory(BuilderState.quality) !== null;
   if (btn) {
+    btn.style.display = 'none';
     btn.classList.toggle('active', TastyState.enabled);
     btn.classList.toggle('tasty-ready', canUseTasty && !TastyState.enabled);
     btn.disabled = !canUseTasty;
@@ -463,57 +547,24 @@ function updateTastyUI() {
 
   var active = TastyState.enabled && TastyState.currentIndex >= 0;
   if (active) {
-    if (counter) counter.textContent = (TastyState.currentIndex + 1) + '/' + TastyState.currentMatches.length;
     if (info) info.textContent = getTastyDiffText();
   } else {
-    if (counter) counter.textContent = '';
     if (info) info.textContent = '';
   }
-  if (prevBtn) prevBtn.style.visibility = active ? '' : 'hidden';
-  if (nextBtn) nextBtn.style.visibility = active ? '' : 'hidden';
-  if (counter) counter.style.visibility = active ? '' : 'hidden';
+  bar.style.display = 'none';
+  if (prevBtn) prevBtn.style.display = 'none';
+  if (nextBtn) nextBtn.style.display = 'none';
+  if (counter) counter.style.display = 'none';
   if (info) info.style.visibility = active ? '' : 'hidden';
+  if (typeof updateChordDisplay === 'function') updateChordDisplay();
+  else updateChordEngineDetail();
+  if (typeof updateOctaveLabel === 'function') updateOctaveLabel();
 
   // Top-note filter buttons
   var degRow = document.getElementById('tasty-degrees-row');
   if (degRow) {
-    if (TastyState.enabled && TastyState.currentCategory) {
-      // Build unique top notes for this category
-      var allCat = TastyState.voicings ? TastyState.voicings.filter(function(v) {
-        return v.cat === TastyState.currentCategory;
-      }) : [];
-      var topSet = {};
-      allCat.forEach(function(v) { topSet[v.top] = (topSet[v.top] || 0) + 1; });
-      var tops = Object.keys(topSet);
-      // Sort by semitone value
-      var DEG_SEMI = {'1':0,'b9':1,'9':2,'#9':3,'b3':3,'3':4,'11':5,'#11':6,'b5':6,'5':7,'#5':8,'b13':8,'13':9,'6':9,'b7':10,'7':11};
-      tops.sort(function(a, b) { return (DEG_SEMI[a] || 0) - (DEG_SEMI[b] || 0); });
-      var html = '<button onclick="setTastyTopFilter(null)" style="font-size:0.6rem;padding:2px 6px;border-radius:4px;cursor:pointer;border:1px solid var(--accent,#f80);' +
-        (TastyState.topFilter === null ? 'background:var(--accent,#f80);color:#000;font-weight:700;' : 'background:var(--surface);color:var(--text);') +
-        '">ALL(' + allCat.length + ')</button> ';
-      tops.forEach(function(t) {
-        var active = TastyState.topFilter === t;
-        html += '<button onclick="setTastyTopFilter(\'' + t + '\')" style="font-size:0.6rem;padding:2px 6px;border-radius:4px;cursor:pointer;border:1px solid var(--accent,#f80);' +
-          (active ? 'background:var(--accent,#f80);color:#000;font-weight:700;' : 'background:var(--surface);color:var(--text);') +
-          '">Top:' + t + '(' + topSet[t] + ')</button> ';
-      });
-      degRow.innerHTML = html;
-      degRow.style.display = 'flex';
-      degRow.style.padding = '2px 8px';
-      degRow.style.gap = '4px';
-      degRow.style.flexWrap = 'wrap';
-      degRow.style.visibility = '';
-      degRow.style.minHeight = '';
-    } else {
-      // Reserve space to prevent layout shift
-      if (TastyState.hpsUnlocked) {
-        degRow.style.display = 'flex';
-        degRow.style.visibility = 'hidden';
-        degRow.style.minHeight = '28px';
-      } else {
-        degRow.style.display = 'none';
-      }
-    }
+    degRow.innerHTML = '';
+    degRow.style.display = 'none';
   }
 }
 
@@ -521,28 +572,131 @@ function updateTastyUI() {
 // STOCK VOICING ENGINE
 // ========================================
 
-// Map builder quality name → stock JSON category + subtype
-function getStockMapping(quality) {
+function getStockMappingName(quality, tension) {
   if (!quality) return null;
-  var n = quality.name;
+  if (!tension) return quality.name;
+  if (typeof padGetBuilderChordName === 'function') {
+    var chordName = padGetBuilderChordName(0, quality, tension, null, AppState.scaleIdx, AppState.key);
+    return chordName.replace(/^[A-G](?:#|b)?/, '');
+  }
+  return quality.name;
+}
+
+// Map builder quality/tension → stock JSON category + subtype
+function getStockMapping(quality, tension) {
+  var n = getStockMappingName(quality, tension);
+  if (!n) return null;
   // Major family
   if (n === '' || n === 'Maj') return { cat: 'major', sub: 'Maj7' };
-  if (n === '\u25B37') return { cat: 'major', sub: 'Maj7' };
+  if (n === 'Maj7' || n === '\u25B37') return { cat: 'major', sub: 'Maj7' };
+  if (n === 'Maj7(9)') return { cat: 'major', sub: 'Maj9' };
+  if (n === 'Maj7(13)' || n === 'Maj7(9,13)' || n === 'Maj7(9,#11)') return { cat: 'major', sub: 'Maj13' };
   if (n === '6') return { cat: 'major', sub: 'Maj6' };
+  if (n === '6/9' || n === '6/9(#11)') return { cat: 'major', sub: '6/9' };
   // Minor family
   if (n === 'm') return { cat: 'minor', sub: 'Min7' };
   if (n === 'm7') return { cat: 'minor', sub: 'Min7' };
-  if (n === 'm\u25B37') return { cat: 'minor', sub: 'MinMaj7' };
+  if (n === 'm7(9)') return { cat: 'minor', sub: 'Min9' };
+  if (n === 'm7(11)' || n === 'm7(9,11)' || n === 'm7(9,13)' || n === 'm7(13)') return { cat: 'minor', sub: 'Min11' };
+  if (n === 'mMaj7' || n === 'm\u25B37') return { cat: 'minor', sub: 'MinMaj7' };
   if (n === 'm6') return { cat: 'minor', sub: 'Min6' };
+  if (n === 'm6/9') return { cat: 'minor', sub: 'Min6' };
   // Dominant family
-  if (n === '7') return { cat: 'dominant', sub: 'Dom7' };
+  if (n === '7' || /^7\(/.test(n)) return { cat: 'dominant', sub: 'Dom7' };
+  if (n.indexOf('7sus4') === 0) return { cat: 'suspended', sub: 'Sus4' };
   // Half-diminished
   if (n === 'm7(b5)') return { cat: 'halfDiminished', sub: 'Min7b5' };
+  if (n === 'm7(b5,11)' || n === 'm7(b5,9,11)' ||
+      n === 'm7(b5)(11)' || n === 'm7(b5)(9,11)') return { cat: 'halfDiminished', sub: 'Min11b5' };
   // Diminished
   if (n === 'dim' || n === 'dim7') return { cat: 'diminished', sub: 'Dim7' };
   // Aug
   if (n === 'aug') return { cat: 'dominant', sub: 'Aug7' };
   return null;
+}
+
+function updateChordEngineTabs() {
+  var tabs = document.getElementById('chord-engine-tabs');
+  if (!tabs) return;
+  var tastyBtn = document.getElementById('chord-engine-tasty');
+  var stockBtn = document.getElementById('chord-engine-stock');
+  var nav = document.getElementById('chord-engine-nav');
+  var counter = document.getElementById('chord-engine-counter');
+  var chordReady = AppState.mode === 'chord' && BuilderState.root !== null && BuilderState.quality;
+  var canUseTasty = !!(chordReady && TastyState.hpsUnlocked && getTastyCategory(BuilderState.quality) !== null);
+  var canUseStock = !!(chordReady && StockState.hpsUnlocked && getStockMapping(BuilderState.quality, BuilderState.tension));
+  var tastyActive = !!(TastyState.enabled && TastyState.currentIndex >= 0);
+  var stockActive = !!(StockState.enabled && StockState.currentIndex >= 0);
+  tabs.style.display = (canUseTasty || canUseStock) ? 'flex' : 'none';
+  if (tastyBtn) {
+    tastyBtn.disabled = !canUseTasty;
+    tastyBtn.classList.toggle('active', tastyActive);
+  }
+  if (stockBtn) {
+    stockBtn.disabled = !canUseStock;
+    stockBtn.classList.toggle('active', stockActive);
+  }
+  if (nav) nav.style.display = (tastyActive || stockActive) ? 'flex' : 'none';
+  if (counter) {
+    if (tastyActive) counter.textContent = (TastyState.currentIndex + 1) + '/' + TastyState.currentMatches.length;
+    else if (stockActive) counter.textContent = (StockState.currentIndex + 1) + '/' + StockState.currentMatches.length;
+    else counter.textContent = '';
+  }
+  updateChordEngineDetail();
+}
+
+function cycleActiveVoicing(reverse) {
+  if (TastyState.enabled && TastyState.currentIndex >= 0) {
+    cycleTasty(!!reverse);
+    return;
+  }
+  if (StockState.enabled && StockState.currentIndex >= 0) {
+    cycleStock(!!reverse);
+  }
+}
+
+function renderTopFilterButtons(topSet, activeTop, onClickName, allCount) {
+  var tops = Object.keys(topSet || {});
+  var DEG_SEMI = {'1':0,'b9':1,'9':2,'#9':3,'b3':3,'3':4,'11':5,'#11':6,'b5':6,'5':7,'#5':8,'b13':8,'13':9,'6':9,'b7':10,'7':11};
+  tops.sort(function(a, b) { return (DEG_SEMI[a] || 0) - (DEG_SEMI[b] || 0); });
+  var html = '<button type="button" class="' + (activeTop === null ? 'active' : '') + '" onclick="' + onClickName + '(null)">ALL(' + allCount + ')</button>';
+  tops.forEach(function(t) {
+    html += '<button type="button" class="' + (activeTop === t ? 'active' : '') + '" onclick="' + onClickName + '(\'' + t + '\')">Top:' + t + '(' + topSet[t] + ')</button>';
+  });
+  return html;
+}
+
+function updateChordEngineDetail() {
+  var detail = document.getElementById('chord-engine-detail');
+  var textEl = document.getElementById('chord-engine-detail-text');
+  var filterEl = document.getElementById('chord-engine-filter-row');
+  if (!detail || !textEl || !filterEl) return;
+  var tastyActive = TastyState.enabled && TastyState.currentIndex >= 0;
+  var stockActive = StockState.enabled && StockState.currentIndex >= 0;
+  if (!tastyActive && !stockActive) {
+    detail.style.display = 'none';
+    textEl.textContent = '';
+    filterEl.innerHTML = '';
+    return;
+  }
+  detail.style.display = '';
+  if (tastyActive) {
+    textEl.textContent = getTastyDiffText();
+    if (TastyState.currentCategory && TastyState.voicings) {
+      var allCat = TastyState.voicings.filter(function(v) { return v.cat === TastyState.currentCategory; });
+      var topSet = {};
+      allCat.forEach(function(v) { topSet[v.top] = (topSet[v.top] || 0) + 1; });
+      filterEl.innerHTML = renderTopFilterButtons(topSet, TastyState.topFilter, 'setTastyTopFilter', allCat.length);
+    } else {
+      filterEl.innerHTML = '';
+    }
+  } else {
+    textEl.textContent = getStockInfoText();
+    var toPadLabel = (typeof t === 'function') ? t('pos.to_pad') : 'To Pad';
+    var activeClass = (typeof _stockReflectMode !== 'undefined' && _stockReflectMode) ? ' active' : '';
+    filterEl.innerHTML = '<button type="button" id="chord-engine-to-pad" class="stock-reflect-inline-btn' +
+      activeClass + '" onclick="toggleStockReflect()">' + toPadLabel + '</button>';
+  }
 }
 
 function updateStockMatches() {
@@ -551,7 +705,7 @@ function updateStockMatches() {
     StockState.currentIndex = -1;
     return;
   }
-  var mapping = getStockMapping(BuilderState.quality);
+  var mapping = getStockMapping(BuilderState.quality, BuilderState.tension);
   if (!mapping) {
     StockState.currentMatches = [];
     StockState.currentIndex = -1;
@@ -613,7 +767,7 @@ function cycleStock(reverse) {
   var entry = StockState.currentMatches[StockState.currentIndex];
 
   // Convert LH/RH degrees to MIDI notes
-  // LH starts from root C2 (36), RH from root C3 (48) — avoid low interval limit violations
+  // LH starts from root MIDI 36, RH from root MIDI 48 — avoid low interval limit violations.
   var rootPC = BuilderState.root;
   var lhRoot = 36 + rootPC;
   var rhRoot = 48 + rootPC;
@@ -639,7 +793,7 @@ function cycleStock(reverse) {
   updateStockUI();
   render();
   // Play all notes
-  playMidiNotes(allNotes);
+  playMidiNotes(getStockPlaybackNotes(allNotes));
 }
 
 // Transpose current STOCK voicing by delta semitones (called on ArrowLeft/Right)
@@ -665,6 +819,15 @@ function refreshStockVoicing(delta) {
   var allNotes = StockState.lhMidi.concat(StockState.rhMidi);
   StockState.padPositions = padFindCompactPositions(allNotes, ROWS, COLS, baseMidi(), ROW_INTERVAL);
   updateStockUI();
+}
+
+function refreshStockPadLayout() {
+  refreshStockVoicing(0);
+}
+
+function refreshActiveVoicingPadLayout() {
+  if (TastyState.enabled) refreshTastyPadLayout();
+  if (StockState.enabled) refreshStockPadLayout();
 }
 
 function toggleStock() {
@@ -713,11 +876,189 @@ function disableStock() {
   render();
 }
 
+function stockEntryNameToDisplay(root, name) {
+  if (!root || !name) return '';
+  var n = String(name).trim();
+  if (!n) return '';
+  if (/^Cmaj/i.test(n)) return root + 'Maj' + n.slice(4);
+  if (/^Cm/i.test(n)) return root + 'm' + n.slice(2);
+  if (/^Cdim/i.test(n)) return root + 'dim' + n.slice(4);
+  if (/^Caug/i.test(n)) return root + 'aug' + n.slice(4);
+  if (/^C(?=\d|sus|\(|$)/.test(n)) return root + n.slice(1);
+
+  if (/^Maj6/.test(n)) return root + '6' + n.slice(4);
+  if (/^Maj7/.test(n)) return root + 'Maj7' + n.slice(4);
+  if (/^Maj9/.test(n)) return root + 'Maj9' + n.slice(4);
+  if (/^Maj13/.test(n)) return root + 'Maj13' + n.slice(5);
+  if (/^MinMaj7/.test(n)) return root + 'mMaj7' + n.slice(7);
+  if (/^Min11b5/.test(n)) return root + 'm11(b5)' + n.slice(8);
+  if (/^Min7b5/.test(n)) return root + 'm7(b5)' + n.slice(7);
+  if (/^Min11/.test(n)) return root + 'm11' + n.slice(5);
+  if (/^Min9/.test(n)) return root + 'm9' + n.slice(4);
+  if (/^Min7/.test(n)) return root + 'm7' + n.slice(4);
+  if (/^Min6/.test(n)) return root + 'm6' + n.slice(4);
+  if (/^Dom/.test(n)) return root + n.slice(3);
+  if (/^Dim7/.test(n)) return root + 'dim7' + n.slice(4);
+  if (/^Aug7/.test(n)) return root + 'aug7' + n.slice(4);
+  return root + n;
+}
+
+function normalizeStockChordTypeName(name) {
+  if (!name) return '';
+  var n = String(name).trim();
+  n = n.replace(/\s*\(Type\s+[AB]\)\s*$/i, '');
+  if (/^Cmaj/i.test(n)) return 'Maj' + n.slice(4);
+  if (/^Cm(?!aj)/i.test(n)) return 'm' + n.slice(2);
+  if (/^Cdim/i.test(n)) return 'dim' + n.slice(4);
+  if (/^Caug/i.test(n)) return 'aug' + n.slice(4);
+  if (/^C(?=\d|sus|\(|$)/i.test(n)) return n.slice(1);
+  if (/^MinMaj/i.test(n)) return 'mMaj' + n.slice(6);
+  if (/^Min/i.test(n)) return 'm' + n.slice(3);
+  if (/^Dom/i.test(n)) return n.slice(3);
+  return n;
+}
+
+function addStockTensionToken(mods, token) {
+  if (!token) return;
+  var t = String(token).trim();
+  if (!t) return;
+  if (t === 'sus4') { mods.replace3 = 5; return; }
+  if (t === 'sus2') { mods.replace3 = 2; return; }
+  if (t === 'b5') { mods.flat5 = true; return; }
+  if (t === '#5' || t === 'aug') { mods.sharp5 = true; return; }
+  var pc = TENSION_NAME_TO_PC ? TENSION_NAME_TO_PC[t] : undefined;
+  if (pc === undefined) return;
+  if (!mods.add) mods.add = [];
+  if (mods.add.indexOf(pc) < 0) mods.add.push(pc);
+}
+
+function normalizeStockTensionLabel(label) {
+  return String(label || '').replace(/\s+/g, '');
+}
+
+function stockTensionLabelExists(label) {
+  if (!label) return true;
+  var target = normalizeStockTensionLabel(label);
+  for (var r = 0; r < TENSION_ROWS.length; r++) {
+    for (var c = 0; c < (TENSION_ROWS[r] ? TENSION_ROWS[r].length : 0); c++) {
+      var t = TENSION_ROWS[r][c];
+      if (t && normalizeStockTensionLabel(t.label) === target) return true;
+    }
+  }
+  return false;
+}
+
+function getStockBuilderSelectionFromName(name) {
+  var n = normalizeStockChordTypeName(name);
+  if (!n) return null;
+  var qName = null;
+  var mods = {};
+  var parenMatch = n.match(/\(([^)]*)\)/);
+  var base = n.replace(/\s*\([^)]*\)\s*/g, '');
+
+  if (/^mMaj7/i.test(base)) qName = 'mMaj7';
+  else if (/^m(?:7)?(?:b5|\-5)|^m11b5/i.test(base) || /m7\s*\(\s*b5/i.test(n) || /m11\s*\(\s*b5/i.test(n)) qName = 'm7(b5)';
+  else if (/^m6/i.test(base)) qName = 'm6';
+  else if (/^m(?:7|9|11|13)/i.test(base)) qName = 'm7';
+  else if (/^(?:Maj)?6\/9/i.test(base)) qName = '6';
+  else if (/^Maj6/i.test(base)) qName = '6';
+  else if (/^Maj(?:7|9|13)/i.test(base)) qName = 'Maj7';
+  else if (/^7sus4/i.test(base)) { qName = '7'; mods.replace3 = 5; }
+  else if (/^(?:13|11|9|7)/i.test(base)) qName = '7';
+  else if (/^aug7/i.test(base)) { qName = '7'; mods.sharp5 = true; }
+  else if (/^aug/i.test(base)) qName = 'aug';
+  else if (/^dim7/i.test(base)) qName = 'dim7';
+  else if (/^dim/i.test(base)) qName = 'dim';
+
+  if (/^(?:Maj)?6\/9/i.test(base)) addStockTensionToken(mods, '9');
+  if (/^Maj9/i.test(base)) addStockTensionToken(mods, '9');
+  if (/^Maj13/i.test(base)) addStockTensionToken(mods, '13');
+  if (/^m9/i.test(base)) addStockTensionToken(mods, '9');
+  if (/^m11/i.test(base)) { addStockTensionToken(mods, '9'); addStockTensionToken(mods, '11'); }
+  if (/^m13/i.test(base)) addStockTensionToken(mods, '13');
+  if (/^9/i.test(base)) addStockTensionToken(mods, '9');
+  if (/^11/i.test(base)) { addStockTensionToken(mods, '9'); addStockTensionToken(mods, '11'); }
+  if (/^13/i.test(base)) { addStockTensionToken(mods, '9'); addStockTensionToken(mods, '13'); }
+
+  if (parenMatch) {
+    parenMatch[1].split(',').forEach(function(token) {
+      addStockTensionToken(mods, token);
+    });
+  }
+
+  var quality = qName ? findQualityByName(qName) : null;
+  if (!quality) return null;
+  if (mods.add) {
+    mods.add = mods.add.filter(function(pc) {
+      return quality.pcs.indexOf(((pc % 12) + 12) % 12) < 0;
+    });
+    if (mods.add.length === 0) delete mods.add;
+  }
+  if (mods.flat5 && quality.pcs.indexOf(6) >= 0) delete mods.flat5;
+  if (mods.sharp5 && quality.pcs.indexOf(8) >= 0) delete mods.sharp5;
+  return {
+    quality: quality,
+    tensionLabel: (mods.add || mods.replace3 || mods.sharp5 || mods.flat5) ? findTensionLabel(mods, quality) : ''
+  };
+}
+
+function getStockBuilderSelectionFromDegrees(entry, preferredQuality) {
+  if (!entry) return null;
+  var degrees = (entry.LH || []).concat(entry.RH || []);
+  var pcSet = { 0: true };
+  degrees.forEach(function(deg) {
+    var iv = TASTY_DEGREE_MAP[deg];
+    if (iv !== undefined) pcSet[((iv % 12) + 12) % 12] = true;
+  });
+  var pcs = Object.keys(pcSet).map(function(k) { return parseInt(k, 10); });
+  var bestQuality = preferredQuality || null;
+  if (!bestQuality) {
+    var bestLen = 0;
+    for (var r = 0; r < BUILDER_QUALITIES.length; r++) {
+      for (var c = 0; c < BUILDER_QUALITIES[r].length; c++) {
+        var q = BUILDER_QUALITIES[r][c];
+        if (!q) continue;
+        var ok = q.pcs.every(function(pc) { return pcSet[((pc % 12) + 12) % 12]; });
+        if (ok && q.pcs.length > bestLen) {
+          bestQuality = q;
+          bestLen = q.pcs.length;
+        }
+      }
+    }
+  }
+  if (!bestQuality) return null;
+  var qSet = {};
+  bestQuality.pcs.forEach(function(pc) { qSet[((pc % 12) + 12) % 12] = true; });
+  var extras = pcs.filter(function(pc) { return pc !== 0 && !qSet[pc]; });
+  return {
+    quality: bestQuality,
+    tensionLabel: extras.length ? findTensionLabel({ add: extras }, bestQuality) : ''
+  };
+}
+
+function getStockBuilderSelection(entry) {
+  var parsed = getStockBuilderSelectionFromName(entry && entry.name);
+  if (parsed && stockTensionLabelExists(parsed.tensionLabel)) return parsed;
+  var fromDegrees = getStockBuilderSelectionFromDegrees(entry, parsed && parsed.quality);
+  if (fromDegrees && stockTensionLabelExists(fromDegrees.tensionLabel)) return fromDegrees;
+  return parsed || fromDegrees;
+}
+
+function syncStockBuilderSelectionUI() {
+  if (!StockState.enabled || StockState.currentIndex < 0) return;
+  if (typeof refreshBuilderControlSelection !== 'function') return;
+  var entry = StockState.currentMatches[StockState.currentIndex];
+  var selection = getStockBuilderSelection(entry);
+  if (selection) refreshBuilderControlSelection(selection);
+}
+
 function getStockChordDisplayName() {
   if (!StockState.enabled || StockState.currentIndex < 0) return getBuilderChordName() || '';
   var entry = StockState.currentMatches[StockState.currentIndex];
   if (!entry) return getBuilderChordName() || '';
   var root = BuilderState.root !== null ? pcName(BuilderState.root) : '';
+  var stockName = stockEntryNameToDisplay(root, entry.name);
+  if (stockName) return stockName;
   var degrees = (entry.LH || []).concat(entry.RH || []);
   var has = function(d) { return degrees.indexOf(d) >= 0; };
   if (has('b3') && has('6') && has('9') && !has('b7')) return root + 'm6/9';
@@ -740,13 +1081,33 @@ function getStockInfoText() {
   return allDegrees.length > 0 ? chord + ' ' + formatVoicingNoteDegreeText(allNotes, allDegrees) : chord;
 }
 
+function getStockActiveSummary() {
+  if (!StockState.enabled || StockState.currentIndex < 0) return null;
+  var entry = StockState.currentMatches[StockState.currentIndex];
+  if (!entry) return null;
+  var allDegrees = (entry.LH || []).concat(entry.RH || []);
+  var allNotes = (StockState.lhMidi || []).concat(StockState.rhMidi || []);
+  var parts = formatVoicingNoteDegreeParts(allNotes, allDegrees);
+  return {
+    kind: 'Stock',
+    count: (StockState.currentIndex + 1) + '/' + StockState.currentMatches.length,
+    chordName: getStockChordDisplayName(),
+    noteText: parts.noteText,
+    degreeText: parts.degreeText,
+    topText: formatVoicingTopText(allNotes, StockState.degreeMap)
+  };
+}
+
 function updateStockUI() {
   var bar = document.getElementById('stock-bar');
   if (!bar) return;
   bar.style.display = StockState.hpsUnlocked ? '' : 'none';
 
   var btn = document.getElementById('btn-stock');
-  if (btn) btn.classList.toggle('active', StockState.enabled);
+  if (btn) {
+    btn.style.display = 'none';
+    btn.classList.toggle('active', StockState.enabled);
+  }
 
   var counter = document.getElementById('stock-counter');
   var info = document.getElementById('stock-info');
@@ -757,28 +1118,37 @@ function updateStockUI() {
   if (reflectBtn) reflectBtn.style.display = 'none';
   var active = StockState.enabled && StockState.currentIndex >= 0;
   if (active) {
-    if (counter) counter.textContent = (StockState.currentIndex + 1) + '/' + StockState.currentMatches.length;
     if (info) info.textContent = getStockInfoText();
+    syncStockBuilderSelectionUI();
   } else {
-    if (counter) counter.textContent = '';
     if (info) info.textContent = '';
+    if (typeof refreshBuilderControlSelection === 'function') refreshBuilderControlSelection();
   }
-  if (prevBtn) prevBtn.style.visibility = active ? '' : 'hidden';
-  if (nextBtn) nextBtn.style.visibility = active ? '' : 'hidden';
-  if (counter) counter.style.visibility = active ? '' : 'hidden';
+  bar.style.display = 'none';
+  if (prevBtn) prevBtn.style.display = 'none';
+  if (nextBtn) nextBtn.style.display = 'none';
+  if (counter) counter.style.display = 'none';
   if (info) info.style.visibility = active ? '' : 'hidden';
+  if (typeof updateChordDisplay === 'function') updateChordDisplay();
+  else updateChordEngineDetail();
 }
 
 // Conditional exports for Node.js (Vitest) — ignored in browser
 if (typeof module !== 'undefined') module.exports = {
   // TASTY
   TASTY_DEGREE_MAP, QUALITY_BASE_DEGREES,
-  buildTastyVoicing, getTastyLabels, buildTastyDegreeMap, splitByPadRange,
+  buildTastyVoicing, getTastyLabels, buildTastyDegreeMap,
+  formatVoicingNoteDegreeParts, formatVoicingTopText, formatActiveVoicingSummary,
+  getPracticalVoicingAudioNotes, getTastyPlaybackNotes, getStockPlaybackNotes,
+  splitByPadRange, getTastyFitOctaveShift, fitTastyVoicingToPad,
   getTastyCategory, findQualityByName, updateTastyMatches, findTensionLabel,
-  cycleTasty, refreshTastyVoicing, toggleTasty, disableTasty, setTastyTopFilter,
-  getTastyChordDisplayName, getTastyDiffText, getTastyDegreeCategory, renderTastyDegreeBadges, updateTastyUI,
+  cycleTasty, refreshTastyVoicing, refreshTastyPadLayout, refreshActiveVoicingPadLayout,
+  toggleTasty, disableTasty, setTastyTopFilter,
+  getTastyFunctionQualityName, getTastyFunctionChordName,
+  getTastyChordDisplayName, getTastyDiffText, getTastyActiveSummary, getTastyDegreeCategory, renderTastyDegreeBadges, updateTastyUI,
   // STOCK
-  getStockMapping, updateStockMatches, stockDegreesToMidi,
-  cycleStock, refreshStockVoicing, toggleStock, disableStock,
-  getStockChordDisplayName, getStockInfoText, updateStockUI,
+  getStockMapping, updateChordEngineTabs, cycleActiveVoicing, updateChordEngineDetail, updateStockMatches, stockDegreesToMidi,
+  cycleStock, refreshStockVoicing, refreshStockPadLayout, toggleStock, disableStock,
+  stockEntryNameToDisplay, normalizeStockChordTypeName, stockTensionLabelExists, getStockBuilderSelectionFromName, getStockBuilderSelectionFromDegrees, getStockBuilderSelection,
+  getStockChordDisplayName, getStockInfoText, getStockActiveSummary, updateStockUI,
 };

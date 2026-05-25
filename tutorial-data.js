@@ -569,30 +569,40 @@ TutorialRegistry.add('sound', {
 // =============================================
 // TASTY VOICING (HPS)
 // =============================================
+function prepareHpsChordEngineTutorial() {
+  if (typeof setMode === 'function') setMode('chord');
+  if (typeof BuilderState === 'undefined') return;
+  if (BuilderState.root === null && typeof selectRoot === 'function') selectRoot(0);
+  var needsTastyQuality = !BuilderState.quality ||
+    (typeof getTastyCategory === 'function' && !getTastyCategory(BuilderState.quality));
+  if (needsTastyQuality && typeof selectQuality === 'function' && typeof findQualityByName === 'function') {
+    var q = findQualityByName('Maj7');
+    if (q) selectQuality(q);
+  }
+}
+
 TutorialRegistry.add('tasty', {
   titleKey: 'tut.tasty_title',
   descKey: 'tut.tasty_desc',
   category: 'advanced',
-  requireEl: '#tasty-bar',
+  requireEl: '#hps-engine-anchor',
 
   steps: [
     {
       type: 'info',
       id: 'activate',
-      targets: ['#tasty-bar'],
-      highlight: '#btn-tasty',
+      targets: ['#chord-engine-tabs'],
+      highlight: '#chord-engine-tasty',
       titleKey: 'tut.tasty.step1_title',
       msgKey: 'tut.tasty.step1_msg',
       waitFor: 'next',
-      beforeShow: function() {
-        if (typeof setMode === 'function') setMode('chord');
-      }
+      beforeShow: prepareHpsChordEngineTutorial
     },
     {
       type: 'info',
       id: 'cycle',
-      targets: ['#tasty-bar'],
-      highlight: '#tasty-counter',
+      targets: ['#chord-engine-nav'],
+      highlight: '#chord-engine-counter',
       titleKey: 'tut.tasty.step2_title',
       msgKey: 'tut.tasty.step2_msg',
       waitFor: 'next',
@@ -600,8 +610,8 @@ TutorialRegistry.add('tasty', {
     {
       type: 'info',
       id: 'degrees',
-      targets: ['#tasty-info'],
-      highlight: '#tasty-info',
+      targets: ['#chord-engine-detail'],
+      highlight: '#chord-engine-detail',
       titleKey: 'tut.tasty.step3_title',
       msgKey: 'tut.tasty.step3_msg',
       waitFor: 'next',
@@ -646,26 +656,24 @@ TutorialRegistry.add('stock', {
   titleKey: 'tut.stock_title',
   descKey: 'tut.stock_desc',
   category: 'advanced',
-  requireEl: '#stock-bar',
+  requireEl: '#hps-engine-anchor',
 
   steps: [
     {
       type: 'info',
       id: 'activate',
-      targets: ['#stock-bar'],
-      highlight: '#btn-stock',
+      targets: ['#chord-engine-tabs'],
+      highlight: '#chord-engine-stock',
       titleKey: 'tut.stock.step1_title',
       msgKey: 'tut.stock.step1_msg',
       waitFor: 'next',
-      beforeShow: function() {
-        if (typeof setMode === 'function') setMode('chord');
-      }
+      beforeShow: prepareHpsChordEngineTutorial
     },
     {
       type: 'info',
       id: 'cycle',
-      targets: ['#stock-bar'],
-      highlight: '#stock-counter',
+      targets: ['#chord-engine-nav'],
+      highlight: '#chord-engine-counter',
       titleKey: 'tut.stock.step2_title',
       msgKey: 'tut.stock.step2_msg',
       waitFor: 'next',
@@ -682,8 +690,8 @@ TutorialRegistry.add('stock', {
     {
       type: 'info',
       id: 'to_pad',
-      targets: ['#stock-reflect-btn'],
-      highlight: '#stock-reflect-btn',
+      targets: ['#chord-engine-to-pad'],
+      highlight: '#chord-engine-to-pad',
       titleKey: 'tut.stock.step4_title',
       msgKey: 'tut.stock.step4_msg',
       waitFor: 'close',

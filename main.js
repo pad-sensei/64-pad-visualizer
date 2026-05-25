@@ -27,6 +27,8 @@ if (StockState.hpsUnlocked) {
     updateStockUI();
   }).catch(function() {});
 }
+var _hpsEngineAnchor = document.getElementById('hps-engine-anchor');
+if (_hpsEngineAnchor) _hpsEngineAnchor.style.display = (TastyState.hpsUnlocked || StockState.hpsUnlocked) ? 'block' : 'none';
 
 // Launchpad LED: same HPS gate
 _lpHpsUnlocked = new URLSearchParams(window.location.search).has('hps');
@@ -527,7 +529,9 @@ document.addEventListener('keydown', (e) => {
     if (tipEl) { e.preventDefault(); dismissStartupTip(); return; }
     e.preventDefault();
     ensureAudioResumed();
-    const notes = getCurrentChordMidiNotes();
+    const notes = typeof getCurrentChordPlaybackMidiNotes === 'function'
+      ? getCurrentChordPlaybackMidiNotes()
+      : getCurrentChordMidiNotes();
     if (notes && notes.length > 0) playMidiNotes(notes, 1.0);
     return;
   }

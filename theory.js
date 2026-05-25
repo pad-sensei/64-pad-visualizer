@@ -34,19 +34,34 @@ function setGenrePreset(genre) {
 function baseMidi() { return BASE_MIDI + AppState.octaveShift * 12 + AppState.semitoneShift; }
 
 function setOctaveShift(value) {
-  if (TastyState.enabled || StockState.enabled) return false;
   var clamped = Math.max(-1, Math.min(3, value));
   if (clamped === AppState.octaveShift) return false;
   AppState.octaveShift = clamped;
   updateOctaveLabel();
+  if ((TastyState.enabled || StockState.enabled) && typeof refreshActiveVoicingPadLayout === 'function') {
+    refreshActiveVoicingPadLayout();
+  }
   return true;
 }
 
 function shiftOctave(delta) {
+  if (TastyState.enabled) {
+    if (typeof refreshTastyPadLayout === 'function') refreshTastyPadLayout();
+    render();
+    return;
+  }
+  var specialVoicingActive = TastyState.enabled || StockState.enabled;
   if (!setOctaveShift(AppState.octaveShift + delta)) return;
-  resetVoicingSelection();
+  if (!specialVoicingActive) {
+    resetVoicingSelection();
+  }
   render();
-  playCurrentChord();
+  if (specialVoicingActive && typeof getCurrentChordPlaybackMidiNotes === 'function') {
+    var notes = getCurrentChordPlaybackMidiNotes();
+    if (notes && notes.length) playMidiNotes(notes);
+  } else {
+    playCurrentChord();
+  }
   saveAppSettings();
 }
 
@@ -64,8 +79,9 @@ function updateOctaveLabel() {
   const lo = baseMidi();
   const hi = lo + (ROWS - 1) * ROW_INTERVAL + (COLS - 1);
   document.getElementById('oct-label').textContent = noteName(lo) + ' — ' + noteName(hi);
-  document.getElementById('oct-down').disabled = (AppState.octaveShift <= -1);
-  document.getElementById('oct-up').disabled = (AppState.octaveShift >= 3);
+  var tastyAutoFit = TastyState.enabled && TastyState.currentIndex >= 0;
+  document.getElementById('oct-down').disabled = tastyAutoFit || (AppState.octaveShift <= -1);
+  document.getElementById('oct-up').disabled = tastyAutoFit || (AppState.octaveShift >= 3);
   // 32-pad labels
   var octLabel32 = document.getElementById('oct-label-32');
   if (octLabel32) {
@@ -1405,7 +1421,8 @@ function onDiatonicClick(tetrad, degreeIdx) {
 
 // Conditional exports for Node.js (Vitest) — ignored in browser
 if (typeof module !== 'undefined') module.exports = {
-  baseMidi, pitchClass, noteName, midiNote,
+  baseMidi, setOctaveShift, shiftOctave, shiftSemitone, updateOctaveLabel,
+  pitchClass, noteName, midiNote,
   calcVoicingOffsets, getBassCase, applyOnChordBass,
   calcAllVoicingPositions, calcVoicingPositions,
   getShellIntervals, applyTension, getBuilderPCS,

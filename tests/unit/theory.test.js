@@ -136,6 +136,28 @@ describe('baseMidi', () => {
     expect(baseMidi()).toBe(BASE_MIDI - 12);
     AppState.octaveShift = 0; // reset
   });
+
+  it('allows octave range changes while TASTY or STOCK is active', () => {
+    const originalGetElementById = document.getElementById;
+    document.getElementById = () => ({ textContent: '', disabled: false });
+    try {
+      AppState.octaveShift = 0;
+      TastyState.enabled = true;
+      StockState.enabled = false;
+      expect(setOctaveShift(1)).toBe(true);
+      expect(AppState.octaveShift).toBe(1);
+
+      TastyState.enabled = false;
+      StockState.enabled = true;
+      expect(setOctaveShift(0)).toBe(true);
+      expect(AppState.octaveShift).toBe(0);
+    } finally {
+      TastyState.enabled = false;
+      StockState.enabled = false;
+      AppState.octaveShift = 0;
+      document.getElementById = originalGetElementById;
+    }
+  });
 });
 
 describe('midiNote', () => {

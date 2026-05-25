@@ -25,6 +25,7 @@
   --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
+html { scrollbar-gutter: stable; }
 body {
   font-family: var(--font-ui);
   background: var(--bg);
@@ -275,12 +276,23 @@ body[data-view-setup-field="reset"] .view-setup-row[data-view-setup-field="reset
 .app-layout {
   display: flex;
   gap: 6px;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: flex-start;
 }
-.pad-area { flex-shrink: 0; }
+.pad-area {
+  flex: 0 0 564px;
+  width: 564px;
+  max-width: 564px;
+}
 .pad-area svg { touch-action: none; }
 .pad-area svg .pad { cursor: pointer; }
+#midi-detect {
+  height: 96px;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
 .landscape-play-overlay { display: none; }
 .landscape-play-overlay svg { touch-action: none; }
 .control-panel {
@@ -509,8 +521,49 @@ body.pane-view-single #staff-ep-panel {
   min-height: 52px;
 }
 .chord-name-wrap { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.chord-engine-tabs { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+.hps-engine-anchor { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.chord-engine-tab {
+  appearance: none; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  min-width: 72px; padding: 5px 10px; border-radius: 6px;
+  font-size: 0.8rem; font-weight: 800; line-height: 1;
+  letter-spacing: 0; text-transform: uppercase; cursor: pointer; opacity: 0.76;
+}
+.chord-engine-tab:hover { opacity: 1; color: #fff; border-color: var(--accent); }
+.chord-engine-tab.active { opacity: 1; color: #fff; background: #666; border-color: #888; box-shadow: 0 0 4px rgba(255,255,255,0.15); }
+.chord-engine-tab:disabled { cursor: default; opacity: 0.24; color: var(--text-muted); border-color: var(--border); background: transparent; }
+.chord-engine-nav { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+.chord-engine-nav-btn {
+  position: relative;
+  width: 30px; height: 24px; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); cursor: pointer;
+  font-size: 0.8rem; font-weight: 700; line-height: 1;
+}
+.chord-engine-nav-btn:hover { border-color: var(--accent); background: #3a3a3a; }
+.chord-engine-counter { min-width: 42px; font-size: 0.75rem; font-weight: 800; color: var(--text); text-align: center; }
 .chord-name { font-size: 1.8rem; font-weight: 700; font-family: var(--font-ui); }
-.chord-voicing-info { font-size: 0.7rem; color: var(--accent); opacity: 0.85; white-space: nowrap; line-height: 1; }
+.chord-voicing-info {
+  font-size: 0.7rem; color: var(--accent); opacity: 0.9;
+  white-space: normal; line-height: 1.25; overflow-wrap: anywhere;
+}
+.chord-engine-detail {
+  margin: -4px 0 8px; padding: 5px 8px 7px;
+  border: 1px solid var(--border); border-radius: 7px;
+  background: rgba(0,0,0,0.18);
+}
+.chord-engine-detail-text {
+  font-size: 0.67rem; color: var(--text-muted);
+  line-height: 1.25; overflow-wrap: anywhere; margin-bottom: 5px;
+}
+.chord-engine-filter-row { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.chord-engine-filter-row button {
+  font-size: 0.6rem; padding: 2px 6px; border-radius: 4px;
+  cursor: pointer; border: 1px solid var(--accent, #f80);
+  background: var(--surface); color: var(--text); font-weight: 700;
+}
+.chord-engine-filter-row button.active {
+  background: var(--accent, #f80); color: #000;
+}
 .chord-slash {
   font-size: 1.5rem; color: var(--text-muted); padding: 0 4px;
   cursor: pointer; border-right: 1px solid var(--border); padding-right: 8px;
@@ -646,7 +699,10 @@ body.pane-view-single #staff-ep-panel {
 .tasty-nav-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
 .voicing-btn.tasty-ready { animation: tasty-ready-pulse 3s ease-in-out infinite; }
 @keyframes tasty-ready-pulse { 0%,100% { opacity: 0.65; } 50% { opacity: 1; } }
-.tasty-info { font-size: 0.65rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.tasty-info {
+  font-size: 0.65rem; color: var(--text-muted);
+  white-space: normal; overflow: visible; line-height: 1.2; flex: 1; min-width: 0;
+}
 
 /* TASTY Degree Badges (near TASTY bar — proximity principle) */
 #tasty-degrees-row { margin-top: 4px; padding: 4px 0; }
@@ -1510,7 +1566,7 @@ body.pane-view-single #staff-ep-panel {
    All panels shrink to fit one screen
    ============================================ */
 @media (min-width: 768px) and (max-width: 1100px) {
-  .pad-area { flex-shrink: 1; min-width: 320px; }
+  .pad-area { flex: 1 1 320px; width: auto; max-width: none; min-width: 320px; }
   .pad-area #pad-grid { width: 100%; height: auto; display: block; }
   .control-panel { flex-shrink: 1; min-width: 300px; }
   #staff-ep-panel { min-width: 280px !important; flex-shrink: 1; }

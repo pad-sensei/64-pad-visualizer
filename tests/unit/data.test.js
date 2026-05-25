@@ -82,6 +82,128 @@ describe('BUILDER_QUALITIES', () => {
   });
 });
 
+describe('TASTY functional chord display', () => {
+  it('uses only the three functional seventh families', () => {
+    expect(getTastyCategory({ pcs: [0, 4, 7, 11] })).toBe('major');
+    expect(getTastyCategory({ pcs: [0, 3, 7, 10] })).toBe('minor');
+    expect(getTastyCategory({ pcs: [0, 4, 7, 10] })).toBe('dominant');
+    expect(getTastyCategory({ pcs: [0, 4, 7, 9] })).toBe(null);
+    expect(getTastyCategory({ pcs: [0, 3, 7, 11] })).toBe(null);
+    expect(getTastyCategory({ pcs: [0, 3, 6, 10] })).toBe(null);
+  });
+
+  it('keeps TASTY labels fixed even when the voicing includes tensions', () => {
+    expect(getTastyFunctionQualityName({ name: 'Maj7(9)', pcs: [0, 4, 7, 11, 2] })).toBe('Maj7');
+    expect(getTastyFunctionQualityName({ name: 'm7(11)', pcs: [0, 3, 7, 10, 5] })).toBe('m7');
+    expect(getTastyFunctionQualityName({ name: '7(9,13)', pcs: [0, 4, 7, 10, 2, 9] })).toBe('7');
+  });
+
+  it('raises playback by octaves only when the voicing is too low', () => {
+    expect(getPracticalVoicingAudioNotes([36, 43, 52, 59, 62], { low: 43 })).toEqual([48, 55, 64, 71, 74]);
+    expect(getPracticalVoicingAudioNotes([48, 55, 64, 71, 74], { low: 43 })).toEqual([48, 55, 64, 71, 74]);
+    expect(getPracticalVoicingAudioNotes([59, 70, 75, 82, 94], { low: 43 })).toEqual([59, 70, 75, 82, 94]);
+  });
+
+  it('keeps HPS playback above Ableton C2 without lowering high voicings', () => {
+    expect(getTastyPlaybackNotes([48, 55, 64, 71])).toEqual([48, 55, 64, 71]);
+    expect(getStockPlaybackNotes([43, 50, 59, 64])).toEqual([55, 62, 71, 76]);
+    expect(getStockPlaybackNotes([60, 67, 76, 83])).toEqual([60, 67, 76, 83]);
+  });
+
+  it('fits TASTY voicings to a visible pad octave range', () => {
+    AppState.octaveShift = -1;
+    AppState.semitoneShift = 0;
+    expect(getTastyFitOctaveShift([48, 55, 64, 71, 74])).toBe(0);
+
+    AppState.octaveShift = 0;
+    expect(getTastyFitOctaveShift([72, 79, 88, 95])).toBe(2);
+
+    AppState.octaveShift = 1;
+    expect(getTastyFitOctaveShift([48, 55, 64, 71, 74])).toBe(0);
+    AppState.octaveShift = 0;
+  });
+});
+
+describe('Stock voicing quality mapping', () => {
+  it('supports builder major seventh names used by the UI', () => {
+    expect(getStockMapping({ name: 'Maj7' })).toEqual({ cat: 'major', sub: 'Maj7' });
+    expect(getStockMapping({ name: 'Maj7(9)' })).toEqual({ cat: 'major', sub: 'Maj9' });
+  });
+
+  it('keeps extended families clickable from the builder', () => {
+    expect(getStockMapping({ name: 'm7(9,11)' })).toEqual({ cat: 'minor', sub: 'Min11' });
+    expect(getStockMapping({ name: '7(b9,#11,13)' })).toEqual({ cat: 'dominant', sub: 'Dom7' });
+    expect(getStockMapping({ name: '7sus4(9,13)' })).toEqual({ cat: 'suspended', sub: 'Sus4' });
+  });
+
+  it('includes separate builder tension selection when mapping stock families', () => {
+    expect(getStockMapping(
+      { name: 'Maj7', pcs: [0, 4, 7, 11] },
+      { label: '9', mods: { add: [2] } },
+    )).toEqual({ cat: 'major', sub: 'Maj9' });
+    expect(getStockMapping(
+      { name: '7', pcs: [0, 4, 7, 10] },
+      { label: 'sus4\n(9)', mods: { replace3: 5, add: [2] } },
+    )).toEqual({ cat: 'suspended', sub: 'Sus4' });
+    expect(getStockMapping(
+      { name: 'm7(b5)', pcs: [0, 3, 6, 10] },
+      { label: '(9)\n(11)', mods: { add: [2, 5] } },
+    )).toEqual({ cat: 'halfDiminished', sub: 'Min11b5' });
+  });
+});
+
+describe('Stock voicing display and builder selection', () => {
+  it('transposes stock entry names to the current root', () => {
+    expect(stockEntryNameToDisplay('F', 'Maj7(9)')).toBe('FMaj7(9)');
+    expect(stockEntryNameToDisplay('F', 'Cmaj9(#11)')).toBe('FMaj9(#11)');
+    expect(stockEntryNameToDisplay('F', 'Cm11(b5)')).toBe('Fm11(b5)');
+    expect(stockEntryNameToDisplay('F', 'C13(sus4)')).toBe('F13(sus4)');
+    expect(stockEntryNameToDisplay('F', 'Dom13 (Type A)')).toBe('F13 (Type A)');
+  });
+
+  it('maps stock chord types back to builder quality and tension labels', () => {
+    expect(getStockBuilderSelectionFromName('Maj7(9)')).toMatchObject({
+      quality: expect.objectContaining({ name: 'Maj7' }),
+      tensionLabel: '9',
+    });
+    expect(getStockBuilderSelectionFromName('Maj7(13)')).toMatchObject({
+      quality: expect.objectContaining({ name: 'Maj7' }),
+      tensionLabel: '13',
+    });
+    expect(getStockBuilderSelectionFromName('C13(#11)')).toMatchObject({
+      quality: expect.objectContaining({ name: '7' }),
+      tensionLabel: '(9)\n(#11)\n(13)',
+    });
+    expect(getStockBuilderSelectionFromName('Dom13 (Type A)')).toMatchObject({
+      quality: expect.objectContaining({ name: '7' }),
+      tensionLabel: '(9,13)',
+    });
+    expect(getStockBuilderSelectionFromName('7sus4(9)')).toMatchObject({
+      quality: expect.objectContaining({ name: '7' }),
+      tensionLabel: 'sus4\n(9)',
+    });
+  });
+
+  it('uses degree fallback when stock shorthand names do not map to visible tension buttons', () => {
+    expect(getStockBuilderSelection({
+      name: 'C7(11)',
+      LH: ['1', '5'],
+      RH: ['b7', '9', '11'],
+    })).toMatchObject({
+      quality: expect.objectContaining({ name: '7' }),
+      tensionLabel: '11',
+    });
+    expect(getStockBuilderSelection({
+      name: 'Cm11(b5)',
+      LH: ['1', 'b5'],
+      RH: ['b7', '9', '11'],
+    })).toMatchObject({
+      quality: expect.objectContaining({ name: 'm7(b5)' }),
+      tensionLabel: '11',
+    });
+  });
+});
+
 describe('TENSION_ROWS', () => {
   it('non-null entries have label and mods', () => {
     TENSION_ROWS.flat().forEach(t => {

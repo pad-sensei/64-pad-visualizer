@@ -447,8 +447,7 @@ function toggleVoicingReflect() {
     // Turn ON — disable Stock reflect if active
     if (_stockReflectMode) {
       _stockReflectMode = false;
-      var srBtn = document.getElementById('stock-reflect-btn');
-      if (srBtn) { srBtn.style.background = 'var(--surface)'; srBtn.style.color = 'var(--text)'; srBtn.style.borderColor = 'var(--accent, #f80)'; }
+      syncStockReflectButtons(false);
     }
     _voicingReflectMode = true;
     _voicingAltMode = 0;
@@ -470,8 +469,19 @@ function toggleVoicingReflect() {
   render();
 }
 
+function syncStockReflectButtons(active) {
+  var ids = ['stock-reflect-btn', 'chord-engine-to-pad'];
+  ids.forEach(function(id) {
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    btn.style.background = active ? 'var(--accent, #f80)' : 'var(--surface)';
+    btn.style.color = active ? '#000' : 'var(--text)';
+    btn.style.borderColor = 'var(--accent, #f80)';
+    btn.classList.toggle('active', !!active);
+  });
+}
+
 function toggleStockReflect() {
-  var btn = document.getElementById('stock-reflect-btn');
   if (_stockReflectMode) {
     // Cycle layout or turn off
     if (_voicingLayoutCount > 1 && _voicingAltMode < _voicingLayoutCount - 1) {
@@ -482,7 +492,7 @@ function toggleStockReflect() {
       _instrumentMidiSet = null;
       _instrumentPadSet = null;
       _voicingLayoutCount = 1;
-      if (btn) { btn.style.background = 'var(--surface)'; btn.style.color = 'var(--text)'; btn.style.borderColor = 'var(--accent, #f80)'; }
+      syncStockReflectButtons(false);
       render();
       return;
     }
@@ -504,7 +514,7 @@ function toggleStockReflect() {
       var padMid = BASE_MIDI + gridRange / 2;
       setOctaveShift(Math.round((mid - padMid) / 12));
     }
-    if (btn) { btn.style.background = 'var(--accent, #f80)'; btn.style.color = '#000'; btn.style.borderColor = 'var(--accent, #f80)'; }
+    syncStockReflectButtons(true);
   }
   render();
 }

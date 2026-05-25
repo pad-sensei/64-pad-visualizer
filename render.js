@@ -620,12 +620,13 @@ function render() {
       _instrumentPadSet = layout.padSet;
       _voicingDualCount = layout.dualCount;
       _voicingLayoutCount = layout.layoutCount;
-      var srBtn = document.getElementById('stock-reflect-btn');
-      if (srBtn) {
+      ['stock-reflect-btn', 'chord-engine-to-pad'].forEach(function(id) {
+        var srBtn = document.getElementById(id);
+        if (!srBtn) return;
         srBtn.innerHTML = _voicingLayoutCount > 1
           ? t('pos.to_pad') + ' ' + (_voicingAltMode + 1) + '/' + _voicingLayoutCount
           : t('pos.to_pad');
-      }
+      });
     }
   }
 

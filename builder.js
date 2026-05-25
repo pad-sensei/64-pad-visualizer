@@ -249,7 +249,10 @@ function setBuilderStep(step) {
 
 function updateChordDisplay() {
   const nameEl = document.getElementById('chord-name');
-  nameEl.textContent = getBuilderChordName() || '—';
+  var activeVoicingSummary = null;
+  if (typeof getStockActiveSummary === 'function') activeVoicingSummary = getStockActiveSummary();
+  if (!activeVoicingSummary && typeof getTastyActiveSummary === 'function') activeVoicingSummary = getTastyActiveSummary();
+  nameEl.textContent = (activeVoicingSummary && activeVoicingSummary.chordName) || getBuilderChordName() || '—';
   // Auto bass from voicing (inversion/drop) when no explicit on-chord bass
   let displayBass = BuilderState.bass;
   if (displayBass === null && BuilderState.root !== null && BuilderState.quality) {
@@ -264,16 +267,32 @@ function updateChordDisplay() {
     }
   }
   document.getElementById('chord-bass').textContent = displayBass !== null ? pcName(displayBass) : '';
-  // Voicing info label (inversion only — shell/drop/omit shown on voicing buttons)
+  // Voicing info label: active Tasty/Stock summary, otherwise inversion only.
   var invLabel = '';
-  if (BuilderState.root !== null && BuilderState.quality && !VoicingState.shell && VoicingState.inversion > 0) {
+  if (activeVoicingSummary && typeof formatActiveVoicingSummary === 'function') {
+    invLabel = formatActiveVoicingSummary(activeVoicingSummary);
+  } else if (BuilderState.root !== null && BuilderState.quality && !VoicingState.shell && VoicingState.inversion > 0) {
     invLabel = t('help.inv_' + VoicingState.inversion);
   }
   document.getElementById('chord-voicing-info').textContent = invLabel;
+  if (typeof updateChordEngineTabs === 'function') updateChordEngineTabs();
 }
 
 function builderClear() {
   if (TastyState.enabled) { TastyState.enabled = false; TastyState.currentIndex = -1; updateTastyUI(); }
+  if (StockState.enabled) {
+    if (typeof disableStock === 'function') {
+      disableStock();
+    } else {
+      StockState.enabled = false;
+      StockState.currentIndex = -1;
+      StockState.lhMidi = [];
+      StockState.rhMidi = [];
+      StockState.degreeMap = {};
+      StockState.padPositions = [];
+      updateStockUI();
+    }
+  }
   BuilderState.root = null; BuilderState.quality = null; BuilderState.tension = null; BuilderState.bass = null;
   BuilderState.bassInputMode = false;
   BuilderState._fromDiatonic = false;
@@ -621,6 +640,36 @@ function initTensionGrid() {
 
 function clearTensionSelection() {
   if (_tensionUI) _tensionUI.clear();
+}
+
+function highlightTensionByLabel(label) {
+  clearTensionSelection();
+  if (!label) return;
+  var target = String(label).replace(/\s+/g, '');
+  var btns = document.querySelectorAll('#tension-grid .tension-btn');
+  for (var i = 0; i < btns.length; i++) {
+    var btn = btns[i];
+    if (!btn._tension) continue;
+    var btnLabel = String(btn._tension.label).replace(/\s+/g, '');
+    if (btnLabel === target) {
+      btn.classList.add('selected');
+      return;
+    }
+  }
+}
+
+function refreshBuilderControlSelection(selection) {
+  var quality = selection && selection.quality !== undefined ? selection.quality : BuilderState.quality;
+  var tension = selection && selection.tensionLabel !== undefined ? selection.tensionLabel : (BuilderState.tension ? BuilderState.tension.label : '');
+  if (quality) {
+    highlightQuality(quality);
+    updateControlsForQuality(quality);
+  } else {
+    clearQualitySelection();
+    clearTensionSelection();
+    hideTriadPromoteBar();
+  }
+  highlightTensionByLabel(tension);
 }
 
 // ======== ON-CHORD KEYBOARD ========

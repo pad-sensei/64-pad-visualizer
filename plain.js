@@ -220,6 +220,18 @@ function getCurrentChordMidiNotes() {
   return null;
 }
 
+function getCurrentChordPlaybackMidiNotes() {
+  const notes = getCurrentChordMidiNotes();
+  if (!notes || notes.length === 0) return notes;
+  if (TastyState.enabled && typeof getTastyPlaybackNotes === 'function') {
+    return getTastyPlaybackNotes(notes);
+  }
+  if (StockState.enabled && StockState.currentIndex >= 0 && typeof getStockPlaybackNotes === 'function') {
+    return getStockPlaybackNotes(notes);
+  }
+  return notes;
+}
+
 // Get chord name for current state (cross-mode)
 function getCurrentChordName() {
   // TASTY voicing: return recipe name with root
