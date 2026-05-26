@@ -343,7 +343,7 @@ function cycleTasty(reverse) {
   TastyState.outOfRange = split.outOfRange;
   TastyState.degreeMap = buildTastyDegreeMap(midiNotes, recipe.v);
   TastyState.topNote = midiNotes.length > 0 ? Math.max.apply(null, midiNotes) : null;
-  TastyState.padPositions = padFindCompactPositions(midiNotes, ROWS, COLS, baseMidi(), ROW_INTERVAL);
+  TastyState.padPositions = padFindCompactPositions(midiNotes, ROWS, COLS, baseMidi(), ROW_INTERVAL, TastyState.degreeMap);
 
   updateTastyUI();
   render();
@@ -363,7 +363,7 @@ function refreshTastyVoicing(delta) {
   TastyState.outOfRange = split.outOfRange;
   TastyState.degreeMap = buildTastyDegreeMap(midiNotes, recipe.v);
   TastyState.topNote = midiNotes.length > 0 ? Math.max.apply(null, midiNotes) : null;
-  TastyState.padPositions = padFindCompactPositions(midiNotes, ROWS, COLS, baseMidi(), ROW_INTERVAL);
+  TastyState.padPositions = padFindCompactPositions(midiNotes, ROWS, COLS, baseMidi(), ROW_INTERVAL, TastyState.degreeMap);
   updateTastyUI();
 }
 
@@ -875,7 +875,7 @@ function cycleStock(reverse) {
   StockState.degreeMap = degMap;
   var allNotes = StockState.lhMidi.concat(StockState.rhMidi);
   fitStockVoicingToPad(allNotes);
-  StockState.padPositions = padFindCompactPositions(allNotes, ROWS, COLS, baseMidi(), ROW_INTERVAL);
+  StockState.padPositions = padFindCompactPositions(allNotes, ROWS, COLS, baseMidi(), ROW_INTERVAL, StockState.degreeMap);
 
   updateStockUI();
   render();
@@ -905,7 +905,7 @@ function refreshStockVoicing(delta) {
   StockState.degreeMap = degMap;
   var allNotes = StockState.lhMidi.concat(StockState.rhMidi);
   fitStockVoicingToPad(allNotes);
-  StockState.padPositions = padFindCompactPositions(allNotes, ROWS, COLS, baseMidi(), ROW_INTERVAL);
+  StockState.padPositions = padFindCompactPositions(allNotes, ROWS, COLS, baseMidi(), ROW_INTERVAL, StockState.degreeMap);
   updateStockUI();
 }
 

@@ -128,6 +128,20 @@ describe('formatDetectedUstText', () => {
   });
 });
 
+describe('padFindCompactPositions', () => {
+  it('prefers playable shell clusters when degree metadata is available', () => {
+    const midiNotes = [55, 59, 65, 70, 75, 79];
+    const degreeMap = { 55: '1', 59: '3', 65: 'b7', 70: '#9', 75: '#5', 79: '1' };
+    const result = padFindCompactPositions(midiNotes, 8, 8, 48, 5, degreeMap);
+    const byMidi = new Map(result.map(p => [p.midi, p]));
+    const shell = [byMidi.get(55), byMidi.get(59), byMidi.get(65)];
+    const rows = shell.map(p => p.row);
+    const cols = shell.map(p => p.col);
+    expect(Math.max(...rows) - Math.min(...rows) + 1).toBeLessThanOrEqual(3);
+    expect(Math.max(...cols) - Math.min(...cols) + 1).toBeLessThanOrEqual(2);
+  });
+});
+
 describe('baseMidi', () => {
   it('returns BASE_MIDI at default octaveShift', () => {
     AppState.octaveShift = 0;
