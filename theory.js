@@ -1451,6 +1451,10 @@ function onDiatonicClick(tetrad, degreeIdx) {
   document.getElementById('chord-panel').style.display = '';
   document.getElementById('input-panel').style.display = 'none';
 
+  if (typeof disableTasty === 'function') disableTasty(true);
+  if (typeof disableStock === 'function') disableStock();
+  if (typeof disableGuitarEngine === 'function') disableGuitarEngine({ render: false });
+
   // Set builder state (preserve _fromSecDom if already set)
   if (!BuilderState._fromSecDom) {
     BuilderState._fromDiatonic = true;

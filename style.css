@@ -611,18 +611,29 @@ body.pane-view-single #staff-ep-panel {
 .guitar-engine-controls {
   display: flex; flex-direction: column; gap: 5px; width: 100%;
 }
-.guitar-engine-group-row,
+.guitar-engine-group-row {
+  display: flex; gap: 3px; align-items: center; justify-content: center;
+  flex-wrap: nowrap; overflow-x: auto; padding-bottom: 1px;
+}
+.guitar-engine-group-row button {
+  flex: 0 0 auto;
+  font-size: 0.56rem;
+  padding: 2px 5px;
+  white-space: nowrap;
+}
 .guitar-engine-nav-row {
-  display: flex; gap: 4px; align-items: center; justify-content: center; flex-wrap: wrap;
+  display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: nowrap;
 }
 .guitar-engine-preset {
   font-size: 0.62rem; padding: 2px 6px;
   background: var(--surface); color: var(--text);
   border: 1px solid var(--border); border-radius: 4px;
-  cursor: pointer; max-width: 120px;
+  cursor: pointer; max-width: 118px;
 }
 .guitar-engine-group-label {
-  min-width: 58px; font-size: 0.72rem; font-weight: 800; color: var(--text);
+  min-width: 46px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; font-weight: 800; color: var(--text);
 }
 .chord-slash {
   font-size: 1.5rem; color: var(--text-muted); padding: 0 2px;
