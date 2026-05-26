@@ -97,6 +97,11 @@ describe('formatDetectedUstText', () => {
       .toBe('UST: Am / G7');
   });
 
+  it('prefers natural minor UST spelling over respelling b9 as a major third', () => {
+    expect(formatDetectedUstText([67, 71, 77, 80, 85, 88, 91], 7, 'G7(b9,#11,13)'))
+      .toBe('UST: Em / G7');
+  });
+
   it('does not show weak one-tension upper triads as UST', () => {
     expect(formatDetectedUstText([60, 64, 67, 71, 74], 0, 'CMaj7(9)'))
       .toBe('');

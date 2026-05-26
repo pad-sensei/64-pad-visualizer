@@ -935,12 +935,29 @@ function formatDetectedUstText(notes, rootPC, chordName) {
         }).length;
         if (tensionCount < 2) continue;
         var score = tensionCount * 100 - chordToneCount * 10 + (fallbackPriority[offset] || 0);
-        var candidate = { score: score, triadRoot: triadRoot, quality: quality };
+        var candidate = { score: score, triadRoot: triadRoot, quality: quality, offset: offset };
         if (!best || candidate.score > best.score) best = candidate;
       }
     }
   }
   if (best) {
+    var bestOffset = best.offset !== undefined ? best.offset : ((best.triadRoot - rootPC + 12) % 12);
+    var bestThirdOffset = (bestOffset + (best.quality.suffix === '\u25B3' ? 4 : 3)) % 12;
+    var bestUsesFlatNine = bestOffset === 1 || bestThirdOffset === 1 || ((bestOffset + 7) % 12) === 1;
+    var thirteenthRoot = (rootPC + 9) % 12;
+    var thirteenthMinorAvailable = baseQuality === '7'
+      && pcs.has(thirteenthRoot)
+      && pcs.has(rootPC)
+      && pcs.has((rootPC + 4) % 12);
+    if (bestUsesFlatNine && thirteenthMinorAvailable) {
+      best = { score: best.score, triadRoot: thirteenthRoot, quality: qualities[1], offset: 9 };
+      bestOffset = 9;
+    }
+    var majorThirdAsFlatNine = best.quality.suffix === '\u25B3' && ((bestOffset + 4) % 12) === 1;
+    var sameRootMinorAvailable = pcs.has(best.triadRoot)
+      && pcs.has((best.triadRoot + 3) % 12)
+      && pcs.has((best.triadRoot + 7) % 12);
+    if (majorThirdAsFlatNine && sameRootMinorAvailable) best.quality = qualities[1];
     var base = (chordRootDisplayName(chordName) || NOTE_NAMES_SHARP[rootPC]) + baseQuality;
     return 'UST: ' + detectedUstTriadRootName(rootPC, best.triadRoot, chordName) + best.quality.suffix + ' / ' + base;
   }
