@@ -527,7 +527,7 @@ body.pane-view-single #staff-ep-panel {
 }
 .chord-name-wrap { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .chord-display.has-engine-tabs .chord-name-wrap {
-  --engine-read-width: 234px;
+  --engine-read-width: 316px;
   display: grid;
   grid-template-rows: 40px 40px 41px;
   justify-content: stretch;

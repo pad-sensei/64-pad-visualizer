@@ -85,7 +85,7 @@
     "UST": [
       { "id": "ust-1", "name": "C7(b9,#11)", "label": "Major triad off #11", "LH": ["1","b7"], "RH": ["b9","#11","b7"] },
       { "id": "ust-2", "name": "C13(#11)", "label": "Major triad off 9", "LH": ["1","b7"], "RH": ["9","#11","13"] },
-      { "id": "ust-3", "name": "C7(#9,#5)", "label": "Major triad off #5", "LH": ["1","b7"], "RH": ["#9","#5","1"] },
+      { "id": "ust-3", "name": "C7(#9,b13)", "label": "#9 b13", "LH": ["1","b7"], "RH": ["#9","#5","3"] },
       { "id": "ust-4", "name": "C13(b9)", "label": "Major triad off 13", "LH": ["1","b7"], "RH": ["13","b9","3"] }
     ]
   },

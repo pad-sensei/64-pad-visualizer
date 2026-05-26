@@ -1019,6 +1019,29 @@ function stockEntryNameToDisplay(root, name) {
   return root + n;
 }
 
+function stockDominantDisplayNameFromDegrees(root, entry) {
+  if (!root || !entry) return '';
+  var degrees = (entry.LH || []).concat(entry.RH || []);
+  var has = function(d) { return degrees.indexOf(d) >= 0; };
+  if (!has('b7')) return '';
+
+  var tokens = [];
+  var add = function(label) {
+    if (tokens.indexOf(label) < 0) tokens.push(label);
+  };
+
+  if (has('b9')) add('b9');
+  if (has('#9')) add('#9');
+  if (has('9')) add('9');
+  if (has('11')) add('11');
+  if (has('b5')) add('b5');
+  if (has('#11')) add('#11');
+  if (has('#5') || has('b13')) add('b13');
+  if (has('13')) add('13');
+
+  return root + '7' + (tokens.length ? '(' + tokens.join(',') + ')' : '');
+}
+
 function normalizeStockChordTypeName(name) {
   if (!name) return '';
   var n = String(name).trim();
@@ -1102,6 +1125,11 @@ function getStockBuilderSelectionFromName(name) {
     });
   }
 
+  if (qName === '7' && mods.sharp5) {
+    delete mods.sharp5;
+    addStockTensionToken(mods, 'b13');
+  }
+
   var quality = qName ? findQualityByName(qName) : null;
   if (!quality) return null;
   if (mods.add) {
@@ -1173,6 +1201,8 @@ function getStockChordDisplayName() {
   var entry = StockState.currentMatches[StockState.currentIndex];
   if (!entry) return getBuilderChordName() || '';
   var root = BuilderState.root !== null ? pcName(BuilderState.root) : '';
+  var dominantName = StockState.currentCategory === 'dominant' ? stockDominantDisplayNameFromDegrees(root, entry) : '';
+  if (dominantName) return dominantName;
   var stockName = stockEntryNameToDisplay(root, entry.name);
   if (stockName) return stockName;
   var degrees = (entry.LH || []).concat(entry.RH || []);
@@ -1276,6 +1306,6 @@ if (typeof module !== 'undefined') module.exports = {
   // STOCK
   getStockMapping, updateChordEngineTabs, cycleActiveVoicing, updateChordEngineDetail, updateStockMatches, stockDegreesToMidi,
   cycleStock, refreshStockVoicing, refreshStockPadLayout, toggleStock, disableStock,
-  stockEntryNameToDisplay, normalizeStockChordTypeName, stockTensionLabelExists, getStockBuilderSelectionFromName, getStockBuilderSelectionFromDegrees, getStockBuilderSelection,
+  stockEntryNameToDisplay, stockDominantDisplayNameFromDegrees, normalizeStockChordTypeName, stockTensionLabelExists, getStockBuilderSelectionFromName, getStockBuilderSelectionFromDegrees, getStockBuilderSelection,
   getStockChordDisplayName, getStockInfoText, getStockActiveSummary, updateStockUI,
 };

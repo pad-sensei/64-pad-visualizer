@@ -203,6 +203,51 @@ describe('Stock voicing display and builder selection', () => {
     expect(stockEntryNameToDisplay('F', 'Dom13 (Type A)')).toBe('F13 (Type A)');
   });
 
+  it('reads dominant stock altered fifths as explicit tensions', () => {
+    expect(stockDominantDisplayNameFromDegrees('G', {
+      name: 'Aug7(9)',
+      LH: ['1', 'b7'],
+      RH: ['3', '#5', '9']
+    })).toBe('G7(9,b13)');
+
+    expect(stockDominantDisplayNameFromDegrees('G', {
+      name: 'C13(#11)',
+      LH: ['1', 'b7'],
+      RH: ['9', '#11', '13']
+    })).toBe('G7(9,#11,13)');
+  });
+
+  it('keeps the dominant third in altered UST stock voicings', () => {
+    const entry = stockVoicings.dominant.UST.find(v => v.id === 'ust-3');
+    expect(entry.name).toBe('C7(#9,b13)');
+    expect(entry.RH).toEqual(['#9', '#5', '3']);
+    expect(stockDominantDisplayNameFromDegrees('G', entry)).toBe('G7(#9,b13)');
+    expect(formatVoicingNoteDegreeText([55, 65, 70, 75, 83], entry.LH.concat(entry.RH), 'G', { dominant: true }))
+      .toBe('Note: G F A# Eb B  Degree: 1 b7 #9 b13 3');
+  });
+
+  it('does not apply dominant stock naming to half-diminished voicings', () => {
+    const prevStock = {
+      enabled: StockState.enabled,
+      currentIndex: StockState.currentIndex,
+      currentMatches: StockState.currentMatches,
+      currentCategory: StockState.currentCategory
+    };
+    const prevRoot = BuilderState.root;
+    StockState.enabled = true;
+    StockState.currentIndex = 0;
+    StockState.currentCategory = 'halfDiminished';
+    StockState.currentMatches = [{
+      name: 'Cm7(b5)',
+      LH: ['1', 'b5'],
+      RH: ['b3', 'b7', 'b9']
+    }];
+    BuilderState.root = 7;
+    expect(getStockChordDisplayName()).toBe('Gm7(b5)');
+    Object.assign(StockState, prevStock);
+    BuilderState.root = prevRoot;
+  });
+
   it('spells Stock voicing notes from the selected builder root', () => {
     expect(formatVoicingNoteDegreeParts([46, 50, 53, 57], ['1', '3', '5', '7'], 'Bb').noteText)
       .toBe('Bb D F A');
@@ -248,6 +293,10 @@ describe('Stock voicing display and builder selection', () => {
     expect(getStockBuilderSelectionFromName('C13(#11)')).toMatchObject({
       quality: expect.objectContaining({ name: '7' }),
       tensionLabel: '(9)\n(#11)\n(13)',
+    });
+    expect(getStockBuilderSelectionFromName('Aug7(9)')).toMatchObject({
+      quality: expect.objectContaining({ name: '7' }),
+      tensionLabel: '(9)\n(b13)',
     });
     expect(getStockBuilderSelectionFromName('Dom13 (Type A)')).toMatchObject({
       quality: expect.objectContaining({ name: '7' }),
