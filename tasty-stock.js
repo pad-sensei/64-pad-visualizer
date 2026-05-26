@@ -147,6 +147,21 @@ function getVoicingFitOctaveShift(midiNotes) {
   var max = Math.max.apply(null, midiNotes);
   var range = (ROWS - 1) * ROW_INTERVAL + (COLS - 1);
   var current = Math.max(-1, Math.min(3, AppState.octaveShift));
+  var containingBest = null;
+  var containingBestGap = Infinity;
+  for (var exact = -1; exact <= 3; exact++) {
+    var exactLo = BASE_MIDI + exact * 12 + AppState.semitoneShift;
+    var exactHi = exactLo + range;
+    if (exactLo <= min && max <= exactHi) {
+      var gap = min - exactLo;
+      if (gap < containingBestGap) {
+        containingBestGap = gap;
+        containingBest = exact;
+      }
+    }
+  }
+  if (containingBest !== null) return containingBest;
+
   var best = current;
   var bestScore = Infinity;
   var voicingCenter = (min + max) / 2;

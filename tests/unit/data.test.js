@@ -115,20 +115,20 @@ describe('TASTY functional chord display', () => {
   it('fits TASTY voicings to a visible pad octave range', () => {
     AppState.octaveShift = -1;
     AppState.semitoneShift = 0;
-    expect(getTastyFitOctaveShift([48, 55, 64, 71, 74])).toBe(0);
+    expect(getTastyFitOctaveShift([48, 55, 64, 71, 74])).toBe(1);
 
     AppState.octaveShift = 0;
-    expect(getTastyFitOctaveShift([72, 79, 88, 95])).toBe(2);
+    expect(getTastyFitOctaveShift([72, 79, 88, 95])).toBe(3);
 
     AppState.octaveShift = 1;
-    expect(getTastyFitOctaveShift([48, 55, 64, 71, 74])).toBe(0);
+    expect(getTastyFitOctaveShift([48, 55, 64, 71, 74])).toBe(1);
     AppState.octaveShift = 0;
   });
 
   it('fits STOCK left/right hand voicings to a visible pad octave range', () => {
     AppState.octaveShift = 2;
     AppState.semitoneShift = 0;
-    expect(getStockFitOctaveShift([36, 43, 52, 59])).toBe(-1);
+    expect(getStockFitOctaveShift([36, 43, 52, 59])).toBe(0);
 
     AppState.octaveShift = -1;
     expect(getStockFitOctaveShift([47, 54, 64, 71, 83])).toBe(1);
