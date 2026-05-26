@@ -157,7 +157,11 @@ function renderPads(svg, state, grid) {
   // Build position set for selected voicing box (for dimming non-selected pads).
   // STOCK/TASTY are their own voicing display; a stale normal voicing-box
   // selection must not hide their fixed-register pad positions.
-  const specialVoicingActive = tastyMidiSet && tastyMidiSet.size > 0;
+  const guitarEngineActive = !grid
+    && typeof isGuitarEngineActive === 'function'
+    && isGuitarEngineActive()
+    && _instrumentPadSet;
+  const specialVoicingActive = (tastyMidiSet && tastyMidiSet.size > 0) || guitarEngineActive;
   const selBox = !grid && !specialVoicingActive && VoicingState.selectedBoxIdx !== null ? VoicingState.lastBoxes[VoicingState.selectedBoxIdx] : null;
   const selMidi = selBox ? new Set(selBox.midiNotes) : null;
   const selPos = selBox ? new Set(selBox.alternatives[selBox.currentAlt].positions.map(p => p.row + ',' + p.col)) : null;
