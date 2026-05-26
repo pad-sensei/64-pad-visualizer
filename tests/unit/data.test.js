@@ -112,6 +112,16 @@ describe('TASTY functional chord display', () => {
     expect(getStockPlaybackNotes([60, 67, 76, 83])).toEqual([60, 67, 76, 83]);
   });
 
+  it('shows the active HPS voicing index and description before notes', () => {
+    expect(formatActiveVoicingSummary({
+      kind: 'Stock',
+      count: '10/15',
+      sourceName: 'Kenny Barron Voicing',
+      noteText: 'D A F C G',
+      degreeText: '1 5 b3 b7 11',
+    })).toBe('STOCK 10/15 · Kenny Barron Voicing\nNote: D A F C G\nDegree: 1 5 b3 b7 11');
+  });
+
   it('fits TASTY voicings to a visible pad octave range', () => {
     AppState.octaveShift = -1;
     AppState.semitoneShift = 0;

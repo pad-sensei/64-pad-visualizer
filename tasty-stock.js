@@ -102,6 +102,11 @@ function formatVoicingTopText(midiNotes, degreeMap, rootName) {
 function formatActiveVoicingSummary(summary) {
   if (!summary) return '';
   var parts = [];
+  var engine = summary.kind ? String(summary.kind).toUpperCase() : '';
+  var header = engine;
+  if (summary.count) header += (header ? ' ' : '') + summary.count;
+  if (summary.sourceName) header += (header ? ' · ' : '') + summary.sourceName;
+  if (header) parts.push(header);
   if (summary.noteText) parts.push('Note: ' + summary.noteText);
   if (summary.degreeText) parts.push('Degree: ' + summary.degreeText);
   return parts.join('\n');
@@ -516,6 +521,7 @@ function getTastyActiveSummary() {
   return {
     kind: 'Tasty',
     count: (TastyState.currentIndex + 1) + '/' + TastyState.currentMatches.length,
+    sourceName: recipe.name || '',
     chordName: getTastyChordDisplayName(),
     noteText: parts.noteText,
     degreeText: parts.degreeText,
@@ -1182,6 +1188,7 @@ function getStockActiveSummary() {
   return {
     kind: 'Stock',
     count: (StockState.currentIndex + 1) + '/' + StockState.currentMatches.length,
+    sourceName: entry.label || '',
     chordName: getStockChordDisplayName(),
     noteText: parts.noteText,
     degreeText: parts.degreeText,

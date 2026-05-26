@@ -693,7 +693,8 @@ function render() {
       const slot = PlainState.memory[PlainState.currentSlot];
       if (!slot || slot.midiNotes.join(',') !== key) {
         const chordName = getCurrentChordName();
-        PlainState.memory[PlainState.currentSlot] = { midiNotes: [...midiNotes], chordName };
+        const voicingMeta = typeof getCurrentVoicingMeta === 'function' ? getCurrentVoicingMeta() : null;
+        PlainState.memory[PlainState.currentSlot] = makeMemorySlot(midiNotes, chordName, voicingMeta);
         updateMemorySlotUI();
       }
     }

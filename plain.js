@@ -66,7 +66,7 @@ function duplicateBank() {
   var newBank = {
     id: String(Date.now()),
     name: src.name + ' Copy',
-    memory: src.memory.map(function(s) { return s ? { midiNotes: [].concat(s.midiNotes), chordName: s.chordName } : null; }),
+    memory: src.memory.map(cloneMemorySlot),
   };
   BankState.banks.push(newBank);
   loadBank(newBank.id);
@@ -128,7 +128,7 @@ function updateBankUI() {
 }
 
 function pushUndoState() {
-  undoStack.push(PlainState.memory.map(s => s ? { midiNotes: [...s.midiNotes], chordName: s.chordName } : null));
+  undoStack.push(PlainState.memory.map(cloneMemorySlot));
   if (undoStack.length > MAX_UNDO) undoStack.shift();
 }
 
@@ -256,6 +256,47 @@ function getCurrentChordName() {
   // Chord/Scale mode: use builder name
   const name = getBuilderChordName();
   return name || '?';
+}
+
+function getCurrentVoicingMeta() {
+  if (TastyState.enabled && TastyState.currentIndex >= 0) {
+    var recipe = TastyState.currentMatches[TastyState.currentIndex];
+    if (recipe) {
+      return {
+        engine: 'TASTY',
+        count: (TastyState.currentIndex + 1) + '/' + TastyState.currentMatches.length,
+        label: recipe.name || '',
+        chordName: typeof getTastyChordDisplayName === 'function' ? getTastyChordDisplayName() : ''
+      };
+    }
+  }
+  if (StockState.enabled && StockState.currentIndex >= 0) {
+    var entry = StockState.currentMatches[StockState.currentIndex];
+    if (entry) {
+      return {
+        engine: 'STOCK',
+        count: (StockState.currentIndex + 1) + '/' + StockState.currentMatches.length,
+        label: entry.label || '',
+        chordName: typeof getStockChordDisplayName === 'function' ? getStockChordDisplayName() : ''
+      };
+    }
+  }
+  if (typeof isGuitarEngineActive === 'function' && isGuitarEngineActive()) {
+    return {
+      engine: 'GUITAR',
+      count: typeof getGuitarEngineCounter === 'function' ? getGuitarEngineCounter() : '',
+      label: ''
+    };
+  }
+  return null;
+}
+
+function formatMemoryVoicingMeta(meta) {
+  if (!meta || !meta.engine) return '';
+  var text = meta.engine;
+  if (meta.count) text += ' ' + meta.count;
+  if (meta.label) text += ' · ' + meta.label;
+  return text;
 }
 
 // Apply arbitrary MIDI notes to BuilderState (stays in Chord mode)
@@ -473,8 +514,9 @@ function saveToPlainSlot(idx) {
   const midiNotes = getCurrentChordMidiNotes();
   if (!midiNotes || midiNotes.length === 0) return false;
   const chordName = getCurrentChordName();
+  const voicingMeta = getCurrentVoicingMeta();
   pushUndoState();
-  PlainState.memory[idx] = { midiNotes: [...midiNotes], chordName };
+  PlainState.memory[idx] = makeMemorySlot(midiNotes, chordName, voicingMeta);
   updateMemorySlotUI();
   // Visual feedback: flash slot button with CSS animation
   const slotBtns = document.querySelectorAll('.slot-btn');
@@ -773,7 +815,7 @@ function savePlainSlot(idx) {
   const candidates = detectChord(notes);
   const chordName = candidates.length > 0 ? candidates[0].name : notes.map(n => NOTE_NAMES_SHARP[n % 12]).join(' ');
   pushUndoState();
-  PlainState.memory[idx] = { midiNotes: notes, chordName };
+  PlainState.memory[idx] = makeMemorySlot(notes, chordName, null);
   PlainState.currentSlot = idx;
   updateMemorySlotUI();
 }
@@ -859,7 +901,7 @@ function initMemorySlots() {
           const { midiNotes, chordName } = JSON.parse(detectData);
           if (midiNotes && midiNotes.length > 0) {
             pushUndoState();
-            PlainState.memory[i] = { midiNotes: [...midiNotes], chordName: chordName || '' };
+            PlainState.memory[i] = makeMemorySlot(midiNotes, chordName || '', null);
             PlainState.currentSlot = i;
             updateMemorySlotUI();
             saveAppSettings();
@@ -873,7 +915,7 @@ function initMemorySlots() {
       pushUndoState();
       if (ev.altKey && PlainState.memory[srcIdx]) {
         // Option+drag: copy slot (source preserved)
-        PlainState.memory[i] = { ...PlainState.memory[srcIdx], midiNotes: [...PlainState.memory[srcIdx].midiNotes] };
+        PlainState.memory[i] = cloneMemorySlot(PlainState.memory[srcIdx]);
       } else {
         // Normal drag: swap
         const temp = PlainState.memory[i];
@@ -925,7 +967,8 @@ function updateMemorySlotUI() {
       ? '<span class="slot-key-hint">' + PERFORM_KEY_LABELS[i] + '</span>' : '';
     if (slot) {
       btn.innerHTML = keyHint + slot.chordName;
-      btn.title = label + ': ' + slot.chordName;
+      const metaTitle = formatMemoryVoicingMeta(slot.voicingMeta);
+      btn.title = label + ': ' + slot.chordName + (metaTitle ? '\n' + metaTitle : '');
       btn.classList.add('filled');
       if (isPlaying) btn.classList.add('playing');
       else if (isCurrent && !isPerformView) btn.classList.add('selected');

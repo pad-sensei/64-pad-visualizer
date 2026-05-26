@@ -156,14 +156,29 @@ function getActiveBank() {
   return BankState.banks.find(b => b.id === BankState.activeBankId) || BankState.banks[0];
 }
 
+function cloneVoicingMeta(meta) {
+  return meta ? Object.assign({}, meta) : null;
+}
+
+function makeMemorySlot(midiNotes, chordName, voicingMeta) {
+  const slot = { midiNotes: [...midiNotes], chordName };
+  const meta = cloneVoicingMeta(voicingMeta);
+  if (meta) slot.voicingMeta = meta;
+  return slot;
+}
+
+function cloneMemorySlot(slot) {
+  return slot ? makeMemorySlot(slot.midiNotes || [], slot.chordName || '', slot.voicingMeta || null) : null;
+}
+
 function syncMemoryToActiveBank() {
   const bank = getActiveBank();
-  if (bank) bank.memory = PlainState.memory.map(s => s ? { midiNotes: [...s.midiNotes], chordName: s.chordName } : null);
+  if (bank) bank.memory = PlainState.memory.map(cloneMemorySlot);
 }
 
 function loadBankMemory() {
   const bank = getActiveBank();
-  if (bank) PlainState.memory = bank.memory.map(s => s ? { midiNotes: [...s.midiNotes], chordName: s.chordName } : null);
+  if (bank) PlainState.memory = bank.memory.map(cloneMemorySlot);
 }
 
 // ======== SETTINGS PERSISTENCE ========
