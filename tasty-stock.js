@@ -57,31 +57,45 @@ function buildTastyDegreeMap(midiNotes, degrees) {
   return map;
 }
 
-function displayDegreeLabel(deg) {
+function isDominantVoicingContext(opts) {
+  opts = opts || {};
+  if (opts.dominant) return true;
+  var qualityPCS = opts.qualityPCS;
+  if (!qualityPCS) return false;
+  var has = function(pc) {
+    if (typeof qualityPCS.has === 'function') return qualityPCS.has(pc);
+    return Array.isArray(qualityPCS) && qualityPCS.indexOf(pc) >= 0;
+  };
+  return has(4) && has(10);
+}
+
+function displayDegreeLabel(deg, opts) {
   // Diminished 7th is written as 6 in practical chord charts to reduce reading load.
   if (deg === 'bb7') return '6';
+  // In dominant context, #5 is usually read as the altered tension b13.
+  if (deg === '#5' && isDominantVoicingContext(opts)) return 'b13';
   return deg === 'b3' ? 'm3' : deg;
 }
 
-function formatVoicingNoteName(midi, degree, rootName) {
-  var degreeName = displayDegreeLabel(degree);
+function formatVoicingNoteName(midi, degree, rootName, opts) {
+  var degreeName = displayDegreeLabel(degree, opts);
   return pcNameForChordDegree(midi % 12, rootName, degreeName);
 }
 
-function formatVoicingNoteDegreeText(midiNotes, degrees, rootName) {
-  var parts = formatVoicingNoteDegreeParts(midiNotes, degrees, rootName);
+function formatVoicingNoteDegreeText(midiNotes, degrees, rootName, opts) {
+  var parts = formatVoicingNoteDegreeParts(midiNotes, degrees, rootName, opts);
   var text = parts.noteText ? 'Note: ' + parts.noteText : '';
   if (parts.degreeText) text += (text ? '  ' : '') + 'Degree: ' + parts.degreeText;
   return text;
 }
 
-function formatVoicingNoteDegreeParts(midiNotes, degrees, rootName) {
+function formatVoicingNoteDegreeParts(midiNotes, degrees, rootName, opts) {
   var noteNames = [];
   var degreeNames = [];
   var len = Math.min(midiNotes.length, degrees.length);
   for (var i = 0; i < len; i++) {
-    var degreeName = displayDegreeLabel(degrees[i]);
-    noteNames.push(formatVoicingNoteName(midiNotes[i], degrees[i], rootName));
+    var degreeName = displayDegreeLabel(degrees[i], opts);
+    noteNames.push(formatVoicingNoteName(midiNotes[i], degrees[i], rootName, opts));
     degreeNames.push(degreeName);
   }
   return {
@@ -90,13 +104,13 @@ function formatVoicingNoteDegreeParts(midiNotes, degrees, rootName) {
   };
 }
 
-function formatVoicingTopText(midiNotes, degreeMap, rootName) {
+function formatVoicingTopText(midiNotes, degreeMap, rootName, opts) {
   if (!midiNotes || midiNotes.length === 0 || !degreeMap) return '';
   var topNote = Math.max.apply(null, midiNotes);
   var topDegreeRaw = degreeMap[topNote];
   if (!topDegreeRaw) return '';
-  var topDegree = displayDegreeLabel(topDegreeRaw);
-  return 'Top: ' + topDegree + '(' + formatVoicingNoteName(topNote, topDegreeRaw, rootName) + ')';
+  var topDegree = displayDegreeLabel(topDegreeRaw, opts);
+  return 'Top: ' + topDegree + '(' + formatVoicingNoteName(topNote, topDegreeRaw, rootName, opts) + ')';
 }
 
 function formatActiveVoicingSummary(summary) {
@@ -459,6 +473,13 @@ function getTastyChordDisplayName() {
   return getTastyFunctionChordName();
 }
 
+function getBuilderVoicingDisplayContext() {
+  return {
+    dominant: !!(BuilderState.quality && BuilderState.quality.pcs &&
+      BuilderState.quality.pcs.indexOf(4) >= 0 && BuilderState.quality.pcs.indexOf(10) >= 0)
+  };
+}
+
 function getTastyDiffText() {
   if (!TastyState.enabled || TastyState.currentIndex < 0) return '';
   var recipe = TastyState.currentMatches[TastyState.currentIndex];
@@ -470,14 +491,15 @@ function getTastyDiffText() {
   var chordName = getTastyFunctionChordName();
 
   // Voicing notes/degrees: bottom to top (the actual voicing structure)
-  var voicingStr = formatVoicingNoteDegreeText(TastyState.midiNotes, recipe.v, rootName);
+  var displayContext = getBuilderVoicingDisplayContext();
+  var voicingStr = formatVoicingNoteDegreeText(TastyState.midiNotes, recipe.v, rootName, displayContext);
 
   // Top note info
   var topStr = '';
   if (TastyState.topNote !== null && TastyState.degreeMap[TastyState.topNote]) {
     var topPC = TastyState.topNote % 12;
-    var topDegree = displayDegreeLabel(TastyState.degreeMap[TastyState.topNote]);
-    topStr = 'Top: ' + topDegree + '(' + formatVoicingNoteName(TastyState.topNote, TastyState.degreeMap[TastyState.topNote], rootName) + ')';
+    var topDegree = displayDegreeLabel(TastyState.degreeMap[TastyState.topNote], displayContext);
+    topStr = 'Top: ' + topDegree + '(' + formatVoicingNoteName(TastyState.topNote, TastyState.degreeMap[TastyState.topNote], rootName, displayContext) + ')';
   }
 
   // Labels (Rootless, Omit3, Omit5)
@@ -501,7 +523,7 @@ function getTastyDetailText() {
   if (!recipe) return '';
   var parts = [];
   var rootName = BuilderState.root !== null ? pcName(BuilderState.root) : '';
-  var topText = formatVoicingTopText(TastyState.midiNotes, TastyState.degreeMap, rootName);
+  var topText = formatVoicingTopText(TastyState.midiNotes, TastyState.degreeMap, rootName, getBuilderVoicingDisplayContext());
   var labels = getTastyLabels(recipe.v);
   if (topText) parts.push(topText);
   if (labels.length > 0) parts.push(labels.join(', '));
@@ -517,7 +539,8 @@ function getTastyActiveSummary() {
   var recipe = TastyState.currentMatches[TastyState.currentIndex];
   if (!recipe) return null;
   var rootName = BuilderState.root !== null ? pcName(BuilderState.root) : '';
-  var parts = formatVoicingNoteDegreeParts(TastyState.midiNotes, recipe.v, rootName);
+  var displayContext = getBuilderVoicingDisplayContext();
+  var parts = formatVoicingNoteDegreeParts(TastyState.midiNotes, recipe.v, rootName, displayContext);
   return {
     kind: 'Tasty',
     count: (TastyState.currentIndex + 1) + '/' + TastyState.currentMatches.length,
@@ -525,15 +548,17 @@ function getTastyActiveSummary() {
     chordName: getTastyChordDisplayName(),
     noteText: parts.noteText,
     degreeText: parts.degreeText,
-    topText: formatVoicingTopText(TastyState.midiNotes, TastyState.degreeMap, rootName)
+    topText: formatVoicingTopText(TastyState.midiNotes, TastyState.degreeMap, rootName, displayContext)
   };
 }
 
 // Degree → color category (matches pad colors)
-function getTastyDegreeCategory(deg) {
+function getTastyDegreeCategory(deg, opts) {
+  var label = displayDegreeLabel(deg, opts);
   if (deg === '1') return 'root';
   if (deg === '3' || deg === 'b3') return 'guide3';
   if (deg === '7' || deg === 'b7') return 'guide7';
+  if (label === 'b13') return 'tension';
   if (deg === '5' || deg === 'b5' || deg === '#5') return 'chord';
   if (deg === '6') return 'guide7'; // 6th = guide role in 6 chords
   return 'tension'; // 9, b9, #9, 11, #11, 13, b13
@@ -560,14 +585,16 @@ function renderTastyDegreeBadges() {
 
   var html = '<div class="tasty-degrees">';
   html += '<span class="tasty-degrees-label">' + recipe.name + '</span>';
+  var displayContext = getBuilderVoicingDisplayContext();
+  var rootName = rootPC !== null ? pcName(rootPC) : '';
 
   var noteIdx = 0;
   for (var i = 0; i < recipe.v.length; i++) {
     var deg = recipe.v[i];
     if (TASTY_DEGREE_MAP[deg] === undefined) continue;
     var semitone = TASTY_DEGREE_MAP[deg];
-    var pc = (rootPC + semitone) % 12;
-    var cat = getTastyDegreeCategory(deg);
+    var cat = getTastyDegreeCategory(deg, displayContext);
+    var displayDeg = displayDegreeLabel(deg, displayContext);
     var isTop = (noteIdx < TastyState.midiNotes.length && TastyState.midiNotes[noteIdx] === TastyState.topNote);
     var isOut = (noteIdx < TastyState.midiNotes.length && outSet[TastyState.midiNotes[noteIdx]]);
     var cls = 'tasty-degree tasty-degree--' + cat;
@@ -575,8 +602,8 @@ function renderTastyDegreeBadges() {
     if (isOut) cls += ' tasty-degree--out';
 
     html += '<span class="' + cls + '">';
-    html += deg;
-    html += '<span class="tasty-degree-note">' + pcName(pc) + '</span>';
+    html += displayDeg;
+    html += '<span class="tasty-degree-note">' + formatVoicingNoteName(rootPC + semitone, deg, rootName, displayContext) + '</span>';
     if (isTop) html += '<span class="tasty-degree-top">TOP</span>';
     html += '</span>';
     noteIdx++;
@@ -1168,7 +1195,7 @@ function getStockInfoText() {
   var rootName = BuilderState.root !== null ? pcName(BuilderState.root) : '';
   var allDegrees = (entry.LH || []).concat(entry.RH || []);
   var allNotes = (StockState.lhMidi || []).concat(StockState.rhMidi || []);
-  return allDegrees.length > 0 ? chord + ' ' + formatVoicingNoteDegreeText(allNotes, allDegrees, rootName) : chord;
+  return allDegrees.length > 0 ? chord + ' ' + formatVoicingNoteDegreeText(allNotes, allDegrees, rootName, getBuilderVoicingDisplayContext()) : chord;
 }
 
 function getStockDetailText() {
@@ -1184,7 +1211,8 @@ function getStockActiveSummary() {
   var allDegrees = (entry.LH || []).concat(entry.RH || []);
   var allNotes = (StockState.lhMidi || []).concat(StockState.rhMidi || []);
   var rootName = BuilderState.root !== null ? pcName(BuilderState.root) : '';
-  var parts = formatVoicingNoteDegreeParts(allNotes, allDegrees, rootName);
+  var displayContext = getBuilderVoicingDisplayContext();
+  var parts = formatVoicingNoteDegreeParts(allNotes, allDegrees, rootName, displayContext);
   return {
     kind: 'Stock',
     count: (StockState.currentIndex + 1) + '/' + StockState.currentMatches.length,
@@ -1192,7 +1220,7 @@ function getStockActiveSummary() {
     chordName: getStockChordDisplayName(),
     noteText: parts.noteText,
     degreeText: parts.degreeText,
-    topText: formatVoicingTopText(allNotes, StockState.degreeMap, rootName)
+    topText: formatVoicingTopText(allNotes, StockState.degreeMap, rootName, displayContext)
   };
 }
 

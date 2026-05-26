@@ -365,7 +365,7 @@ function renderPads(svg, state, grid) {
         // TASTY/Stock mode: use recipe degree (e.g. "b7", "#11") instead of computed interval name
         if (tastyDegreeMap && tastyMidiSet && tastyMidiSet.has(midi) && tastyDegreeMap[midi]) {
           voicingDegreeRaw = tastyDegreeMap[midi];
-          degName = displayDegreeLabel(voicingDegreeRaw);
+          degName = displayDegreeLabel(voicingDegreeRaw, { qualityPCS: qualityPCS });
         } else if (isOverlay) {
           // Overlay notes use scale degree names (not chord degree names)
           degName = SCALE_DEGREE_NAMES[interval];
@@ -388,7 +388,7 @@ function renderPads(svg, state, grid) {
       text.setAttribute('font-size', padSize < 50 ? '8px' : (showDegree ? '10px' : '9px'));
       text.setAttribute('font-weight', showDegree ? '600' : '400');
       text.textContent = voicingDegreeRaw
-        ? formatVoicingNoteName(midi, voicingDegreeRaw, pcName(rootPC))
+        ? formatVoicingNoteName(midi, voicingDegreeRaw, pcName(rootPC), { qualityPCS: qualityPCS })
         : pcName(pc);
       if (isDimmed) text.setAttribute('opacity', isDimChordTone ? '0' : (isOverlayPad ? '0.9' : '0.4'));
       if (isTastyActive && _isTastyMiss) text.setAttribute('opacity', '0.05');

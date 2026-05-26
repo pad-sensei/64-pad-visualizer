@@ -217,6 +217,13 @@ describe('Stock voicing display and builder selection', () => {
     expect(pcNameForChordDegree(9, 'C', 'bb7')).toBe('A');
   });
 
+  it('spells #5 as b13 in dominant voicing display context', () => {
+    expect(formatVoicingNoteDegreeText([55, 59, 65, 70, 75], ['1', '3', 'b7', '#9', '#5'], 'G', { dominant: true }))
+      .toBe('Note: G B F A# Eb  Degree: 1 3 b7 #9 b13');
+    expect(formatVoicingNoteDegreeText([60, 64, 68], ['1', '3', '#5'], 'C'))
+      .toBe('Note: C E G#  Degree: 1 3 #5');
+  });
+
   it('maps stock chord types back to builder quality and tension labels', () => {
     expect(getStockBuilderSelectionFromName('Maj7(9)')).toMatchObject({
       quality: expect.objectContaining({ name: 'Maj7' }),
