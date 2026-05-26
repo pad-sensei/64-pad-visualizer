@@ -1,8 +1,8 @@
 # 64 Pad Explorer - CLAUDE.md
 
-**最終更新**: 2026-04-22（dev-server-nocache ルール化 + 守護宣言）
+**最終更新**: 2026-05-26（v6.5.0 HPSボイシング / Guitarエンジン整理）
 **担当人格**: 蔵人（実装）、継次（設計・レビュー）、フロ男（テンション・ボイシング設計）、マケ子（UI/UX外部視点）、暁（守護）
-**バージョン**: V5.0（2026-04-13 / Phase 1 audio-core 独立後）
+**バージョン**: V6.5.0（2026-05-26 / HPSボイシング・Guitarエンジン・6系統表記整理）
 
 ---
 
@@ -98,12 +98,12 @@ audio-core `eeca490 → 7c37b0b` (D-1/C-1/C-2 + Tone Balance outputGain 分離 +
 
 ## 現在地（自動更新）
 
-- 状態: **Web SSOT は Desktop v1.5.0 の表示設定 / 更新通知 / Push表示色方針まで反映済み**。Web commit `a375d21 feat: add desktop view setup and push update controls`、pad-core commit `0e23889 docs: update pad-core current state`。Web版は auto-bump で `6.4.3`。表示設定ギア、表示範囲/並び順、C固定、Push voicing overview toggle、更新通知 manifest `64-pad-explorer-update.js`、Gadd9/B 系コード判定、MIDI入力で本体表示が崩れる問題、Push用のスケール/押下色方針を反映済み。Desktop 側へ `sync-webui.sh` 済み。
-- 残作業: **Gumroad 商品ページ文言の差し替え**、**ブログの 64Pad Explorer / Push 3 操作説明反映**、**ブログ記事・製品ページの導線整理**、残バグフィックス。ブログに Push 3 操作や Desktop版の価値がまだ十分反映されていない。
-- 正規ルール: 理論判断の SSOT は `pad-core/theory.js` / `pad-core/data.js`。Web で修正 → Desktop は `sync-webui.sh` 経由で同期。Desktop 側 `WebUI/` は生成物として扱う。i18n は見える文言を全言語ファイルに追加する。PWA のため確認サーバーは必ず `_nocache_server.py` を使う。
-- 次: Gumroad 現行ページ文の MD 化 → 64 Pad Explorer らしい販売文へ整理 → 必要なら英語版に差し替え案作成。ブログは `app-64-pad-explorer` と `pad-sensei-products` のURL/導線/写真/Push 3説明を整える。
-- 注意: ブラウザ版/Web版・VST3/AU plugin では Push 3 Control Surface を操作できると誤解させない。Push 3 の Setup で表示設定を開けるのは Desktop 版だけ。PUSH2 は完全対応ではなく、ディスプレイ表示と部分的対応。`G B A D` は `Gadd9 / B` 系を優先し、`Bm7(b13)` へ寄せない。教育用 Degree は `m3` 表記を使う。
-- 判断待ち: Gumroad を英語中心にするか、日本語本文+英語併記にするか。v1.5.0 の正式リリース日と、Web 版 production deploy のタイミング。
+- 状態: **Web v6.5.0 を本番公開済み**。Web commit `77ad720 feat: release hps voicing engines v6.5.0`、pad-core commit `32dc089 feat: refine guitar voicing notation`。HPS の TASTY / STOCK / Guitar をコードビルダー内に整理し、6系統表記を `C6(9)` / `C6(9,#11)` へ統一。Guitar 絞り込み、TASTY/STOCK の表示・再生音域、STOCK の実用表記、9言語の `whats_new_650`、manual/update-history/HPSポータル反映まで完了。Desktop 側へ `sync-webui.sh` 済み。
+- 残作業: **Desktop v1.5.0 RC/インストーラー確認**、**Push 3 実機テスト**、**Gumroad 商品ページ文言の差し替え**、**ブログの 64Pad Explorer / Push 3 操作説明反映**、**画像・動画を含むマニュアル強化**。Guitarエンジンは良くなったが、ジャズ/フォーク/ブルース別の実用フォーム精度は継続改善候補。
+- 正規ルール: 理論判断の SSOT は `pad-core/theory.js` / `pad-core/data.js`。Web で修正 → Desktop は `sync-webui.sh` 経由で同期。Desktop 側 `WebUI/` は生成物として扱う。i18n は見える文言を全言語ファイルに追加する。機能更新時は Help/Tutorial/Guide、オンラインマニュアル、更新履歴、リリース前テスト、翻訳を同時更新する。PWA のため確認サーバーは必ず `_nocache_server.py` を使う。
+- 次: Desktop v1.5.0 の RC/配布物を作り、Push 3 実機テスト項目に沿って確認する。並行して Gumroad / ブログ / 製品ページに Push 3 Control Surface と HPSボイシングの価値を反映する。
+- 注意: ブラウザ版/Web版・VST3/AU plugin では Push 3 Control Surface を操作できると誤解させない。Push 3 の Setup で表示設定を開けるのは Desktop 版だけ。PUSH2 は完全対応ではなく、ディスプレイ表示と部分的対応。6系統は `6(9)` 系で表示し、Lydian 系は `#11` として扱う。HPS の TASTY は採譜・実用データなので、通常のコードビルダー理論と完全一致しないことがある。
+- 判断待ち: v1.5.0 の正式リリース日、RC を誰に先行確認してもらうか、Gumroad を英語中心にするか日本語本文+英語併記にするか。
 
 ---
 
