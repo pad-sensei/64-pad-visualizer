@@ -478,6 +478,7 @@ function refreshGuitarEnginePositionsForBuilder(applyCurrent) {
       maxResults: (typeof GUITAR_ENGINE_POSITION_MAX_RESULTS !== 'undefined' ? GUITAR_ENGINE_POSITION_MAX_RESULTS : INSTRUMENT_POSITION_MAX_RESULTS),
       weights: typeof _presetWeights !== 'undefined' ? _presetWeights : null,
       noOpen: typeof _presetNoOpen !== 'undefined' ? _presetNoOpen : false,
+      genre: typeof _presetGenre !== 'undefined' ? _presetGenre : '',
     });
     GuitarPositionState.groups = groupGuitarForms(GuitarPositionState.alternatives, GUITAR_OPEN_MIDI, BuilderState.root);
     _resetPositionState(GuitarPositionState);
@@ -680,17 +681,15 @@ function renderGuitarEngineControls(filterEl) {
       ['folk', t('pos.genre_folk')],
       ['jazz', t('pos.genre_jazz')],
       ['bossa', t('pos.genre_bossa')],
-      ['funk', t('pos.genre_funk')]
+      ['funk', t('pos.genre_funk')],
+      ['neoSoul', t('pos.genre_neo_soul')]
     ].forEach(function(item) {
       var opt = document.createElement('option');
       opt.value = item[0];
       opt.textContent = item[1];
       select.appendChild(opt);
     });
-    select.value = _presetWeights === GENRE_WEIGHTS.folk ? 'folk' :
-      (_presetWeights === GENRE_WEIGHTS.jazz ? 'jazz' :
-      (_presetWeights === GENRE_WEIGHTS.bossa ? 'bossa' :
-      (_presetWeights === GENRE_WEIGHTS.funk ? 'funk' : '')));
+    select.value = _presetGenre || '';
     select.onchange = function() { setGenrePreset(this.value); };
     navRow.appendChild(select);
   }

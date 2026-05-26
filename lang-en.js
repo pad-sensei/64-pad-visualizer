@@ -442,6 +442,7 @@ I18N.addLang('en', {
     genre_jazz: 'Jazz',
     genre_bossa: 'Bossa',
     genre_funk: 'Funk/Soul',
+    genre_neo_soul: 'Neo Soul',
   },
   tips: [
     'Press C to save the current chord to Memory',
@@ -856,7 +857,7 @@ I18N.addLang('en', {
     slash_chord: 'Slash chord (on chord)',
     guitar_diagram: 'Common guitar voicings reflected when chord is selected in the builder',
     guitar_label: 'Toggle note names on guitar fretboard',
-    genre_preset: 'Switch guitar voicing genre \u2014 Standard / Folk/Open / Bossa / Jazz / Funk/Soul',
+    genre_preset: 'Switch guitar voicing genre \u2014 Standard / Folk/Open / Bossa / Jazz / Funk/Soul / Neo Soul',
     pos_nav: 'Cycle through guitar/bass voicing positions [, .]',
     to_pad: 'Use the builder Guitar engine to show guitar voicings on the 64-pad grid [V]',
     inst_clear: 'Clear notes entered on the instrument diagram',

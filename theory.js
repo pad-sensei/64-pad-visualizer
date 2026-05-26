@@ -1,5 +1,5 @@
 // ========================================
-// GENRE PRESET WEIGHTS (URL ?preset=folk|bossa|jazz|funk)
+// GENRE PRESET WEIGHTS (URL ?preset=folk|bossa|jazz|funk|neoSoul)
 // ========================================
 var GENRE_WEIGHTS = {
   folk:  { rootBass:100, fifthBass:20, rootStr6:40, rootStr5:35, rootStr4:20,
@@ -11,21 +11,33 @@ var GENRE_WEIGHTS = {
   bossa: { rootBass:70, fifthBass:60, openStr:25, top4:60, guideTone:40,
            avgFret:12, stringCount:35 },
   funk:  { rootBass:20, fifthBass:0, openStr:0, top4:120, guideTone:40,
-           stringCount:20, span:20, gaps:25 }
+           stringCount:20, span:20, gaps:25 },
+  neoSoul: { rootBass:15, fifthBass:0, rootStr6:10, rootStr5:20, rootStr4:60,
+           top4:140, guideTone:80, openStr:0, stringCount:15, avgFret:4,
+           span:20, gaps:25, fullFret:10, closedAForm:40, major7OpenCluster:120 }
 };
-var _presetParam = (typeof URLSearchParams !== 'undefined') ? new URLSearchParams(location.search).get('preset') : null;
-var _presetWeights = _presetParam && GENRE_WEIGHTS[_presetParam] ? GENRE_WEIGHTS[_presetParam] : null;
-var _presetNoOpen = _presetParam === 'funk';
+
+function normalizeGenrePreset(genre) {
+  if (genre === 'neo-soul' || genre === 'neosoul') return 'neoSoul';
+  return genre;
+}
+
+var _presetParam = (typeof URLSearchParams !== 'undefined') ? normalizeGenrePreset(new URLSearchParams(location.search).get('preset')) : null;
+var _presetGenre = _presetParam && GENRE_WEIGHTS[_presetParam] ? _presetParam : '';
+var _presetWeights = _presetGenre ? GENRE_WEIGHTS[_presetGenre] : null;
+var _presetNoOpen = _presetGenre === 'funk' || _presetGenre === 'neoSoul';
 
 function setGenrePreset(genre) {
   var guitarEngineWasActive = typeof isGuitarEngineActive === 'function' && isGuitarEngineActive();
   var prevGuitarGroup = guitarEngineWasActive && GuitarPositionState.groups[GuitarPositionState.currentGroupIdx]
     ? GuitarPositionState.groups[GuitarPositionState.currentGroupIdx].labelKey
     : null;
-  _presetWeights = genre && GENRE_WEIGHTS[genre] ? GENRE_WEIGHTS[genre] : null;
-  _presetNoOpen = genre === 'funk';
+  genre = normalizeGenrePreset(genre);
+  _presetGenre = genre && GENRE_WEIGHTS[genre] ? genre : '';
+  _presetWeights = _presetGenre ? GENRE_WEIGHTS[_presetGenre] : null;
+  _presetNoOpen = _presetGenre === 'funk' || _presetGenre === 'neoSoul';
   var presetSelects = document.querySelectorAll('#genre-preset-select, .guitar-engine-preset');
-  presetSelects.forEach(function(sel) { sel.value = genre || ''; });
+  presetSelects.forEach(function(sel) { sel.value = _presetGenre || ''; });
   // Invalidate cache to force re-enumeration
   GuitarPositionState._lastKey = null;
   GuitarPositionState._engineKey = null;
@@ -570,7 +582,7 @@ function updateGuitarPositions() {
   var key = BuilderState.root + ':' + pcs.join(',');
   if (key !== GuitarPositionState._lastKey) {
     GuitarPositionState._lastKey = key;
-    GuitarPositionState.alternatives = padEnumGuitarChordForms(pcs, BuilderState.root, GUITAR_OPEN_MIDI, 21, 4, { maxResults: INSTRUMENT_POSITION_MAX_RESULTS, weights: _presetWeights, noOpen: _presetNoOpen });
+    GuitarPositionState.alternatives = padEnumGuitarChordForms(pcs, BuilderState.root, GUITAR_OPEN_MIDI, 21, 4, { maxResults: INSTRUMENT_POSITION_MAX_RESULTS, weights: _presetWeights, noOpen: _presetNoOpen, genre: _presetGenre });
     GuitarPositionState.groups = groupGuitarForms(GuitarPositionState.alternatives, GUITAR_OPEN_MIDI, BuilderState.root);
     _resetPositionState(GuitarPositionState);
     GuitarPositionState.enabled = GuitarPositionState.alternatives.length > 0;
@@ -601,7 +613,7 @@ function updateBassPositions() {
   var key = BuilderState.root + ':' + pcs.join(',');
   if (key !== BassPositionState._lastKey) {
     BassPositionState._lastKey = key;
-    BassPositionState.alternatives = padEnumGuitarChordForms(pcs, BuilderState.root, PAD_BASS_TUNING, 21, 4, { maxResults: INSTRUMENT_POSITION_MAX_RESULTS, weights: _presetWeights, noOpen: _presetNoOpen });
+    BassPositionState.alternatives = padEnumGuitarChordForms(pcs, BuilderState.root, PAD_BASS_TUNING, 21, 4, { maxResults: INSTRUMENT_POSITION_MAX_RESULTS, weights: _presetWeights, noOpen: _presetNoOpen, genre: _presetGenre });
     BassPositionState.groups = groupGuitarForms(BassPositionState.alternatives, PAD_BASS_TUNING, BuilderState.root);
     _resetPositionState(BassPositionState);
     BassPositionState.enabled = BassPositionState.alternatives.length > 0;

@@ -476,3 +476,208 @@ describe('pcName', () => {
     expect(pcName(3)).toBe('Eb');
   });
 });
+
+describe('folk/open guitar reference ranking', () => {
+  const tuning = [64, 59, 55, 50, 45, 40];
+  const folkWeights = {
+    rootBass: 100,
+    fifthBass: 20,
+    rootStr6: 40,
+    rootStr5: 35,
+    rootStr4: 20,
+    top4: 10,
+    guideTone: 30,
+    openStr: 55,
+    stringCount: 35,
+    avgFret: 12,
+    span: 10,
+    gaps: 20,
+    fullFret: 0,
+    closedAForm: 0,
+    major7OpenCluster: 0,
+  };
+
+  function shapeFromHighToLow(frets) {
+    return frets.slice().reverse().map((fret) => (
+      fret === null || fret === undefined ? 'x' : fret.toString(36)
+    )).join('');
+  }
+
+  it('keeps the common Cadd9 folk grip ahead of generated open-string guesses', () => {
+    const forms = padEnumGuitarChordForms([0, 4, 7, 14], 0, tuning, 21, 4, {
+      maxResults: 5,
+      weights: folkWeights,
+    });
+
+    expect(forms.length).toBeGreaterThan(0);
+    expect(shapeFromHighToLow(forms[0].frets)).toBe('x32033');
+  });
+
+  it('keeps core folk/open seed forms in the top range', () => {
+    const cases = [
+      { name: 'G', root: 7, pcs: [0, 4, 7], refs: ['320003', '320033'] },
+      { name: 'C', root: 0, pcs: [0, 4, 7], refs: ['x32010'] },
+      { name: 'D', root: 2, pcs: [0, 4, 7], refs: ['xx0232'] },
+      { name: 'Em', root: 4, pcs: [0, 3, 7], refs: ['022000'] },
+      { name: 'Am', root: 9, pcs: [0, 3, 7], refs: ['x02210'] },
+      { name: 'A7', root: 9, pcs: [0, 4, 7, 10], refs: ['x02020'] },
+      { name: 'B7', root: 11, pcs: [0, 4, 7, 10], refs: ['x21202'] },
+      { name: 'Esus4', root: 4, pcs: [0, 5, 7], refs: ['022200'] },
+    ];
+
+    cases.forEach(({ name, root, pcs, refs }) => {
+      const forms = padEnumGuitarChordForms(pcs, root, tuning, 21, 4, {
+        maxResults: 5,
+        weights: folkWeights,
+      });
+      const topShapes = forms.slice(0, 3).map((form) => shapeFromHighToLow(form.frets));
+      expect(topShapes, name).toEqual(expect.arrayContaining([expect.stringMatching(new RegExp(`^(${refs.join('|')})$`))]));
+    });
+  });
+});
+
+describe('source-derived guitar genre seeds', () => {
+  const tuning = [64, 59, 55, 50, 45, 40];
+  const neoSoulWeights = {
+    rootBass: 15,
+    fifthBass: 0,
+    rootStr6: 10,
+    rootStr5: 20,
+    rootStr4: 60,
+    top4: 140,
+    guideTone: 80,
+    openStr: 0,
+    stringCount: 15,
+    avgFret: 4,
+    span: 20,
+    gaps: 25,
+    fullFret: 10,
+    closedAForm: 40,
+    major7OpenCluster: 120,
+  };
+
+  function shapeFromHighToLow(frets) {
+    return frets.slice().reverse().map((fret) => (
+      fret === null || fret === undefined ? 'x' : fret.toString(36)
+    )).join('');
+  }
+
+  it('installs at least 50 source-derived movable guitar forms', () => {
+    let count = 0;
+    Object.values(PAD_GUITAR_FORM_KNOWLEDGE.standard).forEach((byShape) => {
+      Object.values(byShape).forEach((meta) => {
+        if (meta.sourceSeedId) count += 1;
+      });
+    });
+
+    expect(count).toBeGreaterThanOrEqual(50);
+  });
+
+  it('installs Wes-style jazz block chord seeds across keys', () => {
+    let count = 0;
+    Object.values(PAD_GUITAR_FORM_KNOWLEDGE.standard).forEach((byShape) => {
+      Object.values(byShape).forEach((meta) => {
+        if (meta.genreBonuses && meta.genreBonuses.jazz) count += 1;
+      });
+    });
+
+    expect(count).toBeGreaterThanOrEqual(100);
+  });
+
+  it('installs Bossa source shell seeds across keys', () => {
+    let count = 0;
+    Object.values(PAD_GUITAR_FORM_KNOWLEDGE.standard).forEach((byShape) => {
+      Object.values(byShape).forEach((meta) => {
+        if (meta.genreBonuses && meta.genreBonuses.bossa) count += 1;
+      });
+    });
+
+    expect(count).toBeGreaterThanOrEqual(80);
+  });
+
+  it('uses Misch neo-soul source grips when the Neo Soul preset is active', () => {
+    const cases = [
+      { name: 'Dm7', root: 2, pcs: [0, 3, 7, 10], expected: 'x57565' },
+      { name: 'G7', root: 7, pcs: [0, 4, 7, 10], expected: '353433' },
+      { name: 'Cmaj7', root: 0, pcs: [0, 4, 7, 11], expected: 'x3545x' },
+    ];
+
+    cases.forEach(({ name, root, pcs, expected }) => {
+      const forms = padEnumGuitarChordForms(pcs, root, tuning, 21, 4, {
+        maxResults: 12,
+        weights: neoSoulWeights,
+        noOpen: true,
+        genre: 'neoSoul',
+      });
+      const shapes = forms.slice(0, 8).map((form) => shapeFromHighToLow(form.frets));
+      expect(shapes, name).toContain(expected);
+    });
+  });
+
+  it('uses Bossa source shell grips when the Bossa preset is active', () => {
+    const bossaWeights = {
+      rootBass: 70,
+      fifthBass: 60,
+      openStr: 25,
+      top4: 60,
+      guideTone: 40,
+      avgFret: 12,
+      stringCount: 35,
+    };
+    const cases = [
+      { name: 'Dm7', root: 2, pcs: [0, 3, 7, 10], expected: 'x5356x' },
+      { name: 'G7', root: 7, pcs: [0, 4, 7, 10], expected: '3x343x' },
+      { name: 'Cmaj7', root: 0, pcs: [0, 4, 7, 11], expected: 'x3545x' },
+      { name: 'C6(9)', root: 0, pcs: [0, 4, 7, 9, 14], expected: 'x3223x' },
+      { name: 'Dm9', root: 2, pcs: [0, 3, 7, 10, 14], expected: 'x5355x' },
+      { name: 'G13', root: 7, pcs: [0, 4, 10, 21], expected: '3x345x' },
+      { name: 'Cm7(b5)', root: 0, pcs: [0, 3, 6, 10], expected: 'x3434x' },
+      { name: 'Cdim7', root: 0, pcs: [0, 3, 6, 9], expected: 'x3424x' },
+    ];
+
+    cases.forEach(({ name, root, pcs, expected }) => {
+      const forms = padEnumGuitarChordForms(pcs, root, tuning, 21, 4, {
+        maxResults: 12,
+        weights: bossaWeights,
+        genre: 'bossa',
+      });
+      const shapes = forms.slice(0, 8).map((form) => shapeFromHighToLow(form.frets));
+      expect(shapes, name).toContain(expected);
+    });
+  });
+
+  it('uses Wes-style block chord source grips when the Jazz preset is active', () => {
+    const jazzWeights = {
+      rootBass: 60,
+      fifthBass: 0,
+      rootStr6: 20,
+      rootStr5: 30,
+      rootStr4: 40,
+      top4: 100,
+      guideTone: 50,
+      openStr: 0,
+      stringCount: 20,
+      avgFret: 6,
+      span: 10,
+      gaps: 15,
+      fullFret: 20,
+    };
+    const cases = [
+      { name: 'Cmaj7', root: 0, pcs: [0, 4, 7, 11], expected: 'x3545x' },
+      { name: 'Dm7', root: 2, pcs: [0, 3, 7, 10], expected: 'x5756x' },
+      { name: 'G7', root: 7, pcs: [0, 4, 7, 10], expected: '353433' },
+      { name: 'Bm7b5', root: 11, pcs: [0, 3, 6, 10], expected: 'x2323x' },
+      { name: 'G13', root: 7, pcs: [0, 4, 10, 21], expected: '3x345x' },
+    ];
+
+    cases.forEach(({ name, root, pcs, expected }) => {
+      const forms = padEnumGuitarChordForms(pcs, root, tuning, 21, 4, {
+        maxResults: 12,
+        weights: jazzWeights,
+        genre: 'jazz',
+      });
+      const shapes = forms.slice(0, 8).map((form) => shapeFromHighToLow(form.frets));
+      expect(shapes, name).toContain(expected);
+    });
+  });
+});

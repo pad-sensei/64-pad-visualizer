@@ -442,6 +442,7 @@ I18N.addLang('ja', {
     genre_jazz: 'Jazz',
     genre_bossa: 'Bossa',
     genre_funk: 'Funk/Soul',
+    genre_neo_soul: 'Neo Soul',
   },
   tips: [
     'Cキーで今のコードをMemoryに保存できます',
@@ -856,7 +857,7 @@ I18N.addLang('ja', {
     slash_chord: 'スラッシュコード（オンコード）です',
     guitar_diagram: 'ギターでよく使われるボイシングが、コードビルダーで選択すると反映されます',
     guitar_label: 'ギター指板上の音名表示を切り替えます',
-    genre_preset: 'ギターボイシングのジャンルを切り替えます — Standard / Folk/Open / Bossa / Jazz / Funk/Soul',
+    genre_preset: 'ギターボイシングのジャンルを切り替えます — Standard / Folk/Open / Bossa / Jazz / Funk/Soul / Neo Soul',
     pos_nav: 'ギター/ベースのボイシングポジションを切り替えます [, .]',
     to_pad: 'ビルダー内のGuitarエンジンで、ギターボイシングを64パッドに表示します [V]',
     inst_clear: '楽器ダイアグラムに入力した音をクリアします',

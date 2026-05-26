@@ -282,7 +282,7 @@ I18N.addLang('fr', {
     slash_chord: 'Slash chord (accord sur basse)',
     guitar_diagram: 'Les voicings de guitare courants sont affichés lorsqu\'un accord est sélectionné dans le constructeur',
     guitar_label: 'Afficher/masquer les noms de notes sur le manche de guitare',
-    genre_preset: 'Changer le genre de voicing guitare \u2014 Standard / Folk/Open / Bossa / Jazz / Funk/Soul',
+    genre_preset: 'Changer le genre de voicing guitare \u2014 Standard / Folk/Open / Bossa / Jazz / Funk/Soul / Neo Soul',
     pos_nav: 'Parcourir les positions de voicing guitare/basse [, .]',
     to_pad: 'Refléter le voicing guitare/stock sur la grille 64 pads [V]',
     inst_clear: 'Effacer les notes saisies sur le diagramme d\'instrument',
@@ -556,6 +556,7 @@ I18N.addLang('fr', {
     genre_jazz: 'Jazz',
     genre_bossa: 'Bossa',
     genre_funk: 'Funk/Soul',
+    genre_neo_soul: 'Neo Soul',
   },
   tips: [
     'Appuyez sur C pour sauvegarder l\'accord actuel dans Memory',

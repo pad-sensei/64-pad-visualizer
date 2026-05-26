@@ -286,7 +286,7 @@ I18N.addLang('zh', {
     slash_chord: '分割和弦（On Chord）',
     guitar_diagram: '在构建器中选择和弦时自动反映常用吉他声位',
     guitar_label: '切换吉他指板上的音名显示',
-    genre_preset: '切换吉他声位风格 \u2014 Standard / Folk/Open / Bossa / Jazz / Funk/Soul',
+    genre_preset: '切换吉他声位风格 \u2014 Standard / Folk/Open / Bossa / Jazz / Funk/Soul / Neo Soul',
     pos_nav: '循环切换吉他/贝斯声位位置 [, .]',
     to_pad: '将吉他/Stock声位映射到64键打击垫网格 [V]',
     inst_clear: '清除乐器图上输入的音符',
@@ -561,6 +561,7 @@ I18N.addLang('zh', {
     genre_jazz: 'Jazz',
     genre_bossa: 'Bossa',
     genre_funk: 'Funk/Soul',
+    genre_neo_soul: 'Neo Soul',
   },
   tips: [
     '按 C 键将当前和弦保存到 Memory',

@@ -286,7 +286,7 @@ I18N.addLang('it', {
     slash_chord: 'Slash chord (on chord)',
     guitar_diagram: 'Voicing chitarra comuni riflessi quando un accordo è selezionato nel costruttore',
     guitar_label: 'Attiva/disattiva nomi note sulla tastiera chitarra',
-    genre_preset: 'Cambia genere voicing chitarra \u2014 Standard / Folk/Open / Bossa / Jazz / Funk/Soul',
+    genre_preset: 'Cambia genere voicing chitarra \u2014 Standard / Folk/Open / Bossa / Jazz / Funk/Soul / Neo Soul',
     pos_nav: 'Cicla posizioni voicing chitarra/basso [, .]',
     to_pad: 'Rifletti il voicing chitarra/stock sulla griglia di 64 pad [V]',
     inst_clear: 'Cancella le note inserite sul diagramma strumentale',
@@ -559,6 +559,7 @@ I18N.addLang('it', {
     genre_jazz: 'Jazz',
     genre_bossa: 'Bossa',
     genre_funk: 'Funk/Soul',
+    genre_neo_soul: 'Neo Soul',
   },
   tips: [
     'Premi C per salvare l\'accordo attuale in Memory',

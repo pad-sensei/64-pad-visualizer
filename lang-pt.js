@@ -286,7 +286,7 @@ I18N.addLang('pt', {
     slash_chord: 'Slash chord (on chord)',
     guitar_diagram: 'Voicings comuns de guitarra refletidos quando um acorde \u00E9 selecionado no construtor',
     guitar_label: 'Alternar nomes de notas no bra\u00E7o de guitarra',
-    genre_preset: 'Mudar g\u00E9nero de voicing de guitarra \u2014 Standard / Folk/Open / Bossa / Jazz / Funk/Soul',
+    genre_preset: 'Mudar g\u00E9nero de voicing de guitarra \u2014 Standard / Folk/Open / Bossa / Jazz / Funk/Soul / Neo Soul',
     pos_nav: 'Percorrer posi\u00E7\u00F5es de voicing de guitarra/baixo [, .]',
     to_pad: 'Refletir o voicing de guitarra/stock na grelha de 64 pads [V]',
     inst_clear: 'Limpar notas inseridas no diagrama de instrumento',
@@ -559,6 +559,7 @@ I18N.addLang('pt', {
     genre_jazz: 'Jazz',
     genre_bossa: 'Bossa',
     genre_funk: 'Funk/Soul',
+    genre_neo_soul: 'Neo Soul',
   },
   tips: [
     'Pressione C para salvar o acorde atual no Memory',

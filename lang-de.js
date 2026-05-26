@@ -285,7 +285,7 @@ I18N.addLang('de', {
     slash_chord: 'Slash Chord (On Chord)',
     guitar_diagram: 'Gängige Gitarren-Voicings werden angezeigt, wenn ein Akkord im Builder ausgewählt ist',
     guitar_label: 'Notennamen auf dem Gitarrengriffbrett ein-/ausblenden',
-    genre_preset: 'Gitarren-Voicing-Genre wechseln \u2014 Standard / Folk/Open / Bossa / Jazz / Funk/Soul',
+    genre_preset: 'Gitarren-Voicing-Genre wechseln \u2014 Standard / Folk/Open / Bossa / Jazz / Funk/Soul / Neo Soul',
     pos_nav: 'Gitarren-/Bass-Voicing-Positionen durchschalten [, .]',
     to_pad: 'Gitarren-/Stock-Voicing auf das 64-Pad-Raster übertragen [V]',
     inst_clear: 'Auf dem Instrumentendiagramm eingegebene Noten löschen',
@@ -558,6 +558,7 @@ I18N.addLang('de', {
     genre_jazz: 'Jazz',
     genre_bossa: 'Bossa',
     genre_funk: 'Funk/Soul',
+    genre_neo_soul: 'Neo Soul',
   },
   tips: [
     'Drücke C um den aktuellen Akkord im Memory zu speichern',
