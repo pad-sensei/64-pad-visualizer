@@ -475,7 +475,7 @@ function refreshGuitarEnginePositionsForBuilder(applyCurrent) {
   if (key !== GuitarPositionState._engineKey || GuitarPositionState.alternatives.length === 0 || !GuitarPositionState.enabled) {
     GuitarPositionState._engineKey = key;
     GuitarPositionState.alternatives = padEnumGuitarChordForms(pcs, BuilderState.root, GUITAR_OPEN_MIDI, 21, 4, {
-      maxResults: INSTRUMENT_POSITION_MAX_RESULTS,
+      maxResults: (typeof GUITAR_ENGINE_POSITION_MAX_RESULTS !== 'undefined' ? GUITAR_ENGINE_POSITION_MAX_RESULTS : INSTRUMENT_POSITION_MAX_RESULTS),
       weights: typeof _presetWeights !== 'undefined' ? _presetWeights : null,
       noOpen: typeof _presetNoOpen !== 'undefined' ? _presetNoOpen : false,
     });
@@ -529,6 +529,7 @@ function enableGuitarEngine() {
   centerPadOnMidiNotes(getGuitarEngineMidiNotes());
   render();
   if (typeof updateChordDisplay === 'function') updateChordDisplay();
+  if (typeof updateInstrumentInput === 'function') updateInstrumentInput();
 }
 
 function disableGuitarEngine(options) {
@@ -553,12 +554,18 @@ function applyGuitarEngineAlt(index) {
   var len = GuitarPositionState.alternatives.length;
   GuitarPositionState.currentAlt = (index + len) % len;
   var form = GuitarPositionState.alternatives[GuitarPositionState.currentAlt];
-  for (var gi = 0; gi < GuitarPositionState.groups.length; gi++) {
-    var localIdx = GuitarPositionState.groups[gi].forms.indexOf(form);
-    if (localIdx >= 0) {
-      GuitarPositionState.currentGroupIdx = gi;
-      GuitarPositionState.currentAltInGroup = localIdx;
-      break;
+  var activeGroup = GuitarPositionState.groups[GuitarPositionState.currentGroupIdx];
+  var activeLocalIdx = activeGroup ? activeGroup.forms.indexOf(form) : -1;
+  if (activeLocalIdx >= 0) {
+    GuitarPositionState.currentAltInGroup = activeLocalIdx;
+  } else {
+    for (var gi = 0; gi < GuitarPositionState.groups.length; gi++) {
+      var localIdx = GuitarPositionState.groups[gi].forms.indexOf(form);
+      if (localIdx >= 0) {
+        GuitarPositionState.currentGroupIdx = gi;
+        GuitarPositionState.currentAltInGroup = localIdx;
+        break;
+      }
     }
   }
   applyGuitarForm(form);
@@ -568,16 +575,15 @@ function applyGuitarEngineAlt(index) {
 
 function cycleGuitarEngine(reverse) {
   if (!isGuitarEngineActive()) return;
-  if (!applyGuitarEngineAlt(GuitarPositionState.currentAlt + (reverse ? -1 : 1))) return;
-  centerPadOnMidiNotes(getGuitarEngineMidiNotes());
-  render();
-  if (typeof updateChordDisplay === 'function') updateChordDisplay();
-  var notes = getGuitarEngineMidiNotes();
-  if (notes.length > 0 && typeof playMidiNotes === 'function') playMidiNotes(notes, 1.0);
+  cycleGuitarEngineInGroup(reverse ? -1 : 1);
 }
 
 function getGuitarEngineCounter() {
   if (!GuitarPositionState.enabled || GuitarPositionState.alternatives.length === 0) return '';
+  var group = GuitarPositionState.groups[GuitarPositionState.currentGroupIdx];
+  if (group && group.forms.length > 0) {
+    return (GuitarPositionState.currentAltInGroup + 1) + '/' + group.forms.length;
+  }
   return (GuitarPositionState.currentAlt + 1) + '/' + GuitarPositionState.alternatives.length;
 }
 
@@ -601,13 +607,117 @@ function getGuitarEngineDegreeParts() {
 }
 
 function getGuitarEngineDetailText() {
-  if (!isGuitarEngineActive()) return '';
+  return '';
+}
+
+function _afterGuitarEngineControlChange(play) {
+  if (!isGuitarEngineActive()) return;
+  centerPadOnMidiNotes(getGuitarEngineMidiNotes());
+  render();
+  if (typeof updateChordDisplay === 'function') updateChordDisplay();
+  if (typeof updateInstrumentInput === 'function') updateInstrumentInput();
+  var notes = getGuitarEngineMidiNotes();
+  if (play && notes.length > 0 && typeof playMidiNotes === 'function') playMidiNotes(notes, 1.0);
+}
+
+function setGuitarEngineGroup(index) {
+  if (!isGuitarEngineActive() || !GuitarPositionState.groups[index]) return;
+  GuitarPositionState.currentGroupIdx = index;
+  GuitarPositionState.currentAltInGroup = 0;
+  var group = GuitarPositionState.groups[index];
+  GuitarPositionState.currentAlt = GuitarPositionState.alternatives.indexOf(group.forms[0]);
+  applyGuitarForm(group.forms[0]);
+  updatePositionBar('guitar');
+  _afterGuitarEngineControlChange(false);
+}
+
+function cycleGuitarEngineInGroup(delta) {
+  if (!isGuitarEngineActive() || !GuitarPositionState.groups.length) return;
   var group = GuitarPositionState.groups[GuitarPositionState.currentGroupIdx];
-  var groupLabel = group ? t(group.labelKey) : 'Guitar';
-  var frets = guitarSelectedFrets.map(function(f) { return f === null ? 'x' : String(f); }).join(' ');
-  var parts = getGuitarEngineDegreeParts();
-  return 'Guitar ' + getGuitarEngineCounter() + ' · ' + groupLabel + ' · Frets: ' + frets +
-    (parts.degreeText ? ' · Degree: ' + parts.degreeText : '');
+  if (!group || !group.forms.length) return;
+  var len = group.forms.length;
+  GuitarPositionState.currentAltInGroup = (GuitarPositionState.currentAltInGroup + delta + len) % len;
+  var form = group.forms[GuitarPositionState.currentAltInGroup];
+  GuitarPositionState.currentAlt = GuitarPositionState.alternatives.indexOf(form);
+  applyGuitarForm(form);
+  updatePositionBar('guitar');
+  _afterGuitarEngineControlChange(true);
+}
+
+function renderGuitarEngineControls(filterEl) {
+  if (!filterEl) return;
+  filterEl.innerHTML = '';
+  if (!isGuitarEngineActive() || !GuitarPositionState.enabled || GuitarPositionState.alternatives.length === 0) return;
+
+  var controls = document.createElement('div');
+  controls.className = 'guitar-engine-controls';
+
+  if (GuitarPositionState.groups.length > 1) {
+    var groupRow = document.createElement('div');
+    groupRow.className = 'guitar-engine-group-row';
+    GuitarPositionState.groups.forEach(function(group, idx) {
+      var tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'pos-group-tab' + (idx === GuitarPositionState.currentGroupIdx ? ' active' : '');
+      tab.textContent = t(group.labelKey);
+      tab.onclick = function() { setGuitarEngineGroup(idx); };
+      groupRow.appendChild(tab);
+    });
+    controls.appendChild(groupRow);
+  }
+
+  var navRow = document.createElement('div');
+  navRow.className = 'guitar-engine-nav-row';
+
+  var hpsUnlocked = !!((typeof TastyState !== 'undefined' && TastyState.hpsUnlocked) ||
+    (typeof StockState !== 'undefined' && StockState.hpsUnlocked));
+  if (hpsUnlocked) {
+    var select = document.createElement('select');
+    select.className = 'guitar-engine-preset';
+    select.setAttribute('data-info', 'info.genre_preset');
+    [
+      ['', t('pos.genre_default')],
+      ['folk', t('pos.genre_folk')],
+      ['jazz', t('pos.genre_jazz')],
+      ['bossa', t('pos.genre_bossa')],
+      ['funk', t('pos.genre_funk')]
+    ].forEach(function(item) {
+      var opt = document.createElement('option');
+      opt.value = item[0];
+      opt.textContent = item[1];
+      select.appendChild(opt);
+    });
+    select.value = _presetWeights === GENRE_WEIGHTS.folk ? 'folk' :
+      (_presetWeights === GENRE_WEIGHTS.jazz ? 'jazz' :
+      (_presetWeights === GENRE_WEIGHTS.bossa ? 'bossa' :
+      (_presetWeights === GENRE_WEIGHTS.funk ? 'funk' : '')));
+    select.onchange = function() { setGenrePreset(this.value); };
+    navRow.appendChild(select);
+  }
+
+  var prev = document.createElement('button');
+  prev.type = 'button';
+  prev.className = 'pos-nav-btn';
+  prev.innerHTML = '<span class="kbd-hint">,</span>&#9664;';
+  prev.onclick = function() { cycleGuitarEngineInGroup(-1); };
+  navRow.appendChild(prev);
+
+  var label = document.createElement('span');
+  label.className = 'guitar-engine-group-label';
+  var currentGroup = GuitarPositionState.groups[GuitarPositionState.currentGroupIdx];
+  var groupCount = currentGroup && currentGroup.forms ? currentGroup.forms.length : GuitarPositionState.alternatives.length;
+  label.textContent = (GuitarPositionState.currentAltInGroup + 1) + '/' + groupCount;
+  navRow.appendChild(label);
+
+  var next = document.createElement('button');
+  next.type = 'button';
+  next.className = 'pos-nav-btn';
+  next.innerHTML = '&#9654;<span class="kbd-hint">.</span>';
+  next.onclick = function() { cycleGuitarEngineInGroup(1); };
+  navRow.appendChild(next);
+
+  controls.appendChild(navRow);
+  filterEl.appendChild(controls);
 }
 
 function getGuitarActiveSummary() {
@@ -795,8 +905,12 @@ function updateInstrumentInput() {
     return;
   }
 
+  const guitarEngineActive = !!(typeof isGuitarEngineActive === 'function' && isGuitarEngineActive());
+
   // === Guitar/Bass/Piano → Builder direct update (Chord mode) ===
-  if (AppState.mode === 'chord' && instrNotes.length >= 2) {
+  // Guitar engine is already driven by BuilderState. Feeding it back into the
+  // builder mixes the selected form with builder notes and corrupts Note/Degree.
+  if (!guitarEngineActive && AppState.mode === 'chord' && instrNotes.length >= 2) {
     const directCandidates = detectChord(instrNotes);
     if (directCandidates.length > 0) {
       const detectEl = document.getElementById('midi-detect');
@@ -843,8 +957,11 @@ function updateInstrumentInput() {
   _instrumentMidiSet = null; // Fallthrough: no MIDI filter (1 note or detection failed)
 
   // Chord/Scale mode: existing logic
-  let notesForDetect = instrNotes;
-  if (AppState.mode === 'chord' && BuilderState.root !== null && BuilderState.quality) {
+  const guitarEngineNotes = guitarEngineActive && typeof getGuitarEngineMidiNotes === 'function'
+    ? getGuitarEngineMidiNotes()
+    : null;
+  let notesForDetect = guitarEngineNotes && guitarEngineNotes.length > 0 ? guitarEngineNotes : instrNotes;
+  if (!guitarEngineActive && AppState.mode === 'chord' && BuilderState.root !== null && BuilderState.quality) {
     if (padExtNotes.size > 0) {
       const merged = new Set([...padExtNotes, ...instrNotes]);
       notesForDetect = [...merged].sort((a, b) => a - b);
@@ -864,12 +981,18 @@ function updateInstrumentInput() {
     return;
   }
   const candidates = detectChord(notesForDetect);
-  const noteText = candidates.length > 0
+  let noteText = candidates.length > 0
     ? formatDetectedNoteDegreeText(notesForDetect, candidates[0].rootPC, candidates[0].name)
     : 'Note: ' + notesForDetect.map(n => NOTE_NAMES_SHARP[n % 12]).join(' ');
+  if (guitarEngineActive && typeof getGuitarEngineDegreeParts === 'function') {
+    const guitarParts = getGuitarEngineDegreeParts();
+    noteText = 'Note: ' + guitarParts.noteText;
+    if (guitarParts.degreeText) noteText += '  Degree: ' + guitarParts.degreeText;
+  }
   lastDetectedNotes = notesForDetect;
   lastDetectedCandidates = candidates;
-  const inputPCS = new Set(instrNotes.map(n => n % 12));
+  const displayInputNotes = guitarEngineActive ? notesForDetect : instrNotes;
+  const inputPCS = new Set(displayInputNotes.map(n => n % 12));
   if (candidates.length > 0) {
     const best = candidates[0];
     const ustInline = (typeof formatDetectedUstInlineHtml === 'function') ? formatDetectedUstInlineHtml(notesForDetect, best.rootPC, best.name) : '';
@@ -885,7 +1008,7 @@ function updateInstrumentInput() {
     detectEl.innerHTML = html;
     if (AppState.mode === 'chord') {
       const mergedPCS = new Set(lastRenderActivePCS);
-      instrNotes.forEach(n => mergedPCS.add(n % 12));
+      displayInputNotes.forEach(n => mergedPCS.add(n % 12));
       renderGuitarDiagram(lastRenderRootPC, mergedPCS);
       renderBassDiagram(lastRenderRootPC, mergedPCS);
       renderPianoDisplay(lastRenderRootPC, mergedPCS);
@@ -898,7 +1021,7 @@ function updateInstrumentInput() {
     detectEl.textContent = noteText;
     if (AppState.mode === 'chord') {
       const mergedPCS = new Set(lastRenderActivePCS);
-      instrNotes.forEach(n => mergedPCS.add(n % 12));
+      displayInputNotes.forEach(n => mergedPCS.add(n % 12));
       renderGuitarDiagram(lastRenderRootPC, mergedPCS);
       renderBassDiagram(lastRenderRootPC, mergedPCS);
       renderPianoDisplay(lastRenderRootPC, mergedPCS);
@@ -908,7 +1031,7 @@ function updateInstrumentInput() {
       renderPianoDisplay(null, inputPCS);
     }
   }
-  highlightInstrumentPads(instrNotes);
+  highlightInstrumentPads(displayInputNotes);
   renderParentScales();
 }
 

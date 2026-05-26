@@ -18,14 +18,34 @@ var _presetWeights = _presetParam && GENRE_WEIGHTS[_presetParam] ? GENRE_WEIGHTS
 var _presetNoOpen = _presetParam === 'funk';
 
 function setGenrePreset(genre) {
+  var guitarEngineWasActive = typeof isGuitarEngineActive === 'function' && isGuitarEngineActive();
+  var prevGuitarGroup = guitarEngineWasActive && GuitarPositionState.groups[GuitarPositionState.currentGroupIdx]
+    ? GuitarPositionState.groups[GuitarPositionState.currentGroupIdx].labelKey
+    : null;
   _presetWeights = genre && GENRE_WEIGHTS[genre] ? GENRE_WEIGHTS[genre] : null;
   _presetNoOpen = genre === 'funk';
+  var presetSelects = document.querySelectorAll('#genre-preset-select, .guitar-engine-preset');
+  presetSelects.forEach(function(sel) { sel.value = genre || ''; });
   // Invalidate cache to force re-enumeration
   GuitarPositionState._lastKey = null;
+  GuitarPositionState._engineKey = null;
   BassPositionState._lastKey = null;
   updateGuitarPositions();
   updateBassPositions();
+  if (typeof refreshGuitarEnginePositionsForBuilder === 'function' &&
+      typeof isGuitarEngineActive === 'function' && isGuitarEngineActive()) {
+    refreshGuitarEnginePositionsForBuilder(true);
+    if (prevGuitarGroup && typeof setGuitarEngineGroup === 'function') {
+      for (var i = 0; i < GuitarPositionState.groups.length; i++) {
+        if (GuitarPositionState.groups[i].labelKey === prevGuitarGroup) {
+          setGuitarEngineGroup(i);
+          break;
+        }
+      }
+    }
+  }
   render();
+  if (typeof updateChordDisplay === 'function') updateChordDisplay();
 }
 
 // ========================================
@@ -456,6 +476,7 @@ function calcShellPositions(rootRow, rootCol, thirdInterval, seventhInterval, sh
 // GUITAR/BASS POSITION ALTERNATIVES (v3.19, groups v3.21)
 // ========================================
 var INSTRUMENT_POSITION_MAX_RESULTS = 10;
+var GUITAR_ENGINE_POSITION_MAX_RESULTS = 30;
 
 function groupGuitarForms(alternatives, openMidi, rootPC) {
   var numStrings = openMidi.length;
@@ -491,6 +512,17 @@ function groupGuitarForms(alternatives, openMidi, rootPC) {
   }
   if (openForms.length > 0) {
     groups.push({ labelKey: 'pos.open', forms: openForms });
+  }
+  var noOpenForms = [];
+  for (var i = 0; i < alternatives.length; i++) {
+    var hasOpen = false;
+    for (var j = 0; j < alternatives[i].frets.length; j++) {
+      if (alternatives[i].frets[j] === 0) { hasOpen = true; break; }
+    }
+    if (!hasOpen) noOpenForms.push(alternatives[i]);
+  }
+  if (noOpenForms.length > 0) {
+    groups.push({ labelKey: 'pos.no_open', forms: noOpenForms });
   }
   // Voice count groups (3-voice, 4-voice, 5-voice)
   for (var vc = 3; vc <= 5; vc++) {
@@ -644,6 +676,11 @@ function updatePositionBar(which) {
   var label = document.getElementById(which + '-pos-label');
   var groupsEl = document.getElementById(which + '-pos-groups');
   if (!bar || !label) return;
+  if (which === 'guitar' && typeof isGuitarEngineActive === 'function' && isGuitarEngineActive()) {
+    bar.style.display = 'none';
+    if (groupsEl) groupsEl.style.display = 'none';
+    return;
+  }
   if (state.enabled && state.alternatives.length > 0) {
     bar.style.display = 'flex';
     // Group tabs

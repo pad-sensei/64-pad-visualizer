@@ -22,7 +22,7 @@ if (TastyState.hpsUnlocked) {
 // Stock Voicing: same HPS gate
 StockState.hpsUnlocked = new URLSearchParams(window.location.search).has('hps');
 if (StockState.hpsUnlocked) {
-  fetch('data/stock-voicings.json').then(function(r) { return r.json(); }).then(function(data) {
+  fetch('data/stock-voicings.json?v=6.5.0').then(function(r) { return r.json(); }).then(function(data) {
     StockState.data = data;
     updateStockUI();
   }).catch(function() {});
@@ -384,6 +384,14 @@ document.addEventListener('keydown', (e) => {
   // < / >: Bass position cycle (Chord mode)
   if (key === '<' && BassPositionState.enabled) { cycleBassPosition(-1); return; }
   if (key === '>' && BassPositionState.enabled) { cycleBassPosition(1); return; }
+
+  // Shift+C: Capture current chord/voicing to selected slot, or next empty slot.
+  // Keep this before Perform key handling so Shift+C never triggers slot C.
+  if (e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyC') {
+    e.preventDefault();
+    if (typeof captureCurrentToMemorySlot === 'function') captureCurrentToMemorySlot();
+    return;
+  }
 
   // Option+Perform keys: Save to slot using Perform layout (全16スロット, 全モード共通)
   // Must use e.code because Option+key produces special chars on Mac (e.g. Option+Q = œ)

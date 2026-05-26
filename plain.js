@@ -444,6 +444,30 @@ function saveToSelectedSlot() {
   }
 }
 
+function captureCurrentToMemorySlot() {
+  var idx = PlainState.currentSlot !== null ? PlainState.currentSlot : findNextEmptySlot(0);
+  var toast = document.getElementById('slot-save-toast');
+  if (idx >= 16) {
+    if (toast) {
+      toast.textContent = t('notify.memory_full');
+      toast.style.opacity = '1';
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(function() { toast.style.opacity = '0'; }, 1500);
+    }
+    return false;
+  }
+  if (!saveToPlainSlot(idx)) {
+    if (toast) {
+      toast.textContent = t('notify.no_current_chord');
+      toast.style.opacity = '1';
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(function() { toast.style.opacity = '0'; }, 1500);
+    }
+    return false;
+  }
+  return true;
+}
+
 function saveToPlainSlot(idx) {
   if (idx < 0 || idx >= 16) return false;
   const midiNotes = getCurrentChordMidiNotes();

@@ -102,12 +102,9 @@ function formatVoicingTopText(midiNotes, degreeMap, rootName) {
 function formatActiveVoicingSummary(summary) {
   if (!summary) return '';
   var parts = [];
-  var head = summary.kind || '';
-  if (summary.count) head += (head ? ' ' : '') + summary.count;
-  if (head) parts.push(head);
-  if (summary.topText) parts.push(summary.topText);
+  if (summary.noteText) parts.push('Note: ' + summary.noteText);
   if (summary.degreeText) parts.push('Degree: ' + summary.degreeText);
-  return parts.join(' · ');
+  return parts.join('\n');
 }
 
 function getPracticalVoicingAudioNotes(midiNotes, opts) {
@@ -257,7 +254,7 @@ function updateTastyMatches() {
 }
 
 function findTensionLabel(mods, quality) {
-  // When quality has a 7th, skip "6"-prefixed labels (e.g. "6", "6/9", "6/9\n(#11)")
+  // When quality has a 7th, skip "6"-prefixed labels (e.g. "6", "6(9)", "6(9,#11)")
   // because PC 9 = 13th (not 6th) in 7th-chord context
   var has7th = quality && (
     quality.pcs.includes(10) || quality.pcs.includes(11) ||
@@ -268,7 +265,7 @@ function findTensionLabel(mods, quality) {
     for (var c = 0; c < (TENSION_ROWS[r] ? TENSION_ROWS[r].length : 0); c++) {
       var t = TENSION_ROWS[r][c];
       if (!t) continue;
-      // Skip 6-prefixed labels for 7th chords (6→13, 6/9→9+13, etc.)
+      // Skip 6-prefixed labels for 7th chords (6→13, 6(9)→9+13, etc.)
       if (has7th && /^6/.test(t.label)) continue;
       // Skip add9 label for 7th chords (add9 is for triads, 9 is for 7th)
       if (has7th && t.label === 'add9') continue;
@@ -478,6 +475,23 @@ function getTastyDiffText() {
   return text;
 }
 
+function getTastyDetailText() {
+  if (!TastyState.enabled || TastyState.currentIndex < 0) return '';
+  var recipe = TastyState.currentMatches[TastyState.currentIndex];
+  if (!recipe) return '';
+  var parts = [];
+  var rootName = BuilderState.root !== null ? pcName(BuilderState.root) : '';
+  var topText = formatVoicingTopText(TastyState.midiNotes, TastyState.degreeMap, rootName);
+  var labels = getTastyLabels(recipe.v);
+  if (topText) parts.push(topText);
+  if (labels.length > 0) parts.push(labels.join(', '));
+  if (TastyState.outOfRange.length > 0) {
+    var names = TastyState.outOfRange.map(function(m) { return noteName(m); });
+    parts.push('+' + names.join(',') + ': パッド外');
+  }
+  return parts.join(' · ');
+}
+
 function getTastyActiveSummary() {
   if (!TastyState.enabled || TastyState.currentIndex < 0) return null;
   var recipe = TastyState.currentMatches[TastyState.currentIndex];
@@ -618,7 +632,8 @@ function getStockMapping(quality, tension) {
   if (n === 'Maj7(9)') return { cat: 'major', sub: 'Maj9' };
   if (n === 'Maj7(13)' || n === 'Maj7(9,13)' || n === 'Maj7(9,#11)') return { cat: 'major', sub: 'Maj13' };
   if (n === '6') return { cat: 'major', sub: 'Maj6' };
-  if (n === '6/9' || n === '6/9(#11)') return { cat: 'major', sub: '6/9' };
+  if (n === '6/9' || n === '6/9(#11)' || n === '6.9' || n === '6.9(#11)' ||
+      n === '6(9)' || n === '6(9,#11)') return { cat: 'major', sub: '6/9' };
   // Minor family
   if (n === 'm') return { cat: 'minor', sub: 'Min7' };
   if (n === 'm7') return { cat: 'minor', sub: 'Min7' };
@@ -626,7 +641,7 @@ function getStockMapping(quality, tension) {
   if (n === 'm7(11)' || n === 'm7(9,11)' || n === 'm7(9,13)' || n === 'm7(13)') return { cat: 'minor', sub: 'Min11' };
   if (n === 'mMaj7' || n === 'm\u25B37') return { cat: 'minor', sub: 'MinMaj7' };
   if (n === 'm6') return { cat: 'minor', sub: 'Min6' };
-  if (n === 'm6/9') return { cat: 'minor', sub: 'Min6' };
+  if (n === 'm6/9' || n === 'm6(9)') return { cat: 'minor', sub: 'Min6' };
   // Dominant family
   if (n === '7' || /^7\(/.test(n)) return { cat: 'dominant', sub: 'Dom7' };
   if (n.indexOf('7sus4') === 0) return { cat: 'suspended', sub: 'Sus4' };
@@ -661,6 +676,7 @@ function updateChordEngineTabs() {
   var showTabs = canUseTasty || canUseStock || showGuitar;
   tabs.style.display = showTabs ? 'flex' : 'none';
   if (chordDisplay) chordDisplay.classList.toggle('has-engine-tabs', !!showTabs);
+  if (chordDisplay) chordDisplay.classList.toggle('engine-guitar-active', guitarActive);
   if (tastyBtn) {
     tastyBtn.disabled = !canUseTasty;
     tastyBtn.classList.toggle('active', tastyActive);
@@ -675,7 +691,7 @@ function updateChordEngineTabs() {
     guitarBtn.classList.toggle('is-unavailable', showGuitar && !canUseGuitar);
     guitarBtn.classList.toggle('active', guitarActive);
   }
-  if (nav) nav.style.display = (tastyActive || stockActive || guitarActive) ? 'flex' : 'none';
+  if (nav) nav.style.display = (tastyActive || stockActive) ? 'flex' : 'none';
   if (counter) {
     if (tastyActive) counter.textContent = (TastyState.currentIndex + 1) + '/' + TastyState.currentMatches.length;
     else if (stockActive) counter.textContent = (StockState.currentIndex + 1) + '/' + StockState.currentMatches.length;
@@ -727,7 +743,7 @@ function updateChordEngineDetail() {
   }
   detail.style.display = '';
   if (tastyActive) {
-    textEl.textContent = getTastyDiffText();
+    textEl.textContent = getTastyDetailText();
     if (TastyState.currentCategory && TastyState.voicings) {
       var allCat = TastyState.voicings.filter(function(v) { return v.cat === TastyState.currentCategory; });
       var topSet = {};
@@ -737,10 +753,15 @@ function updateChordEngineDetail() {
       filterEl.innerHTML = '';
     }
   } else {
-    textEl.textContent = stockActive ? getStockInfoText() :
+    textEl.textContent = stockActive ? getStockDetailText() :
       (typeof getGuitarEngineDetailText === 'function' ? getGuitarEngineDetailText() : '');
-    filterEl.innerHTML = '';
+    if (guitarActive && typeof renderGuitarEngineControls === 'function') {
+      renderGuitarEngineControls(filterEl);
+    } else {
+      filterEl.innerHTML = '';
+    }
   }
+  textEl.style.display = textEl.textContent ? '' : 'none';
 }
 
 function updateStockMatches() {
@@ -1007,7 +1028,7 @@ function getStockBuilderSelectionFromName(name) {
   else if (/^m(?:7)?(?:b5|\-5)|^m11b5/i.test(base) || /m7\s*\(\s*b5/i.test(n) || /m11\s*\(\s*b5/i.test(n)) qName = 'm7(b5)';
   else if (/^m6/i.test(base)) qName = 'm6';
   else if (/^m(?:7|9|11|13)/i.test(base)) qName = 'm7';
-  else if (/^(?:Maj)?6\/9/i.test(base)) qName = '6';
+  else if (/^(?:Maj)?6(?:\/|\.)9/i.test(base) || /^6$/i.test(base)) qName = '6';
   else if (/^Maj6/i.test(base)) qName = '6';
   else if (/^Maj(?:7|9|13)/i.test(base)) qName = 'Maj7';
   else if (/^7sus4/i.test(base)) { qName = '7'; mods.replace3 = 5; }
@@ -1017,7 +1038,7 @@ function getStockBuilderSelectionFromName(name) {
   else if (/^dim7/i.test(base)) qName = 'dim7';
   else if (/^dim/i.test(base)) qName = 'dim';
 
-  if (/^(?:Maj)?6\/9/i.test(base)) addStockTensionToken(mods, '9');
+  if (/^(?:Maj)?6(?:\/|\.)9/i.test(base)) addStockTensionToken(mods, '9');
   if (/^Maj9/i.test(base)) addStockTensionToken(mods, '9');
   if (/^Maj13/i.test(base)) addStockTensionToken(mods, '13');
   if (/^m9/i.test(base)) addStockTensionToken(mods, '9');
@@ -1108,11 +1129,11 @@ function getStockChordDisplayName() {
   if (stockName) return stockName;
   var degrees = (entry.LH || []).concat(entry.RH || []);
   var has = function(d) { return degrees.indexOf(d) >= 0; };
-  if (has('b3') && has('6') && has('9') && !has('b7')) return root + 'm6/9';
+  if (has('b3') && has('6') && has('9') && !has('b7')) return root + 'm6(9)';
   if (has('b3') && has('6') && !has('b7')) return root + 'm6';
   if (has('b3') && has('b7') && has('9')) return root + 'm9';
   if (has('b3') && has('b7')) return root + 'm7';
-  if (has('3') && has('6') && has('9') && !has('b7') && !has('△7')) return root + '6/9';
+  if (has('3') && has('6') && has('9') && !has('b7') && !has('△7')) return root + '6(9)';
   if (has('3') && has('6') && !has('b7') && !has('△7')) return root + '6';
   return getBuilderChordName() || root;
 }
@@ -1127,6 +1148,12 @@ function getStockInfoText() {
   var allDegrees = (entry.LH || []).concat(entry.RH || []);
   var allNotes = (StockState.lhMidi || []).concat(StockState.rhMidi || []);
   return allDegrees.length > 0 ? chord + ' ' + formatVoicingNoteDegreeText(allNotes, allDegrees, rootName) : chord;
+}
+
+function getStockDetailText() {
+  var summary = getStockActiveSummary();
+  if (!summary) return '';
+  return summary.topText || '';
 }
 
 function getStockActiveSummary() {

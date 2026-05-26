@@ -113,7 +113,7 @@ describe('formatDetectedUstText', () => {
   });
 
   it('does not infer UST without a seventh shell', () => {
-    expect(formatDetectedUstText([60, 62, 64, 67, 69], 0, 'C6/9'))
+    expect(formatDetectedUstText([60, 62, 64, 67, 69], 0, 'C6(9)'))
       .toBe('');
   });
 

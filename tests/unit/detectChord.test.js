@@ -120,10 +120,10 @@ describe('detectChord', () => {
       expect(results[0].name).toBe('C7(9,#11,13)');
     });
 
-    it('C lydian 6/9 color detects as C6/9(#11), not a rootless shell chord', () => {
+    it('C lydian 6(9) color detects as C6(9,#11), not a rootless shell chord', () => {
       const results = detectChord([60, 64, 69, 74, 78]);
       expect(results.length).toBeGreaterThan(0);
-      expect(results[0].name).toBe('C6/9(#11)');
+      expect(results[0].name).toBe('C6(9,#11)');
     });
   });
 
@@ -180,6 +180,12 @@ describe('detectChord', () => {
       expect(results.length).toBeGreaterThan(0);
       expect(results[0].name).toBe('Gadd9 / B');
       expect(results.some(r => r.name === 'Bm7(b13)')).toBe(false);
+    });
+
+    it('recognizes jazz half-diminished omit3 voicings', () => {
+      const results = detectChord([60, 66, 70, 77]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].name).toBe('Cm7(b5,11)(omit3)');
     });
   });
 

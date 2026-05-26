@@ -3,7 +3,7 @@
   "major": [
     { "id": 1, "name": "Maj7", "quality": "\u25B37", "mods": {} },
     { "id": 2, "name": "Maj9", "quality": "\u25B37", "mods": { "add": [2] } },
-    { "id": 3, "name": "6/9", "quality": "6", "mods": { "add": [2] } },
+    { "id": 3, "name": "6(9)", "quality": "6", "mods": { "add": [2] } },
     { "id": 4, "name": "Maj13", "quality": "\u25B37", "mods": { "add": [2, 9] } },
     { "id": 5, "name": "Maj7(#11)", "quality": "\u25B37", "mods": { "add": [6] } },
     { "id": 6, "name": "Maj9(#11)", "quality": "\u25B37", "mods": { "add": [2, 6] } },
@@ -45,7 +45,7 @@
     { "id": 62, "name": "m13", "quality": "m7", "mods": { "add": [2, 5, 9] } },
     { "id": 63, "name": "m7(11)", "quality": "m7", "mods": { "add": [5] } },
     { "id": 64, "name": "m7(b13)", "quality": "m7", "mods": { "add": [8] } },
-    { "id": 65, "name": "m6/9", "quality": "m6", "mods": { "add": [2] } },
+    { "id": 65, "name": "m6(9)", "quality": "m6", "mods": { "add": [2] } },
     { "id": 66, "name": "m(add9)", "quality": "m", "mods": { "add": [2] } },
     { "id": 67, "name": "m\u25B37(9)", "quality": "m\u25B37", "mods": { "add": [2] } },
     { "id": 68, "name": "m7(9,b13)", "quality": "m7", "mods": { "add": [2, 8] } },

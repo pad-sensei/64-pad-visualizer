@@ -522,13 +522,22 @@ body.pane-view-single #staff-ep-panel {
 }
 .chord-display.has-engine-tabs {
   align-items: stretch;
+  min-height: 108px;
 }
 .chord-name-wrap { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .chord-display.has-engine-tabs .chord-name-wrap {
-  justify-content: flex-start;
-  padding-top: 2px;
+  --engine-read-width: 234px;
+  display: grid;
+  grid-template-rows: 40px 40px 41px;
+  justify-content: stretch;
+  align-items: center;
+  padding-top: 0;
+  text-align: center;
 }
-.chord-engine-tabs { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+.chord-engine-tabs {
+  display: flex; gap: 6px; align-items: center; justify-content: flex-start;
+  width: min(100%, var(--engine-read-width, 100%)); margin: 0 auto;
+}
 .hps-engine-anchor { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .chord-engine-tab {
   appearance: none; border: 1px solid var(--border); background: var(--surface); color: var(--text);
@@ -540,6 +549,10 @@ body.pane-view-single #staff-ep-panel {
 .chord-engine-tab.active { opacity: 1; color: #fff; background: #666; border-color: #888; box-shadow: 0 0 4px rgba(255,255,255,0.15); }
 .chord-engine-tab:disabled { cursor: default; opacity: 0.24; color: var(--text-muted); border-color: var(--border); background: transparent; }
 .chord-engine-nav { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+.chord-display.has-engine-tabs .chord-engine-nav {
+  justify-content: center;
+  width: 100%;
+}
 .chord-engine-nav-btn {
   position: relative;
   width: 30px; height: 24px; border-radius: 5px; border: 1px solid var(--border);
@@ -548,10 +561,33 @@ body.pane-view-single #staff-ep-panel {
 }
 .chord-engine-nav-btn:hover { border-color: var(--accent); background: #3a3a3a; }
 .chord-engine-counter { min-width: 42px; font-size: 0.75rem; font-weight: 800; color: var(--text); text-align: center; }
-.chord-name { font-size: 1.8rem; font-weight: 700; font-family: var(--font-ui); }
+.chord-title-row {
+  display: flex; align-items: baseline; justify-content: flex-start; gap: 6px;
+  min-width: 0; min-height: 34px;
+}
+.chord-display.has-engine-tabs .chord-title-row {
+  align-self: center;
+  justify-content: flex-start;
+  width: min(100%, var(--engine-read-width, 100%));
+  min-height: 0;
+  margin: 0 auto;
+}
+.chord-name {
+  font-size: 1.8rem; font-weight: 700; font-family: var(--font-ui);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .chord-voicing-info {
+  display: block; min-height: 0.9rem;
   font-size: 0.7rem; color: var(--accent); opacity: 0.9;
   white-space: normal; line-height: 1.25; overflow-wrap: anywhere;
+}
+.chord-display.has-engine-tabs .chord-voicing-info {
+  align-self: center;
+  width: min(100%, var(--engine-read-width, 100%));
+  text-align: left;
+  white-space: pre-line;
+  line-height: 1.15;
+  margin: 0 auto;
 }
 .chord-engine-detail {
   margin: -4px 0 8px; padding: 5px 8px 7px;
@@ -571,13 +607,28 @@ body.pane-view-single #staff-ep-panel {
 .chord-engine-filter-row button.active {
   background: var(--accent, #f80); color: #000;
 }
-.chord-slash {
-  font-size: 1.5rem; color: var(--text-muted); padding: 0 4px;
-  cursor: pointer; min-width: 20px; text-align: center;
+.guitar-engine-controls {
+  display: flex; flex-direction: column; gap: 5px; width: 100%;
 }
-.chord-display.has-engine-tabs .chord-slash { align-self: center; }
+.guitar-engine-group-row,
+.guitar-engine-nav-row {
+  display: flex; gap: 4px; align-items: center; justify-content: center; flex-wrap: wrap;
+}
+.guitar-engine-preset {
+  font-size: 0.62rem; padding: 2px 6px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 4px;
+  cursor: pointer; max-width: 120px;
+}
+.guitar-engine-group-label {
+  min-width: 58px; font-size: 0.72rem; font-weight: 800; color: var(--text);
+}
+.chord-slash {
+  font-size: 1.5rem; color: var(--text-muted); padding: 0 2px;
+  cursor: pointer; min-width: 16px; text-align: center; line-height: 1;
+}
 .chord-slash:hover { color: var(--accent); }
-.chord-bass { font-size: 1.2rem; font-weight: 600; min-width: 24px; }
+.chord-bass { font-size: 1.2rem; font-weight: 600; min-width: 0; }
 .chord-bass:empty { display: none; }
 .builder-nav { display: flex; flex-direction: column; gap: 3px; margin-left: auto; }
 .chord-display.has-engine-tabs .builder-nav { align-self: flex-start; }

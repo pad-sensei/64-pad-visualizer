@@ -17,9 +17,9 @@
 
   "major": {
     "Maj6": [
-      { "id": "maj6-1", "name": "Maj6", "label": "Basic", "LH": ["1","5"], "RH": ["3","6","9"] },
-      { "id": "maj6-2", "name": "Maj6(#11)", "label": "#11", "LH": ["1","5"], "RH": ["6","9","#11"] },
-      { "id": "maj6-3", "name": "Maj6(b5)", "label": "b5", "LH": ["1","3"], "RH": ["6","9","b5"] }
+      { "id": "maj6-1", "name": "Maj6(9)", "label": "Basic", "LH": ["1","5"], "RH": ["3","6","9"] },
+      { "id": "maj6-2", "name": "Maj6(9,#11)", "label": "#11", "LH": ["1","5"], "RH": ["6","9","#11"] },
+      { "id": "maj6-3", "name": "Maj6(9,#11)", "label": "#11", "LH": ["1","3"], "RH": ["6","9","#11"] }
     ],
     "Maj7": [
       { "id": "maj7-1", "name": "Maj7(9)", "label": "Basic", "LH": ["1","5"], "RH": ["3","7","9"] },
@@ -33,7 +33,7 @@
       { "id": "maj9-4", "name": "Cmaj9", "label": "Closed Position RH", "LH": [], "RH": ["7","9","3","5"] }
     ],
     "6/9": [
-      { "id": "69-1", "name": "C6/9", "label": "Replace 7 with 6", "LH": ["1","5"], "RH": ["3","6","9"] }
+      { "id": "69-1", "name": "C6(9)", "label": "Replace 7 with 6", "LH": ["1","5"], "RH": ["3","6","9"] }
     ],
     "Maj13": [
       { "id": "maj13-1", "name": "Cmaj13", "label": "6 & 7 = major 13th", "LH": ["1","5","6","9"], "RH": ["5","9"] }
@@ -42,7 +42,7 @@
 
   "minor": {
     "Min6": [
-      { "id": "min6-1", "name": "Min6", "label": "Basic", "LH": ["1","5"], "RH": ["b3","6","9"] },
+      { "id": "min6-1", "name": "Min6(9)", "label": "Basic", "LH": ["1","5"], "RH": ["b3","6","9"] },
       { "id": "min6-2", "name": "Min6(11)", "label": "11", "LH": ["1","5"], "RH": ["6","b3","11"] }
     ],
     "Min7": [
@@ -100,7 +100,8 @@
     ],
     "Min11b5": [
       { "id": "hdim11-1", "name": "Cm11(b5)", "label": "Major triad off b7", "LH": ["1","b5"], "RH": ["b7","9","11"] },
-      { "id": "hdim11-2", "name": "Cm11(b5)", "label": "Augmented 7th off b5", "LH": ["1","b5"], "RH": ["b7","7","9","11"] }
+      { "id": "hdim11-2", "name": "Cm11(b5)", "label": "Augmented 7th off b5", "LH": ["1","b5"], "RH": ["b7","7","9","11"] },
+      { "id": "hdim11-3", "name": "Cm7(b5,11)(omit3)", "label": "Jazz omit m3", "LH": ["1","b5"], "RH": ["b7","11"] }
     ]
   },
 

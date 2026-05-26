@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 
 // All constants available via globalThis (setup.js)
+const stockVoicings = JSON.parse(readFileSync(new URL('../../data/stock-voicings.json', import.meta.url), 'utf8'));
 
 describe('SCALES', () => {
   it('contains 31 scales', () => {
@@ -164,9 +166,28 @@ describe('Stock voicing quality mapping', () => {
 });
 
 describe('Stock voicing display and builder selection', () => {
+  it('spells major stock tritone colors as #11, not b5', () => {
+    Object.values(stockVoicings.major).flat().forEach(entry => {
+      const text = [entry.name, entry.label, ...(entry.LH || []), ...(entry.RH || [])].join(' ');
+      expect(text).not.toContain('b5');
+    });
+  });
+
+  it('keeps 6-family Stock names explicit without turning 6 into 13', () => {
+    (stockVoicings.major.Maj6 || []).forEach(entry => {
+      const degrees = [...(entry.LH || []), ...(entry.RH || [])];
+      if (degrees.includes('6') && degrees.includes('9') && degrees.includes('#11')) {
+        expect(entry.name).toContain('6(9,#11)');
+      }
+    });
+  });
+
   it('transposes stock entry names to the current root', () => {
     expect(stockEntryNameToDisplay('F', 'Maj7(9)')).toBe('FMaj7(9)');
     expect(stockEntryNameToDisplay('F', 'Cmaj9(#11)')).toBe('FMaj9(#11)');
+    expect(stockEntryNameToDisplay('F', 'C6(9)')).toBe('F6(9)');
+    expect(stockEntryNameToDisplay('F', 'Maj6(9,#11)')).toBe('F6(9,#11)');
+    expect(stockEntryNameToDisplay('E', 'Min6(9)')).toBe('Em6(9)');
     expect(stockEntryNameToDisplay('F', 'Cm11(b5)')).toBe('Fm11(b5)');
     expect(stockEntryNameToDisplay('F', 'C13(sus4)')).toBe('F13(sus4)');
     expect(stockEntryNameToDisplay('F', 'Dom13 (Type A)')).toBe('F13 (Type A)');
@@ -194,6 +215,18 @@ describe('Stock voicing display and builder selection', () => {
     expect(getStockBuilderSelectionFromName('Maj7(13)')).toMatchObject({
       quality: expect.objectContaining({ name: 'Maj7' }),
       tensionLabel: '13',
+    });
+    expect(getStockBuilderSelectionFromName('Maj6(9,#11)')).toMatchObject({
+      quality: expect.objectContaining({ name: '6' }),
+      tensionLabel: '(9)\n(#11)',
+    });
+    expect(getStockBuilderSelectionFromName('C6(9)')).toMatchObject({
+      quality: expect.objectContaining({ name: '6' }),
+      tensionLabel: '9',
+    });
+    expect(getStockBuilderSelectionFromName('Min6(9)')).toMatchObject({
+      quality: expect.objectContaining({ name: 'm6' }),
+      tensionLabel: '9',
     });
     expect(getStockBuilderSelectionFromName('C13(#11)')).toMatchObject({
       quality: expect.objectContaining({ name: '7' }),
@@ -226,6 +259,29 @@ describe('Stock voicing display and builder selection', () => {
       quality: expect.objectContaining({ name: 'm7(b5)' }),
       tensionLabel: '11',
     });
+    expect(getStockBuilderSelection({
+      name: 'Cm7(b5,11)(omit3)',
+      LH: ['1', 'b5'],
+      RH: ['b7', '11'],
+    })).toMatchObject({
+      quality: expect.objectContaining({ name: 'm7(b5)' }),
+      tensionLabel: '(11)',
+    });
+  });
+});
+
+describe('Chord detection practical guardrails', () => {
+  it('does not expose b13 as a plain m7 detection family', () => {
+    const plainMinorB13 = CHORD_DETECT_DB
+      .map(chord => chord.name)
+      .filter(name => /^m7/.test(name) && name.includes('b13') && !name.startsWith('m7(b5)'));
+
+    expect(plainMinorB13).toEqual([]);
+    expect(CHORD_DETECT_DB.map(chord => chord.name)).toContain('m7(b5)(b13)');
+  });
+
+  it('keeps jazz half-diminished omit3 voicings available', () => {
+    expect(CHORD_DETECT_DB.map(chord => chord.name)).toContain('m7(b5,11)(omit3)');
   });
 });
 
