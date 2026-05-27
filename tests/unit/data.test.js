@@ -52,8 +52,8 @@ describe('SCALES', () => {
 });
 
 describe('BUILDER_QUALITIES', () => {
-  it('is a 4x3 grid', () => {
-    expect(BUILDER_QUALITIES).toHaveLength(4);
+  it('is a 5x3 grid', () => {
+    expect(BUILDER_QUALITIES).toHaveLength(5);
     BUILDER_QUALITIES.forEach(row => {
       expect(row).toHaveLength(3);
     });

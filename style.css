@@ -797,7 +797,9 @@ body.pane-view-single #staff-ep-panel {
 .tension-btn:hover { background: #3a3a3a; border-color: var(--accent); }
 .tension-btn.selected { background: var(--pad-chord); color: #000; border-color: var(--pad-chord); }
 .tension-btn.quality-hidden { display: none; }
-.tension-btn.tension-uncommon { opacity: 0.35; }
+.tension-btn.tension-uncommon { opacity: 0.6; }
+/* Dominant 2-tier: basic tensions stay normal, "possible" ones dim but usable */
+.tension-btn.tension-possible { opacity: 0.6; }
 .voicing-bar.hidden { display: none; }
 .voicing-btn.hidden { display: none; }
 
@@ -1615,7 +1617,7 @@ body.pane-view-single #staff-ep-panel {
 .ps-goto { font-size: 0.85rem; opacity: 0.5; padding: 0 2px; cursor: pointer; }
 .ps-goto:hover { opacity: 1; color: var(--accent); }
 .ps-divider { border-top: 1px dashed var(--border); margin: 3px 0; }
-.tension-btn.scale-unavailable { opacity: 0.2; border-style: dashed; border-color: rgba(255,255,255,0.1); color: rgba(255,255,255,0.35); }
+.tension-btn.scale-unavailable { opacity: 0.45; border-style: dashed; border-color: rgba(255,255,255,0.2); color: rgba(255,255,255,0.6); }
 
 /* === Detect Candidate Clickable Styles (V2.10) === */
 .detect-candidate-best {

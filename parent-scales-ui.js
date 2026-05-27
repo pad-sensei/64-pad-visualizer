@@ -39,11 +39,11 @@ function togglePsSortMode() {
 const DIATONIC_AUTO_PREF = {
   1: [3, 0],    // I△7 → Lydian, Ionian
   2: [1],       // ii7 → Dorian
-  3: [1],       // iii7 → Dorian
+  3: [2],       // iii7 → Phrygian (11 only; 9 is non-diatonic)
   4: [3, 0],    // IV△7 → Lydian, Ionian
   5: [4, 17],   // V7 → Mixolydian, Lydian b7
   6: [1, 5],    // vi7 → Dorian, Aeolian
-  7: [19, 6],   // viiø7 → Locrian ♮2, Locrian
+  7: [6, 19],   // viiø7 → Locrian (basic 11/b13), Locrian ♮2 (9 secondary)
 };
 
 function isSecondaryDominant(qualityIntervals, results) {
@@ -469,20 +469,116 @@ function onParentScaleGo(idx) {
 }
 
 // Apply available-tension filter from selected Parent Scale to tension grid
+// Reorder the tension grid by key context for functional dominants:
+// key-primary type singles first (major key -> 9/#11/13, minor -> b9/#9/b13),
+// then the other-type singles, then multi-tension combos. Non-dominants and
+// non-functional contexts restore the original (TENSION_ROWS) order.
+// Guarded so it only re-sorts the DOM when the resulting order actually changes.
+function reorderTensionGridByKey() {
+  const grid = document.getElementById('tension-grid');
+  if (!grid) return;
+  const btns = Array.prototype.slice.call(grid.querySelectorAll('.tension-btn'));
+  if (!btns.length) return;
+  const q = BuilderState.quality;
+  // Dominant family: dominant 7th (maj3+b7) or 7sus4 (sus4+b7, no 3rd), no maj7.
+  const isDom7 = !!q && q.pcs.indexOf(10) >= 0 && q.pcs.indexOf(11) < 0
+      && ((q.pcs.indexOf(4) >= 0)
+          || (q.pcs.indexOf(5) >= 0 && q.pcs.indexOf(4) < 0 && q.pcs.indexOf(3) < 0));
+
+  let minorContext = false;
+  if (isDom7) {
+    if (BuilderState._fromSecDom && BuilderState._secDomTargetIsMajor !== undefined) {
+      minorContext = !BuilderState._secDomTargetIsMajor;
+    } else if (typeof SCALES !== 'undefined' && SCALES[AppState.scaleIdx]) {
+      const sc = String(SCALES[AppState.scaleIdx].name || '').toLowerCase();
+      minorContext = sc.indexOf('minor') >= 0 || sc.indexOf('aeolian') >= 0;
+    }
+  }
+  const orderKey = isDom7 ? ('dom:' + (minorContext ? 'm' : 'M')) : 'default';
+  if (grid._lastTensionOrderKey === orderKey) return;
+  grid._lastTensionOrderKey = orderKey;
+
+  if (!isDom7) {
+    btns.slice().sort((a, b) => (a._tensionOrder || 0) - (b._tensionOrder || 0))
+        .forEach(b => grid.appendChild(b));
+    return;
+  }
+
+  const MAJ = [2, 6, 9];  // 9, #11, 13
+  const ALT = [1, 3, 8];  // b9, #9, b13
+  function tier(btn) {
+    const m = btn._tension.mods;
+    const pcs = [];
+    if (m.add) pcs.push(...m.add);
+    if (m.sharp5) pcs.push(8);
+    if (m.flat5) pcs.push(6);
+    const hasMaj = pcs.some(p => MAJ.indexOf(p) >= 0);
+    const hasAlt = pcs.some(p => ALT.indexOf(p) >= 0);
+    const combo = pcs.length >= 2 || m.replace3 !== undefined;
+    if (combo || (hasMaj && hasAlt)) return 2;       // multi-tension / mixed
+    if (minorContext) return hasAlt ? 0 : (hasMaj ? 1 : 2);
+    return hasMaj ? 0 : (hasAlt ? 1 : 2);
+  }
+  btns.map((b, i) => [b, i])
+      .sort((x, y) => (tier(x[0]) - tier(y[0])) || (x[1] - y[1]))
+      .forEach(pair => grid.appendChild(pair[0]));
+}
+
 function applyParentScaleFilter(scaleIdx) {
+  reorderTensionGridByKey();
   const btns = document.querySelectorAll('#tension-grid .tension-btn');
-  btns.forEach(btn => btn.classList.remove('scale-unavailable'));
+  // Dominant 7th chords accept every tension; the available scale only sets
+  // the *basic* (primary) tensions. For dominants, non-scale tensions stay
+  // usable but are shown dimmed ("possible") instead of unavailable — a
+  // 2-tier display (basic = scale avail, possible = the rest).
+  const q = BuilderState.quality;
+  const isDom7 = !!q && q.pcs.indexOf(4) >= 0 && q.pcs.indexOf(10) >= 0 && q.pcs.indexOf(11) < 0;
+  // 7sus4 family (b7 + sus4, no 3rd, no maj7) is dominant-function — same treatment.
+  const isDom7Sus = !!q && q.pcs.indexOf(10) >= 0 && q.pcs.indexOf(11) < 0
+      && q.pcs.indexOf(5) >= 0 && q.pcs.indexOf(4) < 0 && q.pcs.indexOf(3) < 0;
+  btns.forEach(btn => {
+    btn.classList.remove('scale-unavailable');
+    btn.classList.remove('tension-possible');
+  });
+
+  // Dominant 7th (incl. 7sus4): fixed colour — natural tensions (9/#11/13) stay
+  // prominent, anything containing an altered note (b9/#9/b13) is dimmed
+  // ("possible"). Major/minor emphasis is by ordering (reorderTensionGridByKey).
+  if (isDom7 || isDom7Sus) {
+    const ALT = [1, 3, 8]; // b9, #9, b13
+    btns.forEach(btn => {
+      if (!btn._tension) return;
+      if (btn.classList.contains('quality-hidden')) return;
+      const mods = btn._tension.mods;
+      const pcs = [];
+      if (mods.add) pcs.push(...mods.add);
+      if (mods.sharp5) pcs.push(8);
+      if (mods.flat5) pcs.push(6);
+      if (pcs.some(pc => ALT.indexOf(pc) >= 0)) btn.classList.add('tension-possible');
+    });
+    return;
+  }
 
   if (scaleIdx === null) return;
-  const sat = SCALE_AVAIL_TENSIONS[scaleIdx];
-  if (!sat) return;
 
-  const availSet = new Set(sat.avail);
-  // Diatonic minor: always add Dorian 13th (standard modern practice)
-  if (BuilderState._fromDiatonic && BuilderState.quality &&
-      BuilderState.quality.pcs.indexOf(3) >= 0) {
-    availSet.add('13');
+  // Derive tensions from the Practical Available Scale. The selected scale is the
+  // *primary* (basic, full colour); the other practical scales for the chord's
+  // degree (DIATONIC_AUTO_PREF) contribute *secondary* tensions that are usable
+  // but dimmed. Players hold these scales in mind together, yet the primary scale
+  // defines the basic sound — e.g. m7b5: Locrian 11/b13 basic + Locrian ♮2's 9
+  // dimmed; maj7: Lydian 9/#11/13 basic; vi: Dorian 9/11/13 basic.
+  const primaryAvail = new Set((SCALE_AVAIL_TENSIONS[scaleIdx] || { avail: [] }).avail);
+  const secondaryAvail = new Set();
+  const diaMatch = _psResults.find(r => r.system === '○' && r.distance === 0);
+  if (diaMatch && DIATONIC_AUTO_PREF[diaMatch.degreeNum]) {
+    DIATONIC_AUTO_PREF[diaMatch.degreeNum].forEach(i => {
+      if (i === scaleIdx) return;
+      const s = SCALE_AVAIL_TENSIONS[i];
+      if (s) s.avail.forEach(n => { if (!primaryAvail.has(n)) secondaryAvail.add(n); });
+    });
   }
+  if (primaryAvail.size === 0 && secondaryAvail.size === 0) return;
+
   btns.forEach(btn => {
     if (!btn._tension) return;
     if (btn.classList.contains('quality-hidden')) return;
@@ -493,12 +589,16 @@ function applyParentScaleFilter(scaleIdx) {
     if (mods.flat5) pcs.push(6);
     // replace3 (sus4) is quality modification, not filtered by scale
 
+    let outOfAll = false;     // a note in neither primary nor secondary
+    let usesSecondary = false; // a note only in the secondary scales
     for (const pc of pcs) {
       const name = PC_TO_TENSION_NAME[pc];
-      if (name && !availSet.has(name)) {
-        btn.classList.add('scale-unavailable');
-        return;
-      }
+      if (!name) continue;
+      if (primaryAvail.has(name)) continue;
+      if (secondaryAvail.has(name)) usesSecondary = true;
+      else outOfAll = true;
     }
+    if (outOfAll) btn.classList.add('scale-unavailable');
+    else if (usesSecondary) btn.classList.add('tension-uncommon');
   });
 }
