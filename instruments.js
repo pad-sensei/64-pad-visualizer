@@ -441,10 +441,15 @@ function _computeVoicingPadPositions(midiSet) {
   return { padSet: padSet, dualCount: duals.length, layoutCount: unique.length };
 }
 
+// ギターエンジンの発音/パッド表示は実音より 1 オクターブ上げる (うりなみさん FB 2026-05-28:
+// 低 E2 始まりの素のギター音域は音源で鳴らすと低すぎる)。フォーム探索 / TAB 表示は
+// GUITAR_OPEN_MIDI のまま (運指は不変)、出力だけ +12。パッドは centerPadOnMidiNotes で
+// 再センタリングされるため見た目位置は変わらず、音域だけ上がる。
+var GUITAR_ENGINE_OCTAVE_OFFSET = 12;
 function getGuitarEngineMidiNotes() {
   var notes = [];
   for (var s = 0; s < 6; s++) {
-    if (guitarSelectedFrets[s] !== null) notes.push(GUITAR_OPEN_MIDI[s] + guitarSelectedFrets[s]);
+    if (guitarSelectedFrets[s] !== null) notes.push(GUITAR_OPEN_MIDI[s] + guitarSelectedFrets[s] + GUITAR_ENGINE_OCTAVE_OFFSET);
   }
   return notes.sort(function(a, b) { return a - b; });
 }
