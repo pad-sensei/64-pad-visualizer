@@ -102,11 +102,13 @@ html.desktop-mode .desktop-hide { display: none !important; }
 /* === Header Row (center header + right-aligned info bar) === */
 .header-row {
   position: relative;
-  display: flex;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 564px 470px minmax(280px, 1fr);
+  gap: 6px;
   margin-bottom: 4px;
 }
 .header-block {
+  grid-column: 2;
   text-align: center;
 }
 .header-block .header-bar {
@@ -115,10 +117,9 @@ html.desktop-mode .desktop-hide { display: none !important; }
 
 /* === Info Bar (right block, aligned to right panel) === */
 .info-bar {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  grid-column: 3;
+  min-width: 0;
+  max-width: 100%;
   font-size: 0.65rem;
   color: var(--text-muted);
   padding: 4px 8px;
@@ -127,8 +128,14 @@ html.desktop-mode .desktop-hide { display: none !important; }
   white-space: nowrap;
   display: flex;
   align-items: flex-start;
-  justify-content: center;
+  justify-content: flex-start;
   pointer-events: none;
+}
+
+@media (min-width: 1400px) {
+  html.desktop-mode .header-row {
+    grid-template-columns: clamp(580px, 34vw, 660px) calc(clamp(460px, 27vw, 540px) + 30px) minmax(320px, 1fr);
+  }
 }
 
 /* === Help Modal === */
@@ -1663,17 +1670,7 @@ body.pane-view-single #staff-ep-panel {
    ============================================ */
 @media (min-width: 768px) and (max-width: 1100px) {
   .header-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    gap: 8px;
-  }
-  .header-block { grid-column: 2; }
-  .info-bar {
-    position: static;
-    grid-column: 3;
-    min-width: 0;
-    max-width: 100%;
-    justify-content: flex-start;
+    grid-template-columns: 320px 300px minmax(280px, 1fr);
   }
   .pad-area { flex: 1 1 320px; width: auto; max-width: none; min-width: 320px; }
   .pad-area #pad-grid { width: 100%; height: auto; display: block; }
