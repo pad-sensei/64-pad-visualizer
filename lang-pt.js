@@ -594,6 +594,7 @@ I18N.addLang('pt', {
   whats_new_33000: 'Sistema de tutoriais! Clique no \u00EDcone do livro no cabe\u00E7alho para aprender o modo Scale, modo Chord e mais.',
   whats_new_640: 'V6.4.0 já está disponível: deteção de três tensões, análise UST, visualização Note/Degree e escrita # / b conforme a tonalidade.',
   whats_new_650: 'V6.5.0 já está disponível: os voicings HPS TASTY / STOCK / Guitar agora ficam dentro do Chord Builder. A família de sexta usa C6(9) / C6(9,#11), com filtros de guitarra, equilíbrio visual e alcance de reprodução melhorados.',
+  whats_new_660: 'V6.6.0 já está disponível: membros HPS agora têm voicings modais por quartas (So What) no TASTY — o som de Miles Davis / McCoy Tyner — para acordes menores, maiores e dominantes. A organização dos tipos no Chord Builder também foi refinada.',
 
   // Tutorial (first-time onboarding)
   tutorial: {

@@ -596,6 +596,7 @@ I18N.addLang('zh', {
   whats_new_33000: '教程系统！点击标题栏的书本图标，学习Scale模式、Chord模式等功能。',
   whats_new_640: 'V6.4.0 已更新：支持三个张力音判定、UST 分析、Note/Degree 显示，以及根据调性选择 # / b 记谱。',
   whats_new_650: 'V6.5.0 已更新：HPS 的 TASTY / STOCK / Guitar voicing 已整理到 Chord Builder 内。6 系和弦显示为 C6(9) / C6(9,#11)，并改进了吉他 voicing 筛选、显示平衡和播放音域。',
+  whats_new_660: 'V6.6.0 已更新：HPS 会员专属——TASTY 新增四度叠置（So What）模式 voicing，适用于小调、大调和属和弦，带来 Miles Davis / McCoy Tyner 的声音。Chord Builder 的和弦种类排列也已整理。',
 
   // Tutorial (first-time onboarding)
   tutorial: {

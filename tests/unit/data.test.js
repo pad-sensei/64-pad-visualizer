@@ -60,7 +60,7 @@ describe('BUILDER_QUALITIES', () => {
   });
 
   it('each quality has name, label, and valid pcs', () => {
-    BUILDER_QUALITIES.flat().forEach(q => {
+    BUILDER_QUALITIES.flat().filter(Boolean).forEach(q => {
       expect(q).toHaveProperty('name');
       expect(q).toHaveProperty('label');
       expect(q).toHaveProperty('pcs');
@@ -78,7 +78,7 @@ describe('BUILDER_QUALITIES', () => {
   });
 
   it('all qualities start with root (0)', () => {
-    BUILDER_QUALITIES.flat().forEach(q => {
+    BUILDER_QUALITIES.flat().filter(Boolean).forEach(q => {
       expect(q.pcs[0]).toBe(0);
     });
   });
