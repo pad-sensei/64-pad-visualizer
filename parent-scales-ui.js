@@ -154,19 +154,10 @@ function renderParentScales() {
         }
       }
     }
-  } else if (AppState.mode === 'input' && PlainState.activeNotes.size >= 3) {
-    // Plain mode: detect chord from active notes
-    const notes = [...PlainState.activeNotes].sort((a, b) => a - b);
-    const candidates = detectChord(notes);
-    if (candidates.length > 0) {
-      psRoot = candidates[0].rootPC;
-      const pcs = [...new Set(notes.map(n => n % 12))];
-      qualityIntervals = new Set(pcs.map(pc => ((pc - psRoot) + 12) % 12));
-      fullAbsSet = new Set(pcs);
-      hasTension = false; // Plain: all notes as one unit, all exact
-      newFPSource = 'input:' + pcs.sort((a, b) => a - b).join(',');
-    }
   }
+  // Available Scale は Scale / Chord モード専用。Input モード (Capture/Perform) では
+  // コードがアクティブになっても表示しない (うりなみさん FB 2026-05-28: Perform で
+  // スロットを弾くと Input に Available Scale トグルが出てしまうのを抑止)。
 
   const show = psRoot !== null && qualityIntervals !== null;
   toggleWrap.style.visibility = show ? '' : 'hidden';
