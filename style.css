@@ -1662,6 +1662,19 @@ body.pane-view-single #staff-ep-panel {
    All panels shrink to fit one screen
    ============================================ */
 @media (min-width: 768px) and (max-width: 1100px) {
+  .header-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 8px;
+  }
+  .header-block { grid-column: 2; }
+  .info-bar {
+    position: static;
+    grid-column: 3;
+    min-width: 0;
+    max-width: 100%;
+    justify-content: flex-start;
+  }
   .pad-area { flex: 1 1 320px; width: auto; max-width: none; min-width: 320px; }
   .pad-area #pad-grid { width: 100%; height: auto; display: block; }
   .control-panel { flex-shrink: 1; min-width: 300px; }
