@@ -41,6 +41,9 @@ function setMode(mode) {
   updateMemorySlotUI();
   if (mode === 'input') {
     PlainState.subMode = 'idle';
+    // Input と Memory は同じモード。Input に入ったら Memory ビューを自動選択する
+    // (うりなみさん 2026-05-28: Perform 以外は16パッド不要、Input=Memory)。
+    if (typeof toggleMemoryView === 'function') toggleMemoryView('memory');
     updatePlainUI();
     updatePlainDisplay();
   }
