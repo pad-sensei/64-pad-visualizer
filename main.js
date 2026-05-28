@@ -99,6 +99,8 @@ function syncViewSetupControls() {
   orderSelects.forEach(function(sel) { sel.value = order; });
   var viewSelects = document.querySelectorAll('[data-view-setup-view]');
   viewSelects.forEach(function(sel) { sel.value = view; });
+  var colorCodingToggles = document.querySelectorAll('[data-view-setup-color-coding]');
+  colorCodingToggles.forEach(function(input) { input.checked = !AppState.colorOff; });
   var cFixedToggles = document.querySelectorAll('[data-view-setup-c-fixed]');
   cFixedToggles.forEach(function(input) { input.checked = AppState.padCFixed === true; });
   var pushVoicingToggles = document.querySelectorAll('[data-view-setup-push-voicing]');

@@ -48,6 +48,7 @@ const AppState = {
   velRange: 127,     // 1-127: max output velocity
   showTips: true,    // startup tips for returning users
   showBadges: true,  // voicing box badge (A, B, C…) visibility
+  colorOff: true,    // single-color mode: root keeps its color, every other lit pad is one color. Default ON.
   padCFixed: false,  // Pad OS: lock pad display to C Major scale (urinami 2026-04-14)
   pushVoicingOverview: false, // Push 3: show chord/degree colors when no voicing box is selected
   pushScaleRootColor: 3, // Push 3 palette index: scale root
@@ -222,6 +223,7 @@ function saveAppSettings() {
       showTips: AppState.showTips,
       showBadges: AppState.showBadges,
       padCFixed: AppState.padCFixed,
+      colorOff: AppState.colorOff,
       pushVoicingOverview: AppState.pushVoicingOverview,
       pushScaleRootColor: AppState.pushScaleRootColor,
       pushScaleToneColor: AppState.pushScaleToneColor,
@@ -268,6 +270,7 @@ function loadAppSettings() {
     if (s.showTips === false) AppState.showTips = false;
     if (s.showBadges !== undefined) AppState.showBadges = s.showBadges;
     if (s.padCFixed === true) AppState.padCFixed = true;
+    if (s.colorOff !== undefined) AppState.colorOff = s.colorOff === true;
     if (s.pushVoicingOverview !== undefined) AppState.pushVoicingOverview = s.pushVoicingOverview === true;
     if (s.pushLedColorSettingsVersion === AppState.pushLedColorSettingsVersion) {
       if (s.pushScaleRootColor !== undefined && s.pushScaleRootColor >= 0 && s.pushScaleRootColor <= 127) AppState.pushScaleRootColor = s.pushScaleRootColor;

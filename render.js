@@ -193,6 +193,9 @@ function renderPads(svg, state, grid) {
       // Plain mode: highlight selected notes only
       const isPlainActive = AppState.mode === 'input' && PlainState.activeNotes.has(midi);
 
+      // colorOff = single-color mode: keep the root colour, collapse every other
+      // lit pad (bass/3rd/7th/tension/avoid/characteristic) to one scale/chord colour.
+      const colorOff = AppState.colorOff;
       let fill = 'var(--pad-off)', textColor = 'var(--text-muted)';
       if (AppState.mode === 'input') {
         if (isPlainActive) {
@@ -201,13 +204,13 @@ function renderPads(svg, state, grid) {
         }
       } else if (isOmitted) { fill = 'var(--pad-omitted)'; textColor = '#999'; }
       else if (isRoot) { fill = 'var(--pad-root)'; textColor = '#000'; }
-      else if (isBass) { fill = '#ff9800'; textColor = '#000'; }
-      else if (isGuide3) { fill = 'var(--pad-guide3)'; textColor = '#fff'; }
-      else if (isGuide7) { fill = 'var(--pad-guide7)'; textColor = '#fff'; }
-      else if (isChar) { fill = 'var(--pad-char)'; textColor = '#000'; }
-      else if (isAvoid) { fill = 'var(--pad-avoid)'; textColor = '#fff'; }
-      else if (isTension) { fill = 'var(--pad-tension)'; textColor = '#fff'; }
-      else if (isActive) {
+      else if (!colorOff && isBass) { fill = '#ff9800'; textColor = '#000'; }
+      else if (!colorOff && isGuide3) { fill = 'var(--pad-guide3)'; textColor = '#fff'; }
+      else if (!colorOff && isGuide7) { fill = 'var(--pad-guide7)'; textColor = '#fff'; }
+      else if (!colorOff && isChar) { fill = 'var(--pad-char)'; textColor = '#000'; }
+      else if (!colorOff && isAvoid) { fill = 'var(--pad-avoid)'; textColor = '#fff'; }
+      else if (!colorOff && isTension) { fill = 'var(--pad-tension)'; textColor = '#fff'; }
+      else if (isActive || (colorOff && (isBass || isGuide3 || isGuide7 || isChar || isAvoid || isTension))) {
         fill = AppState.mode === 'scale' ? 'var(--pad-scale)' : 'var(--pad-chord)';
         textColor = '#000';
       }
@@ -546,6 +549,14 @@ function renderInfoText(state) {
   }
 }
 
+function toggleColorCoding(checked) {
+  // Settings opt-in. checked = show degree/characteristic colours.
+  // Default (unchecked) = single colour to keep beginners' cognitive load low.
+  AppState.colorOff = !checked;
+  if (typeof saveAppSettings === 'function') saveAppSettings();
+  render();
+}
+
 function renderLegend(state) {
   const { charPCS, guide3PCS, guide7PCS, omittedPCS, tensionPCS, avoidPCS, overlayPCS } = state;
   const swatch = document.getElementById('legend-swatch');
@@ -557,6 +568,19 @@ function renderLegend(state) {
   const legendAvoid = document.getElementById('legend-avoid');
   const legendOverlay = document.getElementById('legend-overlay');
   const legendOmit = document.getElementById('legend-omit');
+  if (AppState.colorOff) {
+    // Single-color mode: only Root, the single note colour, and Off are meaningful.
+    swatch.style.background = AppState.mode === 'scale' ? 'var(--pad-scale)' : 'var(--pad-chord)';
+    ltxt.textContent = AppState.mode === 'scale' ? t('legend.scale_note') : t('legend.chord_tone');
+    legendChar.style.display = 'none';
+    legendGuide3.style.display = 'none';
+    legendGuide7.style.display = 'none';
+    legendTension.style.display = 'none';
+    legendAvoid.style.display = 'none';
+    if (legendOverlay) legendOverlay.style.display = 'none';
+    legendOmit.style.display = 'none';
+    return;
+  }
   if (AppState.mode === 'scale') {
     swatch.style.background = 'var(--pad-scale)'; ltxt.textContent = t('legend.scale_note');
     legendChar.style.display = charPCS.size > 0 ? '' : 'none';

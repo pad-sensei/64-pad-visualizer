@@ -93,7 +93,7 @@ document.addEventListener('click', function(e) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+1+Code:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=6.6.4">
+<link rel="stylesheet" href="style.css?v=6.6.5">
 <!-- WebAudioFont player (lazy: only needed if sampler loads) -->
 <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js" async></script>
 <!-- jRhodes3c sampler: loaded in background AFTER page is interactive.
@@ -339,6 +339,10 @@ document.addEventListener('click', function(e) {
         <option value="CAB" data-i18n="ui.layout_cab">五度圏 → パッド → コード</option>
         <option value="CBA" data-i18n="ui.layout_cba">五度圏 → コード → パッド</option>
       </select>
+    </div>
+    <div class="view-setup-row" data-view-setup-field="color-coding">
+      <label for="view-color-coding-toggle" data-i18n="help.color_coding_toggle">特性音に色を付ける</label>
+      <input type="checkbox" id="view-color-coding-toggle" data-view-setup-color-coding onchange="toggleColorCoding(this.checked)">
     </div>
     <div class="view-setup-row" data-view-setup-field="c-fixed">
       <label for="view-c-fixed-toggle" data-i18n="help.c_fixed_toggle">Cメジャースケール固定</label>
@@ -849,25 +853,25 @@ if (new URLSearchParams(window.location.search).has('hps')) {
 <!-- Sound Credits: hidden until new presets are added -->
 
 <!-- i18n (engine → language files) -->
-<script src="i18n.js?v=6.6.4"></script>
-<script src="lang-en.js?v=6.6.4"></script>
-<script src="lang-ja.js?v=6.6.4"></script>
-<script src="lang-zh.js?v=6.6.4"></script>
-<script src="lang-es.js?v=6.6.4"></script>
-<script src="lang-fr.js?v=6.6.4"></script>
-<script src="lang-pt.js?v=6.6.4"></script>
-<script src="lang-de.js?v=6.6.4"></script>
-<script src="lang-ko.js?v=6.6.4"></script>
-<script src="lang-it.js?v=6.6.4"></script>
+<script src="i18n.js?v=6.6.5"></script>
+<script src="lang-en.js?v=6.6.5"></script>
+<script src="lang-ja.js?v=6.6.5"></script>
+<script src="lang-zh.js?v=6.6.5"></script>
+<script src="lang-es.js?v=6.6.5"></script>
+<script src="lang-fr.js?v=6.6.5"></script>
+<script src="lang-pt.js?v=6.6.5"></script>
+<script src="lang-de.js?v=6.6.5"></script>
+<script src="lang-ko.js?v=6.6.5"></script>
+<script src="lang-it.js?v=6.6.5"></script>
 <!-- pad-core (SSOT: theory calculations, data constants, render) -->
-<script src="pad-core/data.js?v=6.6.4"></script>
-<script src="pad-core/theory.js?v=6.6.4"></script>
-<script src="pad-core/render.js?v=6.6.4"></script>
-<script src="pad-core/circle.js?v=6.6.4"></script>
-<script src="pad-core/builder-ui.js?v=6.6.4"></script>
-<script src="pad-core/incremental.js?v=6.6.4"></script>
+<script src="pad-core/data.js?v=6.6.5"></script>
+<script src="pad-core/theory.js?v=6.6.5"></script>
+<script src="pad-core/render.js?v=6.6.5"></script>
+<script src="pad-core/circle.js?v=6.6.5"></script>
+<script src="pad-core/builder-ui.js?v=6.6.5"></script>
+<script src="pad-core/incremental.js?v=6.6.5"></script>
 <!-- App JS -->
-<script src="data.js?v=6.6.4"></script>
+<script src="data.js?v=6.6.5"></script>
 <!-- Phase 3.1-A.c: audio-core + host-adapter + audio-ui-binding are loaded
      ONLY when AUDIO_ENABLED. In silent mode these are skipped entirely —
      pad-core / theory / MIDI / render still run, only sound is absent.
@@ -891,7 +895,7 @@ if (window.AUDIO_ENABLED) {
     'audio-ui-binding.js'
   ];
   _audioScripts.forEach(function(src) {
-    document.write('<script src="' + src + '?v=6.6.4"><\/script>');
+    document.write('<script src="' + src + '?v=6.6.5"><\/script>');
   });
 } else {
   // Silent mode: stub audio APIs that non-audio code calls, so pads/UI don't crash.
@@ -923,21 +927,21 @@ if (window.AUDIO_ENABLED) {
   window._updatePlateRouting = function() {};
 }
 </script>
-<script src="theory.js?v=6.6.4"></script>
-<script src="tasty-stock.js?v=6.6.4"></script>
-<script src="staff.js?v=6.6.4"></script>
-<script src="instruments.js?v=6.6.4"></script>
-<script src="circle-ui.js?v=6.6.4"></script>
-<script src="parent-scales-ui.js?v=6.6.4"></script>
-<script src="play-controls.js?v=6.6.4"></script>
-<script src="render.js?v=6.6.4"></script>
-<script src="plain.js?v=6.6.4"></script>
-<script src="perform.js?v=6.6.4"></script>
-<script src="builder.js?v=6.6.4"></script>
-<script src="midi.js?v=6.6.4"></script>
-<script src="main.js?v=6.6.4"></script>
-<script src="tutorial-data.js?v=6.6.4"></script>
-<script src="tutorial.js?v=6.6.4"></script>
+<script src="theory.js?v=6.6.5"></script>
+<script src="tasty-stock.js?v=6.6.5"></script>
+<script src="staff.js?v=6.6.5"></script>
+<script src="instruments.js?v=6.6.5"></script>
+<script src="circle-ui.js?v=6.6.5"></script>
+<script src="parent-scales-ui.js?v=6.6.5"></script>
+<script src="play-controls.js?v=6.6.5"></script>
+<script src="render.js?v=6.6.5"></script>
+<script src="plain.js?v=6.6.5"></script>
+<script src="perform.js?v=6.6.5"></script>
+<script src="builder.js?v=6.6.5"></script>
+<script src="midi.js?v=6.6.5"></script>
+<script src="main.js?v=6.6.5"></script>
+<script src="tutorial-data.js?v=6.6.5"></script>
+<script src="tutorial.js?v=6.6.5"></script>
 <script>
 // 2026-04-28: Desktop モード (?desktop=1) 後段 override。
 // 音は JUCE host (外部 VST/AU plugin) 側で再生されるため、Web 側 AudioContext を
