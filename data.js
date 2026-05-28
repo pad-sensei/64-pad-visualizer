@@ -49,6 +49,7 @@ const AppState = {
   showTips: true,    // startup tips for returning users
   showBadges: true,  // voicing box badge (A, B, C…) visibility
   colorOff: true,    // single-color mode: root keeps its color, every other lit pad is one color. Default ON.
+  showAllPositions: false, // chord mode: false=basic form (one shape) only, true=all grid positions (overview + voicing boxes). Default OFF.
   padCFixed: false,  // Pad OS: lock pad display to C Major scale (urinami 2026-04-14)
   pushVoicingOverview: false, // Push 3: show chord/degree colors when no voicing box is selected
   pushScaleRootColor: 3, // Push 3 palette index: scale root
@@ -79,6 +80,8 @@ const VoicingState = {
   lastBoxes: [],         // [{midiNotes: [...], alternatives: [...], currentAlt: n}, ...] stored from last render
   cycleIndices: {},      // { boxIdx: alternativeIdx } - tracks cycling state per box
   _preservePosition: false, // flag: find nearest box after chord change (transpose/inversion/drop)
+  basicOctave: 0,        // basic-form mode: octaves the shown shape is shifted up/down on the grid (Shift+Up/Down). View-only, not serialized; clamped to grid each render.
+  basicPosIdx: 0,        // basic-form mode: which same-register pad arrangement is shown (Space cycles). View-only; reset on chord change, clamped each render.
 };
 
 const PlainState = {
@@ -224,6 +227,7 @@ function saveAppSettings() {
       showBadges: AppState.showBadges,
       padCFixed: AppState.padCFixed,
       colorOff: AppState.colorOff,
+      showAllPositions: AppState.showAllPositions,
       pushVoicingOverview: AppState.pushVoicingOverview,
       pushScaleRootColor: AppState.pushScaleRootColor,
       pushScaleToneColor: AppState.pushScaleToneColor,
@@ -271,6 +275,7 @@ function loadAppSettings() {
     if (s.showBadges !== undefined) AppState.showBadges = s.showBadges;
     if (s.padCFixed === true) AppState.padCFixed = true;
     if (s.colorOff !== undefined) AppState.colorOff = s.colorOff === true;
+    if (s.showAllPositions !== undefined) AppState.showAllPositions = s.showAllPositions === true;
     if (s.pushVoicingOverview !== undefined) AppState.pushVoicingOverview = s.pushVoicingOverview === true;
     if (s.pushLedColorSettingsVersion === AppState.pushLedColorSettingsVersion) {
       if (s.pushScaleRootColor !== undefined && s.pushScaleRootColor >= 0 && s.pushScaleRootColor <= 127) AppState.pushScaleRootColor = s.pushScaleRootColor;
@@ -308,6 +313,7 @@ function showSaveToast() {
 function resetVoicingSelection() {
   VoicingState.selectedBoxIdx = null;
   VoicingState.cycleIndices = {};
+  VoicingState.basicPosIdx = 0;  // basic-form: back to the compact arrangement on chord/voicing change
 }
 
 // Conditional exports for Node.js (Vitest) — ignored in browser

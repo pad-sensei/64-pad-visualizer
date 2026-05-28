@@ -165,6 +165,11 @@ function renderPads(svg, state, grid) {
   const selBox = !grid && !specialVoicingActive && VoicingState.selectedBoxIdx !== null ? VoicingState.lastBoxes[VoicingState.selectedBoxIdx] : null;
   const selMidi = selBox ? new Set(selBox.midiNotes) : null;
   const selPos = selBox ? new Set(selBox.alternatives[selBox.currentAlt].positions.map(p => p.row + ',' + p.col)) : null;
+  // Basic-form default (chord mode, no box): color only the one shape's pads via a position
+  // filter (below); every other pad stays a plain off-pad. No dimming / no invisible holes.
+  const basicPadSet = (!grid && !selBox && state.basicFormPadSet) ? state.basicFormPadSet : null;
+  // All-positions view: paint the scale background behind every chord position (no single shape).
+  const allPosScaleBg = (!grid && !selBox && state.allPosScaleBg) ? true : false;
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const midi = midiNote(row, col);
@@ -173,11 +178,11 @@ function renderPads(svg, state, grid) {
       const y = margin + (rows - 1 - row) * (padSize + padGap);
       const interval = ((pc - rootPC) + 12) % 12;
       // Voicing filter: pad-position filter (deduped, WYSIWYG) > MIDI filter > no filter
-      const _padPosFilter = !grid && !selBox && _instrumentPadSet;
-      const _instrFilter = !grid && !selBox && !_padPosFilter && _instrumentMidiSet;
+      const _padPosFilter = !grid && !selBox && !basicPadSet && _instrumentPadSet;
+      const _instrFilter = !grid && !selBox && !basicPadSet && !_padPosFilter && _instrumentMidiSet;
       const _voicingPass = (tastyMidiSet && tastyMidiSet.size > 0)
         ? true  // TASTY mode: bypass instrument filters entirely (_isTastyMiss handles dimming)
-        : (_padPosFilter ? _padPosFilter.has(row * cols + col) : (_instrFilter ? _instrFilter.has(midi) : true));
+        : (basicPadSet ? basicPadSet.has(row * cols + col) : (_padPosFilter ? _padPosFilter.has(row * cols + col) : (_instrFilter ? _instrFilter.has(midi) : true)));
       const isRoot = pc === rootPC && !omittedPCS.has(pc) && _voicingPass;
       const isBass = bassPC !== null && pc === bassPC && _voicingPass;
       const isActive = _voicingPass ? activePCS.has(pc) : false;
@@ -198,12 +203,16 @@ function renderPads(svg, state, grid) {
       const colorOff = AppState.colorOff;
       let fill = 'var(--pad-off)', textColor = 'var(--text-muted)';
       if (AppState.mode === 'input') {
-        if (isPlainActive) {
-          if (isRoot) { fill = 'var(--pad-root)'; textColor = '#000'; }
-          else { fill = 'var(--pad-chord)'; textColor = '#000'; }
-        }
+        // input: pressed notes are a single neutral colour (no root distinction) — free
+        // input → chord detection, key-agnostic, minimal colours.
+        if (isPlainActive) { fill = 'var(--pad-basic-chord)'; textColor = '#000'; }
       } else if (isOmitted) { fill = 'var(--pad-omitted)'; textColor = '#999'; }
-      else if (isRoot) { fill = 'var(--pad-root)'; textColor = '#000'; }
+      else if (isRoot) {
+        // Chord single-colour mode: the chord (root included) is the neutral colour, NOT the
+        // scale/root orange — keeps the chord one consistent colour in every chord view.
+        fill = (AppState.mode === 'chord' && colorOff) ? 'var(--pad-basic-chord)' : 'var(--pad-root)';
+        textColor = '#000';
+      }
       else if (!colorOff && isBass) { fill = '#ff9800'; textColor = '#000'; }
       else if (!colorOff && isGuide3) { fill = 'var(--pad-guide3)'; textColor = '#fff'; }
       else if (!colorOff && isGuide7) { fill = 'var(--pad-guide7)'; textColor = '#fff'; }
@@ -211,8 +220,8 @@ function renderPads(svg, state, grid) {
       else if (!colorOff && isAvoid) { fill = 'var(--pad-avoid)'; textColor = '#fff'; }
       else if (!colorOff && isTension) { fill = 'var(--pad-tension)'; textColor = '#fff'; }
       else if (isActive || (colorOff && (isBass || isGuide3 || isGuide7 || isChar || isAvoid || isTension))) {
-        fill = AppState.mode === 'scale' ? 'var(--pad-scale)' : 'var(--pad-chord)';
-        textColor = '#000';
+        fill = AppState.mode === 'scale' ? 'var(--pad-scale)' : (colorOff ? 'var(--pad-basic-chord)' : 'var(--pad-chord)');
+        textColor = AppState.mode === 'scale' ? '#fff' : '#000';  // darker scale blue needs light text
       }
       else if (overlayPCS && overlayPCS.has(pc) && !activePCS.has(pc)) {
         // Scale overlay: note is in the selected scale but not in the chord
@@ -223,6 +232,23 @@ function renderPads(svg, state, grid) {
           fill = 'var(--pad-overlay)';
         }
         textColor = 'var(--text-muted)';
+      }
+      // Basic-form layering: faint scale background + single-colour chord shape on top.
+      // - chord shape (one position): one solid colour, root + tones the same
+      // - scale root: brighter version of the scale colour (identifiable tonic anchor)
+      // - other scale notes: faint scale colour (background orientation)
+      // - everything else: plain off-pad
+      // Basic-form background under the chord shape. The chord shape pads (isActive) keep the
+      // colour set by the chain above (neutral --pad-basic-chord in single-colour mode), so the
+      // chord colour matches the all-positions view. Here we only paint the non-chord pads:
+      // opaque blue scale, ORANGE tonic (scale root), off otherwise.
+      if ((basicPadSet || allPosScaleBg) && !isActive) {
+        if (state.scaleBgPCS && state.scaleBgPCS.has(pc)) {
+          if (pc === AppState.key) { fill = 'var(--pad-root)'; textColor = '#000'; }
+          else { fill = 'var(--pad-basic-scale)'; textColor = '#fff'; }
+        } else {
+          fill = 'var(--pad-off)'; textColor = 'var(--text-muted)';
+        }
       }
 
       // TASTY voicing: only highlight pads at compact positions (or lowest-row fallback)
@@ -248,6 +274,7 @@ function renderPads(svg, state, grid) {
       }
 
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      // Blink removed (too high load). "Other positions exist" is shown by a 1/3 badge instead.
       rect.setAttribute('class', 'pad');
       rect.setAttribute('x', x); rect.setAttribute('y', y);
       rect.setAttribute('width', padSize); rect.setAttribute('height', padSize);
@@ -318,6 +345,10 @@ function renderPads(svg, state, grid) {
       })(midi, rect);
       if (selMidi) {
         // Voicing box selected: no individual pad strokes (dashed box is the boundary)
+        rect.setAttribute('stroke', 'none');
+      } else if (basicPadSet || allPosScaleBg) {
+        // Basic-form / all-positions: NO borders anywhere. The chord pads are solid colour and
+        // the scale is the background; white brackets/frames must not appear.
         rect.setAttribute('stroke', 'none');
       } else if (isOmitted) {
         rect.setAttribute('stroke', 'rgba(255,255,255,0.2)');
@@ -557,6 +588,17 @@ function toggleColorCoding(checked) {
   render();
 }
 
+function toggleShowAllPositions(show) {
+  // Chord mode display. false (default) = one basic form only (where to press).
+  // true = all grid positions of the chord tones (overview) + A/B/C/D voicing boxes.
+  AppState.showAllPositions = !!show;
+  // Basic form must not carry a stale box selection (boxes only exist in all-positions mode).
+  if (!AppState.showAllPositions && typeof resetVoicingSelection === 'function') resetVoicingSelection();
+  if (typeof updateVoicingButtons === 'function') updateVoicingButtons();
+  if (typeof saveAppSettings === 'function') saveAppSettings();
+  render();
+}
+
 function renderLegend(state) {
   const { charPCS, guide3PCS, guide7PCS, omittedPCS, tensionPCS, avoidPCS, overlayPCS } = state;
   const swatch = document.getElementById('legend-swatch');
@@ -568,9 +610,23 @@ function renderLegend(state) {
   const legendAvoid = document.getElementById('legend-avoid');
   const legendOverlay = document.getElementById('legend-overlay');
   const legendOmit = document.getElementById('legend-omit');
+  const legendBasic = document.getElementById('legend-basic-wrap');
+  const legendWrap = document.getElementById('legend-wrap');
+  const legendRoot = document.getElementById('legend-root');
+  // Basic-form: dedicated legend (chord = neutral, scale = blue, scale root = orange).
+  if (typeof chordBasicFormActive === 'function' && chordBasicFormActive()) {
+    if (legendBasic) legendBasic.style.display = '';
+    if (legendWrap) legendWrap.style.display = 'none';
+    return;
+  }
+  if (legendBasic) legendBasic.style.display = 'none';
+  if (legendWrap) legendWrap.style.display = '';
+  // Chord single-colour mode shows the chord as the neutral colour (no orange root); scale
+  // mode and colour-coding keep the orange root item.
+  if (legendRoot) legendRoot.style.display = (AppState.mode === 'chord' && AppState.colorOff) ? 'none' : '';
   if (AppState.colorOff) {
-    // Single-color mode: only Root, the single note colour, and Off are meaningful.
-    swatch.style.background = AppState.mode === 'scale' ? 'var(--pad-scale)' : 'var(--pad-chord)';
+    // Single-color mode: chord = neutral colour (or scale = blue), plus Off.
+    swatch.style.background = AppState.mode === 'scale' ? 'var(--pad-scale)' : 'var(--pad-basic-chord)';
     ltxt.textContent = AppState.mode === 'scale' ? t('legend.scale_note') : t('legend.chord_tone');
     legendChar.style.display = 'none';
     legendGuide3.style.display = 'none';
@@ -599,6 +655,63 @@ function renderLegend(state) {
     if (legendOverlay) legendOverlay.style.display = overlayPCS ? '' : 'none';
     legendOmit.style.display = omittedPCS.size > 0 ? '' : 'none';
   }
+}
+
+// Chord-mode "basic form" default: show one playable shape (root register C2-C3 =
+// builder chord at rootMidi 48+rootPC, with the current inversion/drop/omit applied),
+// computed every render WITHOUT the voicing-box mechanism so that transpose/inversion/
+// octave never enter the box position-preservation path (this is what avoids #13).
+// AppState.showAllPositions = true reverts to the all-positions overview + A/B/C/D boxes.
+function chordBasicFormActive() {
+  return AppState.mode === 'chord'
+    && !AppState.showAllPositions
+    && !AppState.padCFixed
+    && BuilderState.root !== null && BuilderState.quality
+    && !TastyState.enabled && !StockState.enabled
+    && !(typeof isGuitarEngineActive === 'function' && isGuitarEngineActive())
+    && !(_voicingReflectMode && _guitarSyncSource === 'position')
+    && !_stockReflectMode
+    && !_instrumentMidiSet && !_instrumentPadSet  // instrument-input WYSIWYG filter active → defer to it
+    && padExtNotes.size === 0                       // pad-clicked notes not yet folded into builder → show all
+    && VoicingState.selectedBoxIdx === null;
+}
+
+// Basic-form "1/3" badge: shows how many same-register arrangements exist and which one is
+// shown. Clickable (cycles to the next) so it works without remembering the Space shortcut.
+// No white border (avoids the white-bracket look) — a dark pill with light text.
+function drawBasicFormBadge(svg, positions, current, total) {
+  if (!positions || !positions.length) return;
+  var NS = 'http://www.w3.org/2000/svg';
+  // Basic form: anchor the count badge on the LOWEST note (bass) pad — that pad is
+  // the chord's anchor, so it's the lowest-cognitive-load place to look.
+  var bm = baseMidi();
+  var best = positions[0];
+  var bestMidi = bm + best.row * ROW_INTERVAL + best.col;
+  positions.forEach(function(p){
+    var m = bm + p.row * ROW_INTERVAL + p.col;
+    if (m < bestMidi) { bestMidi = m; best = p; }
+  });
+  var px = MARGIN + best.col * (PAD_SIZE + PAD_GAP);
+  var py = MARGIN + (ROWS - 1 - best.row) * (PAD_SIZE + PAD_GAP);
+  // Small corner badge: top-right of the shape's top-right pad, clear of the
+  // centered note name (note name reaches ~x+37 worst case; badge starts ~x+41).
+  var label = current + '/' + total;
+  var bw = Math.max(18, label.length * 4 + 8), bh = 13;
+  var bx = px + PAD_SIZE - bw - 2, by = py + 2;
+  var g = document.createElementNS(NS, 'g');
+  g.setAttribute('class', 'basic-form-badge');
+  g.style.cursor = 'pointer';
+  var r = document.createElementNS(NS, 'rect');
+  r.setAttribute('x', bx); r.setAttribute('y', by); r.setAttribute('width', bw); r.setAttribute('height', bh);
+  r.setAttribute('rx', 6); r.setAttribute('fill', 'rgba(15,15,15,0.88)');
+  var t = document.createElementNS(NS, 'text');
+  t.setAttribute('x', bx + bw / 2); t.setAttribute('y', by + bh / 2 + 0.5);
+  t.setAttribute('text-anchor', 'middle'); t.setAttribute('dominant-baseline', 'middle');
+  t.setAttribute('font-size', '8px'); t.setAttribute('font-weight', '700'); t.setAttribute('fill', '#fff');
+  t.textContent = current + '/' + total;
+  g.appendChild(r); g.appendChild(t);
+  g.addEventListener('click', function(e){ e.stopPropagation(); if (typeof cycleBasicFormPosition === 'function') cycleBasicFormPosition(); });
+  svg.appendChild(g);
 }
 
 function render() {
@@ -670,11 +783,61 @@ function render() {
   // 他 UI（staff/guitar/bass/piano/circle/legend/info）は通常の state を使う。
   // Codex P1 fix 2026-04-14.
   const padState = (typeof padApplyPadOverride === 'function') ? padApplyPadOverride(state) : state;
+  // Basic-form default: compute the one shape's pad positions and dim the rest.
+  // No voicing box is touched, so transpose/inversion just recompute this set (no #13).
+  if (chordBasicFormActive()) {
+    VoicingState.lastBoxes = [];
+    var _bfBase = getCurrentChordMidiNotes();
+    if (_bfBase && _bfBase.length > 0) {
+      var _gLo = baseMidi(), _gHi = baseMidi() + (ROWS - 1) * ROW_INTERVAL + (COLS - 1);
+      // Clamp the Shift+Up/Down octave offset so the shape always stays on the grid
+      // (a chord change or octave-range change may otherwise push it off-screen).
+      var _off = VoicingState.basicOctave || 0;
+      while (_off > 0 && Math.max.apply(null, _bfBase.map(function(n){ return n + _off * 12; })) > _gHi) _off--;
+      while (_off < 0 && Math.min.apply(null, _bfBase.map(function(n){ return n + _off * 12; })) < _gLo) _off++;
+      VoicingState.basicOctave = _off;
+      // Same-register pad arrangements of the chord; [0] = basic form, others = "other positions".
+      var _arr = (typeof basicFormArrangements === 'function') ? basicFormArrangements() : [];
+      if (_arr.length > 0) {
+        var _idx = VoicingState.basicPosIdx || 0;
+        if (_idx >= _arr.length) _idx = 0;
+        VoicingState.basicPosIdx = _idx;
+        var _chosen = _arr[_idx];
+        // Layering: the current key's scale is drawn faint (readable) in the background; the
+        // chord's one arrangement is drawn on top in a single solid colour.
+        padState.basicFormPadSet = new Set(_chosen.positions.map(function(p){ return p.row * COLS + p.col; }));
+        var _sc = SCALES[AppState.scaleIdx];
+        padState.scaleBgPCS = new Set(_sc.pcs.map(function(iv){ return (iv + AppState.key) % 12; }));
+        // "1/3" badge data (replaces the blink): same-register arrangement count + current index.
+        padState.basicFormShapePositions = _chosen.positions;
+        padState.basicFormArrCount = _arr.length;
+        padState.basicFormPosIdx = _idx;
+      }
+    }
+  }
+  // All-positions view (showAllPositions, no box selected): draw the scale as the background
+  // (blue + orange tonic) behind the grey chord positions — same colour language as basic form.
+  if (AppState.mode === 'chord' && AppState.showAllPositions && VoicingState.selectedBoxIdx === null
+      && !TastyState.enabled && !StockState.enabled
+      && !(_voicingReflectMode && _guitarSyncSource === 'position') && !_stockReflectMode) {
+    var _scAllPos = SCALES[AppState.scaleIdx];
+    padState.scaleBgPCS = new Set(_scAllPos.pcs.map(function(iv){ return (iv + AppState.key) % 12; }));
+    padState.allPosScaleBg = true;
+  }
   renderPads(svg, padState);
-  if (AppState.mode !== 'input' && !TastyState.enabled && !StockState.enabled && !(_voicingReflectMode && _guitarSyncSource === 'position') && !_stockReflectMode) {
+  if (AppState.mode !== 'input' && !TastyState.enabled && !StockState.enabled && !(_voicingReflectMode && _guitarSyncSource === 'position') && !_stockReflectMode && !chordBasicFormActive()) {
     renderVoicingBoxes(svg, state);
   }
+  // Basic-form "other positions exist" cue: a clickable "current/total" badge (no blink).
+  if (chordBasicFormActive() && padState.basicFormArrCount > 1 && padState.basicFormShapePositions) {
+    drawBasicFormBadge(svg, padState.basicFormShapePositions, (padState.basicFormPosIdx || 0) + 1, padState.basicFormArrCount);
+  }
   renderLegend(state);
+
+  // 全ポジション表示 button (now in the pad footer): a chord-mode display toggle, so hide it
+  // outside chord mode where all-positions has no effect.
+  var _sapBtn = document.getElementById('btn-show-all-positions');
+  if (_sapBtn) _sapBtn.style.display = (AppState.mode === 'chord') ? '' : 'none';
 
   // Staff notation
   if (AppState.mode === 'input') {

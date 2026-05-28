@@ -101,6 +101,10 @@ function syncViewSetupControls() {
   viewSelects.forEach(function(sel) { sel.value = view; });
   var colorCodingToggles = document.querySelectorAll('[data-view-setup-color-coding]');
   colorCodingToggles.forEach(function(input) { input.checked = !AppState.colorOff; });
+  var showAllPositionsToggles = document.querySelectorAll('[data-view-setup-show-all-positions]');
+  showAllPositionsToggles.forEach(function(input) { input.checked = AppState.showAllPositions === true; });
+  var sapBtn = document.getElementById('btn-show-all-positions');
+  if (sapBtn) sapBtn.classList.toggle('active', AppState.showAllPositions === true);
   var cFixedToggles = document.querySelectorAll('[data-view-setup-c-fixed]');
   cFixedToggles.forEach(function(input) { input.checked = AppState.padCFixed === true; });
   var pushVoicingToggles = document.querySelectorAll('[data-view-setup-push-voicing]');
@@ -127,6 +131,8 @@ function setViewSetupFocusField(field) {
   var allowed = {
     focus: true,
     layout: true,
+    'color-coding': true,
+    'show-all-positions': true,
     'c-fixed': true,
     'push-voicing': true,
     'color-root': true,
@@ -451,6 +457,14 @@ document.addEventListener('keydown', (e) => {
       }
       return;
     }
+    // Shift+F: toggle 全ポジション表示 (chord-mode display toggle). Plain 'f' is taken by the
+    // A-I voicing-box selector, so we use Shift+F and return here before that handler runs.
+    if (lk === 'f') {
+      if (AppState.mode === 'chord' && typeof toggleShowAllPositions === 'function') {
+        toggleShowAllPositions(!AppState.showAllPositions);
+      }
+      return;
+    }
   }
 
   // Tab / Shift+Tab: Mode cycle (Scale → Chord → Input → Scale)
@@ -533,12 +547,17 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // Space: Dismiss startup tip if visible, otherwise play current chord
+  // Space: Dismiss startup tip; in basic-form cycle to the next position (+play); else play.
   if (key === ' ') {
     var tipEl = document.getElementById('startup-tip');
     if (tipEl) { e.preventDefault(); dismissStartupTip(); return; }
     e.preventDefault();
     ensureAudioResumed();
+    // Basic-form: if the chord has other pressable positions, Space switches to the next one.
+    if (typeof chordBasicFormActive === 'function' && chordBasicFormActive()
+        && typeof cycleBasicFormPosition === 'function' && cycleBasicFormPosition()) {
+      return;
+    }
     const notes = typeof getCurrentChordPlaybackMidiNotes === 'function'
       ? getCurrentChordPlaybackMidiNotes()
       : getCurrentChordMidiNotes();
@@ -567,6 +586,18 @@ document.addEventListener('keydown', (e) => {
 
   // Arrow Up/Down: Inversion (Plain: move lowest/highest note ±1oct, Chord: cycle inversion)
   if (key === 'ArrowUp' || key === 'ArrowDown') {
+    // Shift+Up/Down: octave up/down (Chord/Scale) — completes basic-form keyboard nav
+    // (Up/Down=inversion, Shift+Up/Down=octave, Left/Right=semitone) so the shape can be
+    // moved entirely from the arrows without reaching for the ▼▲ buttons or A/B/C/D boxes.
+    if (e.shiftKey && (AppState.mode === 'chord' || AppState.mode === 'scale')) {
+      e.preventDefault();
+      var _octDir = key === 'ArrowUp' ? 1 : -1;
+      // Basic-form view: move the chord on the grid (extend range only when it would fall off).
+      // Otherwise (scale mode / all-positions view): shift the whole grid octave range.
+      if (typeof chordBasicFormActive === 'function' && chordBasicFormActive()) shiftBasicFormOctave(_octDir);
+      else shiftOctave(_octDir);
+      return;
+    }
     if (AppState.mode === 'input' && PlainState.activeNotes.size >= 2) {
       e.preventDefault();
       const notes = [...PlainState.activeNotes].sort((a, b) => a - b);
@@ -582,11 +613,18 @@ document.addEventListener('keydown', (e) => {
       updatePlainDisplay(); render();
     } else if (AppState.mode === 'chord' && BuilderState.quality && !VoicingState.shell) {
       e.preventDefault();
-      const maxInv = Math.min(3, (getBuilderPCS()?.length || 4) - 1);
-      let inv = VoicingState.inversion;
-      if (key === 'ArrowUp') { inv = inv < maxInv ? inv + 1 : 0; }
-      else { inv = inv > 0 ? inv - 1 : maxInv; }
-      setInversion(inv);
+      // Basic form: Up/Down = inversion UNCAPPED (climbs across octaves on the grid).
+      // Other chord views (voicing box / all-positions / HPS): keep the bounded inversion cycle.
+      if (typeof chordBasicFormActive === 'function' && chordBasicFormActive() &&
+          typeof stepBasicFormInversion === 'function') {
+        stepBasicFormInversion(key === 'ArrowUp' ? 1 : -1);
+      } else {
+        const maxInv = Math.min(3, (getBuilderPCS()?.length || 4) - 1);
+        let inv = VoicingState.inversion;
+        if (key === 'ArrowUp') { inv = inv < maxInv ? inv + 1 : 0; }
+        else { inv = inv > 0 ? inv - 1 : maxInv; }
+        setInversion(inv);
+      }
     }
     return;
   }
@@ -612,6 +650,8 @@ document.addEventListener('keydown', (e) => {
         refreshStockVoicing(midiDelta);
       } else if (VoicingState.selectedBoxIdx !== null) {
         VoicingState._preservePosition = { type: 'transpose', midiDelta: key === 'ArrowRight' ? 1 : -1 };
+      } else {
+        VoicingState.basicPosIdx = 0;  // basic-form: transposed chord starts at the compact arrangement
       }
       updateChordDisplay(); render();
     }

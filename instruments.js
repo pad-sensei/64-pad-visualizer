@@ -1045,6 +1045,11 @@ function highlightInstrumentPads(midiNotes) {
   if (VoicingState.selectedBoxIdx !== null) return;
   if (TastyState.enabled && TastyState.midiNotes.length > 0) return;
   if (StockState.enabled && StockState.currentIndex >= 0) return;
+  // Basic-form draws its own single clean shape — never overlay the white position frames.
+  if (typeof chordBasicFormActive === 'function' && chordBasicFormActive()) return;
+  // All-positions view already shows every chord position in grey over the scale background;
+  // the white instrument frames are redundant noise there (うりなみさん 2026-05-29).
+  if (AppState.mode === 'chord' && AppState.showAllPositions) return;
   const svg = document.getElementById('pad-grid');
   const bm = baseMidi();
   const noteSet = new Set(midiNotes);

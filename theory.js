@@ -97,6 +97,111 @@ function shiftOctave(delta) {
   saveAppSettings();
 }
 
+// Basic-form octave nav (Shift+Up/Down). Move the shown chord up/down an octave.
+// Case A: it still fits on the grid → shift the chord only, grid range fixed (basicOctave).
+// Case B: it would fall off the grid edge → extend the grid octave range instead, so the
+// chord can keep rising/falling. render() re-clamps basicOctave; we play the shown notes.
+function shiftBasicFormOctave(delta) {
+  var notes = getCurrentChordMidiNotes();
+  if (!notes || notes.length === 0) return;
+  var lo = baseMidi(), hi = baseMidi() + (ROWS - 1) * ROW_INTERVAL + (COLS - 1);
+  var next = (VoicingState.basicOctave || 0) + delta;
+  var shifted = notes.map(function(n){ return n + next * 12; });
+  var fits = Math.min.apply(null, shifted) >= lo && Math.max.apply(null, shifted) <= hi;
+  if (fits) {
+    VoicingState.basicOctave = next;                         // case A
+  } else if (!setOctaveShift(AppState.octaveShift + delta)) {
+    return;                                                  // case B but grid already at limit
+  }
+  render();                                                  // render() clamps basicOctave to grid
+  var played = getCurrentChordMidiNotes().map(function(n){ return n + (VoicingState.basicOctave || 0) * 12; });
+  if (typeof playMidiNotes === 'function') playMidiNotes(played);
+  saveAppSettings();
+}
+
+// Basic-form Up/Down: step the chord by ONE inversion, UNCAPPED across octaves.
+// Going up past the top inversion rolls into the next octave (inversion=0, basicOctave+1) so
+// the chord keeps climbing the grid; going down past root rolls into the previous octave
+// (inversion=maxInv, basicOctave-1). The 8x8 grid is the physical ceiling/floor: if the next
+// step would push a note off the grid, we stay put (no wrap — keep the "climbing" mental model).
+function stepBasicFormInversion(dir) {
+  var pcs = (typeof getBuilderPCS === 'function') ? getBuilderPCS() : null;
+  var maxInv = Math.min(3, ((pcs && pcs.length) || 4) - 1);
+  var inv = VoicingState.inversion;
+  var oct = VoicingState.basicOctave || 0;
+  var newInv, newOct;
+  if (dir > 0) {
+    if (inv < maxInv) { newInv = inv + 1; newOct = oct; }
+    else { newInv = 0; newOct = oct + 1; }       // climbed past top inversion → next octave
+  } else {
+    if (inv > 0) { newInv = inv - 1; newOct = oct; }
+    else { newInv = maxInv; newOct = oct - 1; }  // descended past root → previous octave
+  }
+  // Test grid fit at the candidate inversion (inversions change the chord's vertical span).
+  var savedInv = VoicingState.inversion;
+  VoicingState.inversion = newInv;
+  var notes = getCurrentChordMidiNotes();
+  if (!notes || notes.length === 0) { VoicingState.inversion = savedInv; return; }
+  var lo = baseMidi(), hi = baseMidi() + (ROWS - 1) * ROW_INTERVAL + (COLS - 1);
+  var shifted = notes.map(function(n){ return n + newOct * 12; });
+  var fits = Math.min.apply(null, shifted) >= lo && Math.max.apply(null, shifted) <= hi;
+  if (!fits) { VoicingState.inversion = savedInv; return; }   // at the grid edge → stay put
+  VoicingState.basicOctave = newOct;
+  VoicingState.basicPosIdx = 0;                  // new shape → start at the compact arrangement
+  if (typeof updateVoicingButtons === 'function') updateVoicingButtons();
+  if (typeof updateChordDisplay === 'function') updateChordDisplay();
+  render();
+  var played = getCurrentChordMidiNotes().map(function(n){ return n + (VoicingState.basicOctave || 0) * 12; });
+  if (typeof playMidiNotes === 'function') playMidiNotes(played);
+  saveAppSettings();
+}
+
+// All "other positions" of the chord at the SAME register = same pitches, different pad
+// layout (because each note repeats on the grid). Reuses the voicing-box enumerator
+// (padCalcAllVoicingPositions): fix the bass pitch, place each upper note at its available
+// pads, keep compact arrangements. Sorted compact-first ([0] = the basic form). The octave
+// register itself is moved separately by Shift+Up/Down (basicOctave).
+function basicFormArrangements() {
+  var base = (typeof getCurrentChordMidiNotes === 'function') ? getCurrentChordMidiNotes() : null;
+  if (!base || base.length === 0) return [];
+  var oct = VoicingState.basicOctave || 0;
+  var notes = base.map(function(n){ return n + oct * 12; }).sort(function(a, b){ return a - b; });
+  var bass = notes[0];
+  var offsets = notes.map(function(n){ return n - bass; });
+  var bm = baseMidi();
+  var bassPositions = [];
+  for (var r = 0; r < ROWS; r++) {
+    var c = bass - bm - r * ROW_INTERVAL;
+    if (c >= 0 && c < COLS) bassPositions.push({ row: r, col: c });
+  }
+  var all = [];
+  bassPositions.forEach(function(bp){
+    var arr = calcAllVoicingPositions(bp.row, bp.col, offsets);
+    if (arr) arr.forEach(function(vp){ all.push(vp); });
+  });
+  var seen = {}, uniq = [];
+  all.forEach(function(vp){
+    var key = vp.positions.map(function(p){ return p.row + ',' + p.col; }).sort().join('|');
+    if (!seen[key]) { seen[key] = 1; uniq.push(vp); }
+  });
+  uniq.sort(function(a, b){ return a.maxDim - b.maxDim || a.area - b.area; });
+  return uniq;
+}
+
+// Space in basic-form: advance to the next same-register pad arrangement (wrap) and play it.
+// Returns true if it cycled (more than one arrangement exists), false otherwise.
+function cycleBasicFormPosition() {
+  var arr = basicFormArrangements();
+  if (arr.length <= 1) return false;
+  VoicingState.basicPosIdx = ((VoicingState.basicPosIdx || 0) + 1) % arr.length;
+  render();
+  var chosen = arr[VoicingState.basicPosIdx];
+  var bm = baseMidi();
+  var notes = chosen.positions.map(function(p){ return bm + p.row * ROW_INTERVAL + p.col; });
+  if (typeof playMidiNotes === 'function') playMidiNotes(notes, 1.0);
+  return true;
+}
+
 function shiftSemitone(delta) {
   if (TastyState.enabled || StockState.enabled) return;
   var next = AppState.semitoneShift + delta;
@@ -174,6 +279,8 @@ function updateVoicingButtons() {
   const d3 = document.getElementById('btn-drop3');
   if (d2) d2.classList.toggle('active', VoicingState.drop === 'drop2');
   if (d3) d3.classList.toggle('active', VoicingState.drop === 'drop3');
+  const sap = document.getElementById('btn-show-all-positions');
+  if (sap) sap.classList.toggle('active', AppState.showAllPositions === true);
 }
 
 function playVoicingBoxAudio(idx) {
@@ -1025,31 +1132,10 @@ function drawVoicingBoxes(svg, vpArray, strokeColor, badgeColor, dupSet, cycleab
     const sel = VoicingState.selectedBoxIdx === idx;
     // Hide non-selected boxes when one is selected
     if (hasSelection && !sel) return;
-    const isDup = dupSet && dupSet.has(idx);
     const isCycleable = cycleableSet && cycleableSet.has(idx);
-    // Bounding box
-    const bx = MARGIN + vp.minCol * (PAD_SIZE + PAD_GAP) - 3;
-    const by = MARGIN + (ROWS - 1 - vp.maxRow) * (PAD_SIZE + PAD_GAP) - 3;
-    const bw = (vp.maxCol - vp.minCol + 1) * (PAD_SIZE + PAD_GAP) - PAD_GAP + 6;
-    const bh = (vp.maxRow - vp.minRow + 1) * (PAD_SIZE + PAD_GAP) - PAD_GAP + 6;
-    const boxRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    boxRect.setAttribute('x', bx); boxRect.setAttribute('y', by);
-    boxRect.setAttribute('width', bw); boxRect.setAttribute('height', bh);
-    boxRect.setAttribute('rx', 8); boxRect.setAttribute('fill', 'none');
-    boxRect.setAttribute('stroke', sel ? '#fff' : strokeColor);
-    boxRect.setAttribute('stroke-width', sel ? 3 : 2);
-    boxRect.setAttribute('stroke-dasharray', isDup ? '4 6' : '6 3');
-    boxRect.setAttribute('opacity', sel ? '1' : '0.7');
-    boxRect.style.cursor = 'pointer';
-    boxRect.addEventListener('click', () => selectVoicingBox(idx));
-    if (isDup && !sel) {
-      const anim = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
-      anim.setAttribute('attributeName', 'opacity');
-      anim.setAttribute('values', '0.7;0.3;0.7');
-      anim.setAttribute('dur', '1.5s'); anim.setAttribute('repeatCount', 'indefinite');
-      boxRect.appendChild(anim);
-    }
-    svg.appendChild(boxRect);
+    // Dashed bounding frame removed (too noisy; #13 position-preservation becomes moot).
+    // Each voicing is marked only by its A/B/C/D badge on the bass pad; selection is shown by
+    // the inverted (white) badge + the pads staying lit while non-selected pads dim.
     // Badge
     const bassPos = vp.positions[0];
     const bsz = isCycleable ? 28 : 20;
@@ -1080,13 +1166,6 @@ function drawVoicingBoxes(svg, vpArray, strokeColor, badgeColor, dupSet, cycleab
     } else {
       bt.setAttribute('font-size', '14px');
       bt.textContent = boxLetter;
-    }
-    if (isCycleable && !sel) {
-      const textAnim = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
-      textAnim.setAttribute('attributeName', 'opacity');
-      textAnim.setAttribute('values', '1;0.3;1');
-      textAnim.setAttribute('dur', '2s'); textAnim.setAttribute('repeatCount', 'indefinite');
-      bt.appendChild(textAnim);
     }
     g.appendChild(bt);
     svg.appendChild(g);
