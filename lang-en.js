@@ -477,7 +477,7 @@ I18N.addLang('en', {
   whats_new_33000: 'Tutorial system! Click the book icon in the header to learn Scale mode, Chord mode, and more.',
   whats_new_640: 'V6.4.0 is live: chord detection now recognizes three tensions, UST analysis, note/degree display, and key-aware sharp/flat spelling.',
   whats_new_650: 'V6.5.0 is live: HPS TASTY / STOCK / Guitar voicings now live inside the Chord Builder. Sixth-family names use C6(9) / C6(9,#11), and guitar voicing filters, display balance, and playback range are improved.',
-  whats_new_660: 'V6.6.0 is live: HPS members now get quartal (So What) modal voicings in TASTY — the Miles Davis / McCoy Tyner sound, for minor, major, and dominant chords. The Chord Builder quality layout has also been tidied up.',
+  whats_new_660: 'V6.6.0 is live: a stronger chord-detection engine, expanded TASTY voicings (including quartal / So What), and sus chords added to the Chord Builder.',
 
   // Legacy tutorial keys (backward compat for old lang files)
   tutorial: {
