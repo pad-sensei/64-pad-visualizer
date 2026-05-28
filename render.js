@@ -217,7 +217,7 @@ function renderPads(svg, state, grid) {
       else if (overlayPCS && overlayPCS.has(pc) && !activePCS.has(pc)) {
         // Scale overlay: note is in the selected scale but not in the chord
         // Show even when voicing box is selected (bypass _voicingPass)
-        if (overlayCharPCS.has(pc)) {
+        if (!colorOff && overlayCharPCS.has(pc)) {
           fill = 'var(--pad-overlay-char)';
         } else {
           fill = 'var(--pad-overlay)';

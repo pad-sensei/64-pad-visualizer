@@ -126,6 +126,7 @@ I18N.addLang('pt', {
     tips_toggle: 'Mostrar dicas na inicialização',
     badge_toggle: 'Show shortcut key hints',
     c_fixed_toggle: 'Fixar em Dó maior',
+    color_coding_toggle: 'Colorir notas características',
     c_fixed_tip: 'O pad sempre mostra a escala de Dó maior, independentemente de Key/Scale/Chord.',
     push_voicing_toggle: 'Voicing overview',
     layout: 'Layout',

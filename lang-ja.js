@@ -126,6 +126,7 @@ I18N.addLang('ja', {
     tips_toggle: '起動時にヒントを表示',
     badge_toggle: 'ショートカットキーの案内を表示',
     c_fixed_toggle: 'Cメジャースケール固定',
+    color_coding_toggle: '特性音に色を付ける',
     c_fixed_tip: 'パッドは常にCメジャースケールで表示されます。Key/Scale/Chordを変えてもパッドの配置は変わりません。楽器としての本来の振る舞いです。',
     push_voicing_toggle: 'ボイシング全体表示',
     layout: 'レイアウト',

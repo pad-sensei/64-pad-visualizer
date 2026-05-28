@@ -126,6 +126,7 @@ I18N.addLang('ko', {
     tips_toggle: '시작 시 팁 표시',
     badge_toggle: 'Show shortcut key hints',
     c_fixed_toggle: 'C 메이저 고정',
+    color_coding_toggle: '특성음에 색칠하기',
     c_fixed_tip: '패드는 Key/Scale/Chord 선택과 관계없이 항상 C 메이저 스케일을 표시합니다.',
     push_voicing_toggle: 'Voicing overview',
     layout: '레이아웃',

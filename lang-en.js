@@ -126,6 +126,7 @@ I18N.addLang('en', {
     tips_toggle: 'Show startup tips',
     badge_toggle: 'Show shortcut key hints',
     c_fixed_toggle: 'Lock to C Major',
+    color_coding_toggle: 'Color characteristic tones',
     c_fixed_tip: 'Pad always displays C Major scale regardless of Key/Scale/Chord selection. Pad layout stays physical — key is cognitive (like piano). This is the instrument-correct behavior.',
     push_voicing_toggle: 'Voicing overview',
     layout: 'Layout',

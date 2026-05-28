@@ -126,6 +126,7 @@ I18N.addLang('de', {
     tips_toggle: 'Tipps beim Start anzeigen',
     badge_toggle: 'Show shortcut key hints',
     c_fixed_toggle: 'Auf C-Dur sperren',
+    color_coding_toggle: 'Charakteristische Töne färben',
     c_fixed_tip: 'Das Pad zeigt immer die C-Dur-Tonleiter an, unabhängig von Key/Scale/Chord.',
     push_voicing_toggle: 'Voicing overview',
     layout: 'Layout',

@@ -122,6 +122,7 @@ I18N.addLang('fr', {
     tips_toggle: 'Afficher les astuces au démarrage',
     badge_toggle: 'Show shortcut key hints',
     c_fixed_toggle: 'Verrouiller en Do majeur',
+    color_coding_toggle: 'Colorer les notes caractéristiques',
     c_fixed_tip: 'Le pad affiche toujours la gamme Do majeur, indépendamment de Key/Scale/Chord.',
     push_voicing_toggle: 'Voicing overview',
     layout: 'Disposition',
