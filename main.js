@@ -787,6 +787,75 @@ window.addEventListener('blur', () => {
   document.getElementById('memory-slots')?.classList.remove('opt-held');
 });
 
+// ===== Pad grid right-click context menu =====
+// A visible, shortcut-free way to reach common actions (Capture = ⇧C, All-positions = ⇧F,
+// Clear = X) for users who don't memorise shortcuts. Data-driven so new items are one line each.
+// Desktop only (touch has no right-click); scoped to the pad grid so the browser's own context
+// menu still works everywhere else.
+function _padContextMenuItems() {
+  var m = AppState.mode;
+  var items = [];
+  if (m === 'chord' || m === 'input') {
+    items.push({ label: t('memory.capture'), kbd: '⇧C', run: function(){ if (typeof captureCurrentToMemorySlot === 'function') captureCurrentToMemorySlot(); } });
+  }
+  if (m === 'chord') {
+    items.push({ label: t('ui.show_all_positions'), kbd: '⇧F', run: function(){ if (typeof toggleShowAllPositions === 'function') toggleShowAllPositions(!AppState.showAllPositions); } });
+    items.push({ label: t('ui.clear'), kbd: 'X', run: function(){ if (typeof builderClear === 'function') builderClear(); } });
+  } else if (m === 'input') {
+    items.push({ label: t('ui.clear'), kbd: 'X', run: function(){ if (typeof clearPlainNotes === 'function') clearPlainNotes(); } });
+  }
+  return items;
+}
+function _closePadContextMenu() {
+  var el = document.getElementById('pad-context-menu');
+  if (el) el.remove();
+  document.removeEventListener('mousedown', _padMenuOutside, true);
+  document.removeEventListener('keydown', _padMenuEsc, true);
+  window.removeEventListener('blur', _closePadContextMenu);
+}
+function _padMenuOutside(ev) {
+  var el = document.getElementById('pad-context-menu');
+  if (el && !el.contains(ev.target)) _closePadContextMenu();
+}
+function _padMenuEsc(ev) { if (ev.key === 'Escape') _closePadContextMenu(); }
+function _showPadContextMenu(e) {
+  var items = _padContextMenuItems();
+  if (!items.length) return;          // nothing applicable (e.g. scale mode) → keep browser menu
+  e.preventDefault();
+  _closePadContextMenu();
+  var menu = document.createElement('div');
+  menu.id = 'pad-context-menu';
+  menu.className = 'pad-context-menu';
+  items.forEach(function(it) {
+    var row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'pad-context-menu-item';
+    var lbl = document.createElement('span'); lbl.textContent = it.label;
+    row.appendChild(lbl);
+    if (it.kbd) { var k = document.createElement('span'); k.className = 'pad-context-menu-kbd'; k.textContent = it.kbd; row.appendChild(k); }
+    row.addEventListener('click', function(ev) { ev.stopPropagation(); _closePadContextMenu(); it.run(); });
+    menu.appendChild(row);
+  });
+  document.body.appendChild(menu);
+  var mw = menu.offsetWidth, mh = menu.offsetHeight;
+  var x = Math.min(e.clientX, window.innerWidth - mw - 6);
+  var y = Math.min(e.clientY, window.innerHeight - mh - 6);
+  menu.style.left = Math.max(4, x) + 'px';
+  menu.style.top = Math.max(4, y) + 'px';
+  setTimeout(function() {
+    document.addEventListener('mousedown', _padMenuOutside, true);
+    document.addEventListener('keydown', _padMenuEsc, true);
+    window.addEventListener('blur', _closePadContextMenu);
+  }, 0);
+}
+(function attachPadContextMenu() {
+  var grid = document.getElementById('pad-grid');
+  if (grid && !grid._ctxMenuAttached) {
+    grid.addEventListener('contextmenu', _showPadContextMenu);
+    grid._ctxMenuAttached = true;
+  }
+})();
+
 // Toggle Key display (Cmd+Opt+K)
 function toggleKeyDisplay() {
   var keyRows = document.getElementById('key-rows');

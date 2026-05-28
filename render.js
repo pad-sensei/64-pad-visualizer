@@ -283,6 +283,8 @@ function renderPads(svg, state, grid) {
       // Plain mode: click toggles note on/off
       (function(m, r) {
         r.addEventListener('mousedown', (e) => {
+          // Right-click (button 2) opens the pad context menu — never play the note.
+          if (e.button !== 0) return;
           e.preventDefault();
           if (linkMode) {
             _heldMidi = m; noteOn(m); midiActiveNotes.add(m); scheduleMidiUpdate(); return;

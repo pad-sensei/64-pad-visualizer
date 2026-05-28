@@ -1013,6 +1013,31 @@ body.pane-view-single #staff-ep-panel {
   50% { filter: brightness(1.4); }
 }
 
+/* === Pad grid right-click context menu === */
+.pad-context-menu {
+  position: fixed;
+  z-index: 9999;
+  background: var(--surface, #2a2a2a);
+  border: 1px solid var(--border, #444);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 6px 22px rgba(0,0,0,0.55);
+  min-width: 190px;
+  font-size: 0.8rem;
+}
+.pad-context-menu-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  width: 100%;
+  background: none; border: none; color: var(--text, #eee);
+  padding: 8px 10px; border-radius: 5px; cursor: pointer; text-align: left;
+  font: inherit;
+}
+.pad-context-menu-item:hover { background: var(--accent, #a0a0a0); color: #000; }
+.pad-context-menu-kbd {
+  opacity: 0.55; font-size: 0.7rem; font-weight: 700; flex-shrink: 0;
+}
+.pad-context-menu-item:hover .pad-context-menu-kbd { opacity: 0.8; }
+
 /* === Audio Start Overlay (first-time users) === */
 #audio-start-overlay {
   display: none;
