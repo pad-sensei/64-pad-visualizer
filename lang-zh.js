@@ -24,7 +24,7 @@ I18N.addLang('zh', {
     inv_2: '第2转位',
     inv_3: '第3转位',
     voicing_drop: '<strong>Drop 2 / Drop 3</strong> \u2014 Drop voicing',
-    voicing_box: '<strong>Voicing Box</strong> \u2014 点击切换打击垫排列方案（闪烁标记 = 有替代排列）',
+    voicing_box: '<strong>Voicing Box</strong> \u2014 点击切换打击垫排列方案（如 A1/3 的计数 = 有替代排列）',
     display: '显示',
     display_inst: '<strong>Guitar / Bass / Piano / Staff</strong> \u2014 分别开关吉他指板、贝斯、钢琴键盘和五线谱。※吉他/贝斯位置显示的是该乐器可按的指型，与打击垫布局无对应关系',
     display_circle: '<strong>Circle of Fifths</strong> \u2014 显示五度圈。与调选择联动，显示自然和弦与功能（T/SD/D）。支持小调模式切换',

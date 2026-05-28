@@ -24,7 +24,7 @@ I18N.addLang('ja', {
     inv_2: '第2転回形',
     inv_3: '第3転回形',
     voicing_drop: '<strong>Drop 2 / Drop 3</strong> \u2014 ドロップボイシング',
-    voicing_box: '<strong>ボイシングボックス</strong> \u2014 パッド上の配置候補をタップで切り替え（脈動バッジ = 代替配置あり）',
+    voicing_box: '<strong>ボイシングボックス</strong> \u2014 パッド上の配置候補をタップで切り替え（A1/3 のような数字 = 代替配置あり）',
     display: '表示',
     display_inst: '<strong>Guitar / Bass / Piano / Staff</strong> \u2014 ギターフレットボード、ベース、ピアノ鍵盤、五線譜を個別にON/OFF',
     display_circle: '<strong>Circle of Fifths</strong> \u2014 五度圏表示。キー選択と連動し、ダイアトニックコード・機能（T/SD/D）を表示。マイナーモード切替対応',

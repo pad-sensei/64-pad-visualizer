@@ -24,7 +24,7 @@ I18N.addLang('fr', {
     inv_2: '2e renversement',
     inv_3: '3e renversement',
     voicing_drop: '<strong>Drop 2 / Drop 3</strong> \u2014 Drop voicings',
-    voicing_box: '<strong>Voicing Box</strong> \u2014 Appuyer pour parcourir les dispositions sur le pad (badge pulsant = dispositions alternatives disponibles)',
+    voicing_box: '<strong>Voicing Box</strong> \u2014 Appuyer pour parcourir les dispositions sur le pad (un compteur comme A1/3 = dispositions alternatives disponibles)',
     display: 'Affichage',
     display_inst: '<strong>Guitar / Bass / Piano / Staff</strong> \u2014 Activer/désactiver le manche de guitare, la basse, le clavier et la portée indépendamment. Note : Les positions guitare/basse montrent des doigtés jouables sur l\u2019instrument, elles ne correspondent pas à la disposition du pad',
     display_circle: '<strong>Circle of Fifths</strong> \u2014 Affiche le cycle des quintes. Lié à la sélection de tonalité, affichant les accords diatoniques et les fonctions (T/SD/D). Changement en mode mineur pris en charge',

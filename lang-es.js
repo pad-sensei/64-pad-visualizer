@@ -24,7 +24,7 @@ I18N.addLang('es', {
     inv_2: '2.ª inversión',
     inv_3: '3.ª inversión',
     voicing_drop: '<strong>Drop 2 / Drop 3</strong> \u2014 Drop voicings',
-    voicing_box: '<strong>Voicing Box</strong> \u2014 Toca para recorrer las opciones de disposición en el pad (badge pulsante = disposiciones alternativas disponibles)',
+    voicing_box: '<strong>Voicing Box</strong> \u2014 Toca para recorrer las opciones de disposición en el pad (un contador como A1/3 = disposiciones alternativas disponibles)',
     display: 'Visualización',
     display_inst: '<strong>Guitar / Bass / Piano / Staff</strong> \u2014 Activa/desactiva el diapasón de guitarra, el bajo, el teclado de piano y la partitura de forma independiente. Nota: Las posiciones de guitarra/bajo muestran digitaciones tocables del instrumento, no corresponden a la disposición del pad',
     display_circle: '<strong>Circle of Fifths</strong> \u2014 Muestra el círculo de quintas. Vinculado a la selección de tonalidad, mostrando acordes diatónicos y funciones (T/SD/D). Compatible con cambio a modo menor',

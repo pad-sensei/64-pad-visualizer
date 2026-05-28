@@ -24,7 +24,7 @@ I18N.addLang('en', {
     inv_2: '2nd Inversion',
     inv_3: '3rd Inversion',
     voicing_drop: '<strong>Drop 2 / Drop 3</strong> \u2014 Drop voicings',
-    voicing_box: '<strong>Voicing Box</strong> \u2014 Tap to cycle through pad layout options (pulsing badge = alternative layouts available)',
+    voicing_box: '<strong>Voicing Box</strong> \u2014 Tap to cycle through pad layout options (a count like A1/3 means alternative layouts exist)',
     display: 'Display',
     display_inst: '<strong>Guitar / Bass / Piano / Staff</strong> \u2014 Toggle guitar fretboard, bass, piano keyboard, and staff notation independently',
     display_circle: '<strong>Circle of Fifths</strong> \u2014 Displays the circle of fifths. Linked to key selection, showing diatonic chords and functions (T/SD/D). Minor mode switching supported',

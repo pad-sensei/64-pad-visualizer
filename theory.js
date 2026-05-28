@@ -126,7 +126,9 @@ function shiftBasicFormOctave(delta) {
 // step would push a note off the grid, we stay put (no wrap — keep the "climbing" mental model).
 function stepBasicFormInversion(dir) {
   var pcs = (typeof getBuilderPCS === 'function') ? getBuilderPCS() : null;
-  var maxInv = Math.min(3, ((pcs && pcs.length) || 4) - 1);
+  // Climb through EVERY chord tone before rolling to the next octave (no 3-cap), so 5+ note
+  // chords (9th/11th/13th) don't skip their upper inversions. padCalcVoicingOffsets supports them.
+  var maxInv = ((pcs && pcs.length) || 4) - 1;
   var inv = VoicingState.inversion;
   var oct = VoicingState.basicOctave || 0;
   var newInv, newOct;
@@ -1566,6 +1568,9 @@ function onDiatonicClick(tetrad, degreeIdx) {
   setBuilderStep(2);
   render();
   updateTastyUI();
+  // Play the selected chord so picking from the diatonic bar previews its sound
+  // (same as inversion/tension/voicing changes). うりなみさん 2026-05-29.
+  if (typeof playCurrentChord === 'function') playCurrentChord();
 }
 
 

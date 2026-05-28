@@ -1012,15 +1012,6 @@ body.pane-view-single #staff-ep-panel {
   0%, 100% { filter: brightness(1); }
   50% { filter: brightness(1.4); }
 }
-/* Basic-form: gently pulse the chord shape when other pressable positions exist (Space cycles
-   them). Kept subtle/slow on purpose so it hints without fatiguing the eye. */
-.pad.basic-alt-blink {
-  animation: basic-alt-blink 2.6s ease-in-out infinite;
-}
-@keyframes basic-alt-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.78; }
-}
 
 /* === Audio Start Overlay (first-time users) === */
 #audio-start-overlay {

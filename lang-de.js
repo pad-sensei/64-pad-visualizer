@@ -24,7 +24,7 @@ I18N.addLang('de', {
     inv_2: '2. Umkehrung',
     inv_3: '3. Umkehrung',
     voicing_drop: '<strong>Drop 2 / Drop 3</strong> \u2014 Drop Voicings',
-    voicing_box: '<strong>Voicing Box</strong> \u2014 Antippen, um Pad-Anordnungen durchzuschalten (pulsierendes Badge = alternative Anordnungen verfügbar)',
+    voicing_box: '<strong>Voicing Box</strong> \u2014 Antippen, um Pad-Anordnungen durchzuschalten (eine Zahl wie A1/3 = alternative Anordnungen verfügbar)',
     display: 'Anzeige',
     display_inst: '<strong>Guitar / Bass / Piano / Staff</strong> \u2014 Gitarrengriffbrett, Bass, Klaviertastatur und Notenzeile unabhängig ein-/ausschalten. Hinweis: Gitarren-/Basspositionen zeigen spielbare Griffmuster des Instruments, sie entsprechen nicht der Pad-Anordnung',
     display_circle: '<strong>Circle of Fifths</strong> \u2014 Zeigt den Quintenzirkel an. Mit der Tonartwahl verknüpft, zeigt diatonische Akkorde und Funktionen (T/SD/D). Moll-Modus-Umschaltung unterstützt',

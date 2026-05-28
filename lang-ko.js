@@ -24,7 +24,7 @@ I18N.addLang('ko', {
     inv_2: '제2전위',
     inv_3: '제3전위',
     voicing_drop: '<strong>Drop 2 / Drop 3</strong> \u2014 Drop voicings',
-    voicing_box: '<strong>Voicing Box</strong> \u2014 탭하여 패드 배치 옵션 전환 (깜빡이는 뱃지 = 대체 배치 있음)',
+    voicing_box: '<strong>Voicing Box</strong> \u2014 탭하여 패드 배치 옵션 전환 (A1/3 같은 숫자 = 대체 배치 있음)',
     display: '표시',
     display_inst: '<strong>Guitar / Bass / Piano / Staff</strong> \u2014 기타 지판, 베이스, 피아노 건반, 오선보를 개별적으로 켜기/끄기. ※기타/베이스 포지션은 해당 악기에서 누를 수 있는 폼을 표시하며 패드 배치와는 대응하지 않습니다',
     display_circle: '<strong>Circle of Fifths</strong> \u2014 5도권을 표시합니다. 키 선택과 연동하여 다이아토닉 코드와 기능(T/SD/D)을 표시. 단조 모드 전환 지원',

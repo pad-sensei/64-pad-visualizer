@@ -24,7 +24,7 @@ I18N.addLang('pt', {
     inv_2: '2.ª inversão',
     inv_3: '3.ª inversão',
     voicing_drop: '<strong>Drop 2 / Drop 3</strong> \u2014 Drop voicings',
-    voicing_box: '<strong>Voicing Box</strong> \u2014 Toque para percorrer as opções de disposição no pad (badge pulsante = disposições alternativas disponíveis)',
+    voicing_box: '<strong>Voicing Box</strong> \u2014 Toque para percorrer as opções de disposição no pad (um contador como A1/3 = disposições alternativas disponíveis)',
     display: 'Visualização',
     display_inst: '<strong>Guitar / Bass / Piano / Staff</strong> \u2014 Ativar/desativar braço da guitarra, baixo, teclado e pauta musical independentemente. Nota: As posições de guitarra/baixo mostram digitações tocáveis no instrumento, não correspondem à disposição do pad',
     display_circle: '<strong>Circle of Fifths</strong> \u2014 Exibe o círculo de quintas. Vinculado à seleção de tonalidade, mostrando acordes diatónicos e funções (T/SD/D). Suporte para alternância de modo menor',

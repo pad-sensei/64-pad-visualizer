@@ -24,7 +24,7 @@ I18N.addLang('it', {
     inv_2: '2° rivolto',
     inv_3: '3° rivolto',
     voicing_drop: '<strong>Drop 2 / Drop 3</strong> \u2014 Drop voicings',
-    voicing_box: '<strong>Voicing Box</strong> \u2014 Tocca per scorrere le disposizioni sui pad (badge pulsante = disposizioni alternative disponibili)',
+    voicing_box: '<strong>Voicing Box</strong> \u2014 Tocca per scorrere le disposizioni sui pad (un contatore come A1/3 = disposizioni alternative disponibili)',
     display: 'Visualizzazione',
     display_inst: '<strong>Guitar / Bass / Piano / Staff</strong> \u2014 Attivare/disattivare tastiera di chitarra, basso, pianoforte e pentagramma indipendentemente. Nota: Le posizioni chitarra/basso mostrano diteggiature suonabili sullo strumento, non corrispondono alla disposizione del pad',
     display_circle: '<strong>Circle of Fifths</strong> \u2014 Mostra il circolo delle quinte. Collegato alla selezione della tonalità, mostrando accordi diatonici e funzioni (T/SD/D). Cambio di modo minore supportato',
