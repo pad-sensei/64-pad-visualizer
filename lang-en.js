@@ -482,6 +482,7 @@ I18N.addLang('en', {
   whats_new_640: 'V6.4.0 is live: chord detection now recognizes three tensions, UST analysis, note/degree display, and key-aware sharp/flat spelling.',
   whats_new_650: 'V6.5.0 is live: HPS TASTY / STOCK / Guitar voicings now live inside the Chord Builder. Sixth-family names use C6(9) / C6(9,#11), and guitar voicing filters, display balance, and playback range are improved.',
   whats_new_660: 'V6.6.0 is live: a stronger chord-detection engine, expanded TASTY voicings (including quartal / So What), and sus chords added to the Chord Builder.',
+  whats_new_670: 'V6.7.0 is live: a redesigned Chord mode. Selecting a chord now shows one easy basic form first, with a "Show all positions" button (lower left) to see every voicing. Pads are single-colour by default — switch to degree colours in Display settings. Right-click a pad for Capture / All positions / Clear.',
 
   // Legacy tutorial keys (backward compat for old lang files)
   tutorial: {
