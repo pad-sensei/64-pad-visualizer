@@ -553,6 +553,16 @@ document.addEventListener('keydown', (e) => {
     if (tipEl) { e.preventDefault(); dismissStartupTip(); return; }
     e.preventDefault();
     ensureAudioResumed();
+    // Voicing box selected with multiple alternatives: Space cycles to the next alternative + plays
+    // (works in all-positions view too, where basic-form cycling is off).
+    if (AppState.mode === 'chord' && VoicingState.selectedBoxIdx !== null
+        && typeof selectVoicingBox === 'function') {
+      var _selBox = VoicingState.lastBoxes && VoicingState.lastBoxes[VoicingState.selectedBoxIdx];
+      if (_selBox && _selBox.alternatives && _selBox.alternatives.length > 1) {
+        selectVoicingBox(VoicingState.selectedBoxIdx);
+        return;
+      }
+    }
     // Basic-form: if the chord has other pressable positions, Space switches to the next one.
     if (typeof chordBasicFormActive === 'function' && chordBasicFormActive()
         && typeof cycleBasicFormPosition === 'function' && cycleBasicFormPosition()) {
