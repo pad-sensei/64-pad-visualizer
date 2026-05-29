@@ -818,9 +818,7 @@ function _padMenuOutside(ev) {
   if (el && !el.contains(ev.target)) _closePadContextMenu();
 }
 function _padMenuEsc(ev) { if (ev.key === 'Escape') _closePadContextMenu(); }
-function _showPadContextMenu(e) {
-  var items = _padContextMenuItems();
-  if (!items.length) return;          // nothing applicable (e.g. scale mode) → keep browser menu
+function _renderPadContextMenu(e, items) {
   e.preventDefault();
   _closePadContextMenu();
   var menu = document.createElement('div');
@@ -848,10 +846,84 @@ function _showPadContextMenu(e) {
     window.addEventListener('blur', _closePadContextMenu);
   }, 0);
 }
+function _showPadContextMenu(e) {
+  var items = _padContextMenuItems();
+  if (!items.length) return;          // nothing applicable (e.g. scale mode) → keep browser menu
+  _renderPadContextMenu(e, items);
+}
+// --- Memory/Perform 16-slot grid right-click menu (mouse only; touch has no right-click) ---
+function _memSlotToast(msg) {
+  var toast = document.getElementById('slot-save-toast');
+  if (!toast) return;
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(function() { toast.style.opacity = '0'; }, 1200);
+}
+function _memSlotDuplicate(idx) {
+  if (!PlainState.memory[idx]) return;
+  var dest = (typeof findNextEmptySlot === 'function') ? findNextEmptySlot(0) : 16;
+  if (dest >= 16) { _memSlotToast(t('notify.memory_full')); return; }
+  pushUndoState();
+  PlainState.memory[dest] = cloneMemorySlot(PlainState.memory[idx]);
+  updateMemorySlotUI();
+  if (typeof saveAppSettings === 'function') saveAppSettings();
+  _memSlotToast(t('notify.slot_saved', { slot: dest + 1, chord: PlainState.memory[dest].chordName }));
+}
+function _memSlotDelete(idx) {
+  if (!PlainState.memory[idx]) return;
+  pushUndoState();
+  PlainState.memory[idx] = null;
+  if (PlainState.currentSlot === idx) PlainState.currentSlot = null;
+  updateMemorySlotUI();
+  if (typeof saveAppSettings === 'function') saveAppSettings();
+  _memSlotToast(t('notify.slot_cleared', { slot: idx + 1 }));
+}
+function _memSlotSaveHere(idx) {
+  if (typeof saveToPlainSlot === 'function' && saveToPlainSlot(idx)) {
+    PlainState.currentSlot = idx;
+    updateMemorySlotUI();
+  } else {
+    _memSlotToast(t('notify.no_current_chord'));
+  }
+}
+function _memSlotContextMenuItems(idx) {
+  var slot = PlainState.memory[idx];
+  var isPerform = (typeof memoryViewMode !== 'undefined' && memoryViewMode === 'perform');
+  var items = [];
+  if (slot) {
+    if (isPerform) {
+      items.push({ label: t('memory.play'), kbd: '', run: function(){ if (typeof performPadTap === 'function') performPadTap(idx); } });
+    } else {
+      items.push({ label: t('memory.recall'), kbd: '', run: function(){ if (typeof recallPlainSlot === 'function') recallPlainSlot(idx); } });
+    }
+    items.push({ label: t('memory.duplicate'), kbd: '⌥drag', run: function(){ _memSlotDuplicate(idx); } });
+    items.push({ label: t('memory.delete'), kbd: '⇧click', run: function(){ _memSlotDelete(idx); } });
+  } else {
+    items.push({ label: t('memory.save_here'), kbd: '⇧C', run: function(){ _memSlotSaveHere(idx); } });
+  }
+  return items;
+}
+function _showMemSlotContextMenu(e) {
+  var btn = (e.target && e.target.closest) ? e.target.closest('.slot-btn') : null;
+  if (!btn) return;
+  var idx = parseInt(btn.dataset.slot, 10);
+  if (isNaN(idx) || idx < 0 || idx >= 16) return;
+  var items = _memSlotContextMenuItems(idx);
+  if (!items.length) return;
+  _renderPadContextMenu(e, items);
+}
 (function attachPadContextMenu() {
   var grid = document.getElementById('pad-grid');
   if (grid && !grid._ctxMenuAttached) {
     grid.addEventListener('contextmenu', _showPadContextMenu);
+    grid._ctxMenuAttached = true;
+  }
+})();
+(function attachMemSlotContextMenu() {
+  var grid = document.getElementById('memory-slots');
+  if (grid && !grid._ctxMenuAttached) {
+    grid.addEventListener('contextmenu', _showMemSlotContextMenu);
     grid._ctxMenuAttached = true;
   }
 })();
