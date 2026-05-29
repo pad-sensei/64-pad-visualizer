@@ -125,7 +125,6 @@ I18N.addLang('fr', {
     color_coding_toggle: 'Colorer les notes caractéristiques',
     show_all_positions_toggle: 'Afficher toutes les positions de l\'accord',
     c_fixed_tip: 'Le pad affiche toujours la gamme Do majeur, indépendamment de Key/Scale/Chord.',
-    push_voicing_toggle: 'Voicing overview',
     layout: 'Disposition',
     footer: '64 Pad Explorer \u2014 HPS (Hardcore Pad Style)',
   },

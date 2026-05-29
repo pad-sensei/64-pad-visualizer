@@ -107,8 +107,6 @@ function syncViewSetupControls() {
   if (sapBtn) sapBtn.classList.toggle('active', AppState.showAllPositions === true);
   var cFixedToggles = document.querySelectorAll('[data-view-setup-c-fixed]');
   cFixedToggles.forEach(function(input) { input.checked = AppState.padCFixed === true; });
-  var pushVoicingToggles = document.querySelectorAll('[data-view-setup-push-voicing]');
-  pushVoicingToggles.forEach(function(input) { input.checked = AppState.pushVoicingOverview === true; });
   var pushColorLabels = document.querySelectorAll('[data-push-color-label]');
   pushColorLabels.forEach(function(el) {
     var role = el.getAttribute('data-push-color-label');
@@ -134,7 +132,6 @@ function setViewSetupFocusField(field) {
     'color-coding': true,
     'show-all-positions': true,
     'c-fixed': true,
-    'push-voicing': true,
     'color-root': true,
     'color-scale': true,
     'color-pressed': true,
@@ -351,14 +348,6 @@ function toggleCFixed(on) {
   if (typeof window !== 'undefined' && typeof window._pushNotifyCFixedChanged === 'function') {
     window._pushNotifyCFixedChanged();
   }
-}
-
-function togglePushVoicingOverview(on) {
-  AppState.pushVoicingOverview = on === true;
-  saveAppSettings();
-  var toggles = document.querySelectorAll('[data-view-setup-push-voicing]');
-  toggles.forEach(function(input) { input.checked = AppState.pushVoicingOverview === true; });
-  if (typeof refreshLaunchpadLEDs === 'function') refreshLaunchpadLEDs();
 }
 
 showStartupTip();

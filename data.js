@@ -49,9 +49,8 @@ const AppState = {
   showTips: true,    // startup tips for returning users
   showBadges: true,  // voicing box badge (A, B, C…) visibility
   colorOff: true,    // single-color mode: root keeps its color, every other lit pad is one color. Default ON.
-  showAllPositions: false, // chord mode: false=basic form (one shape) only, true=all grid positions (overview + voicing boxes). Default OFF.
+  showAllPositions: false, // chord mode: false=basic form (one shape) only, true=all grid positions (overview + voicing boxes). The single source of truth for screen all-positions AND Push chord overview. Default OFF.
   padCFixed: false,  // Pad OS: lock pad display to C Major scale (urinami 2026-04-14)
-  pushVoicingOverview: false, // Push 3: show chord/degree colors when no voicing box is selected
   pushScaleRootColor: 3, // Push 3 palette index: scale root
   pushScaleToneColor: 122, // Push 3 palette index: scale tone
   pushPressedColor: 25, // Push 3 palette index: held/same-note highlight
@@ -228,7 +227,6 @@ function saveAppSettings() {
       padCFixed: AppState.padCFixed,
       colorOff: AppState.colorOff,
       showAllPositions: AppState.showAllPositions,
-      pushVoicingOverview: AppState.pushVoicingOverview,
       pushScaleRootColor: AppState.pushScaleRootColor,
       pushScaleToneColor: AppState.pushScaleToneColor,
       pushPressedColor: AppState.pushPressedColor,
@@ -276,7 +274,7 @@ function loadAppSettings() {
     if (s.padCFixed === true) AppState.padCFixed = true;
     if (s.colorOff !== undefined) AppState.colorOff = s.colorOff === true;
     if (s.showAllPositions !== undefined) AppState.showAllPositions = s.showAllPositions === true;
-    if (s.pushVoicingOverview !== undefined) AppState.pushVoicingOverview = s.pushVoicingOverview === true;
+    else if (s.pushVoicingOverview === true) AppState.showAllPositions = true; // migrate retired pushVoicingOverview key
     if (s.pushLedColorSettingsVersion === AppState.pushLedColorSettingsVersion) {
       if (s.pushScaleRootColor !== undefined && s.pushScaleRootColor >= 0 && s.pushScaleRootColor <= 127) AppState.pushScaleRootColor = s.pushScaleRootColor;
       if (s.pushScaleToneColor !== undefined && s.pushScaleToneColor >= 0 && s.pushScaleToneColor <= 127) AppState.pushScaleToneColor = s.pushScaleToneColor;

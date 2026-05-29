@@ -129,7 +129,6 @@ I18N.addLang('ko', {
     color_coding_toggle: '특성음에 색칠하기',
     show_all_positions_toggle: '코드의 모든 포지션 표시',
     c_fixed_tip: '패드는 Key/Scale/Chord 선택과 관계없이 항상 C 메이저 스케일을 표시합니다.',
-    push_voicing_toggle: 'Voicing overview',
     layout: '레이아웃',
     footer: '64 Pad Explorer \u2014 HPS (Hardcore Pad Style)',
   },

@@ -129,7 +129,6 @@ I18N.addLang('de', {
     color_coding_toggle: 'Charakteristische Töne färben',
     show_all_positions_toggle: 'Alle Akkordpositionen anzeigen',
     c_fixed_tip: 'Das Pad zeigt immer die C-Dur-Tonleiter an, unabhängig von Key/Scale/Chord.',
-    push_voicing_toggle: 'Voicing overview',
     layout: 'Layout',
     footer: '64 Pad Explorer \u2014 HPS (Hardcore Pad Style)',
   },

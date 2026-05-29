@@ -129,7 +129,6 @@ I18N.addLang('it', {
     color_coding_toggle: 'Colora le note caratteristiche',
     show_all_positions_toggle: 'Mostra tutte le posizioni dell\'accordo',
     c_fixed_tip: 'Il pad mostra sempre la scala di Do maggiore, indipendentemente da Key/Scale/Chord.',
-    push_voicing_toggle: 'Voicing overview',
     layout: 'Disposizione',
     footer: '64 Pad Explorer \u2014 HPS (Hardcore Pad Style)',
   },

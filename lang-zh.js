@@ -129,7 +129,6 @@ I18N.addLang('zh', {
     color_coding_toggle: '为特性音着色',
     show_all_positions_toggle: '显示和弦的全部位置',
     c_fixed_tip: '无论 Key/Scale/Chord 如何选择，Pad 始终显示C大调音阶。',
-    push_voicing_toggle: 'Voicing overview',
     layout: '布局',
     footer: '64 Pad Explorer \u2014 HPS（Hardcore Pad Style）',
   },

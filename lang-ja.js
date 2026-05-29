@@ -129,7 +129,6 @@ I18N.addLang('ja', {
     color_coding_toggle: '特性音に色を付ける',
     show_all_positions_toggle: 'コードを全ポジション表示する',
     c_fixed_tip: 'パッドは常にCメジャースケールで表示されます。Key/Scale/Chordを変えてもパッドの配置は変わりません。楽器としての本来の振る舞いです。',
-    push_voicing_toggle: 'ボイシング全体表示',
     layout: 'レイアウト',
     footer: '64 Pad Explorer \u2014 HPS（Hardcore Pad Style）',
   },

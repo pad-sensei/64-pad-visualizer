@@ -591,14 +591,24 @@ function toggleColorCoding(checked) {
 }
 
 function toggleShowAllPositions(show) {
-  // Chord mode display. false (default) = one basic form only (where to press).
+  // Chord mode display, the single source of truth (AppState.showAllPositions).
+  // false (default) = one basic form only (where to press).
   // true = all grid positions of the chord tones (overview) + A/B/C/D voicing boxes.
-  AppState.showAllPositions = !!show;
+  // Drives both the on-screen view and the Push chord overview / Swap button.
+  show = show === true;
+  AppState.showAllPositions = show;
   // Basic form must not carry a stale box selection (boxes only exist in all-positions mode).
-  if (!AppState.showAllPositions && typeof resetVoicingSelection === 'function') resetVoicingSelection();
+  if (!show && typeof resetVoicingSelection === 'function') resetVoicingSelection();
   if (typeof updateVoicingButtons === 'function') updateVoicingButtons();
+  document.querySelectorAll('[data-view-setup-show-all-positions]').forEach(function(i){ i.checked = show; });
+  var sapBtn = document.getElementById('btn-show-all-positions');
+  if (sapBtn) sapBtn.classList.toggle('active', show);
   if (typeof saveAppSettings === 'function') saveAppSettings();
   render();
+  if (typeof refreshLaunchpadLEDs === 'function') refreshLaunchpadLEDs();
+  if (typeof window !== 'undefined' && typeof window._pushNotifyShowAllPositionsChanged === 'function') {
+    window._pushNotifyShowAllPositionsChanged();
+  }
 }
 
 function renderLegend(state) {
@@ -665,9 +675,11 @@ function renderLegend(state) {
 // octave never enter the box position-preservation path (this is what avoids #13).
 // AppState.showAllPositions = true reverts to the all-positions overview + A/B/C/D boxes.
 function chordBasicFormActive() {
+  // padCFixed is intentionally NOT a gate: in HPS the pad surface IS C-Major-fixed +
+  // 4th-chromatic (the fixed "instrument", like a bass fretboard). Basic form = the one
+  // shape to press for this chord; it lives ON that fixed surface, so the two coexist.
   return AppState.mode === 'chord'
     && !AppState.showAllPositions
-    && !AppState.padCFixed
     && BuilderState.root !== null && BuilderState.quality
     && !TastyState.enabled && !StockState.enabled
     && !(typeof isGuitarEngineActive === 'function' && isGuitarEngineActive())
@@ -808,8 +820,12 @@ function render() {
         // Layering: the current key's scale is drawn faint (readable) in the background; the
         // chord's one arrangement is drawn on top in a single solid colour.
         padState.basicFormPadSet = new Set(_chosen.positions.map(function(p){ return p.row * COLS + p.col; }));
-        var _sc = SCALES[AppState.scaleIdx];
-        padState.scaleBgPCS = new Set(_sc.pcs.map(function(iv){ return (iv + AppState.key) % 12; }));
+        // Under C-fixed the background scale stays C Major regardless of key (same rule as
+        // padApplyScaleOnlyOverride): the fixed instrument surface never moves.
+        var _bfCFixed = AppState.padCFixed === true;
+        var _sc = SCALES[_bfCFixed ? 0 : AppState.scaleIdx];
+        var _bfKey = _bfCFixed ? 0 : AppState.key;
+        padState.scaleBgPCS = new Set(_sc.pcs.map(function(iv){ return (iv + _bfKey) % 12; }));
         // "1/3" badge data (replaces the blink): same-register arrangement count + current index.
         padState.basicFormShapePositions = _chosen.positions;
         padState.basicFormArrCount = _arr.length;

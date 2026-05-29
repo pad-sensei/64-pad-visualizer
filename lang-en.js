@@ -129,7 +129,6 @@ I18N.addLang('en', {
     color_coding_toggle: 'Color characteristic tones',
     show_all_positions_toggle: 'Show all chord positions',
     c_fixed_tip: 'Pad always displays C Major scale regardless of Key/Scale/Chord selection. Pad layout stays physical — key is cognitive (like piano). This is the instrument-correct behavior.',
-    push_voicing_toggle: 'Voicing overview',
     layout: 'Layout',
     footer: '64 Pad Explorer \u2014 HPS (Hardcore Pad Style)',
   },
