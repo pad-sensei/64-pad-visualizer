@@ -233,25 +233,9 @@ function renderPads(svg, state, grid) {
         }
         textColor = 'var(--text-muted)';
       }
-      // Basic-form layering: faint scale background + single-colour chord shape on top.
-      // - chord shape (one position): one solid colour, root + tones the same
-      // - scale root: brighter version of the scale colour (identifiable tonic anchor)
-      // - other scale notes: faint scale colour (background orientation)
-      // - everything else: plain off-pad
-      // Basic-form background under the chord shape. The chord shape pads (isActive) keep the
-      // colour set by the chain above (neutral --pad-basic-chord in single-colour mode), so the
-      // chord colour matches the all-positions view. Here we only paint the non-chord pads:
-      // opaque blue scale, ORANGE tonic (scale root), off otherwise.
-      if ((basicPadSet || allPosScaleBg) && !isActive) {
-        if (state.scaleBgPCS && state.scaleBgPCS.has(pc)) {
-          if (pc === AppState.key) { fill = 'var(--pad-root)'; textColor = '#000'; }
-          else { fill = 'var(--pad-basic-scale)'; textColor = '#fff'; }
-        } else {
-          fill = 'var(--pad-off)'; textColor = 'var(--text-muted)';
-        }
-      }
-
-      // TASTY voicing: only highlight pads at compact positions (or lowest-row fallback)
+      // TASTY/Stock voicing: a pad is a "hit" only at its compact voicing position (or
+      // lowest-row fallback); every other pad is a "miss". Computed BEFORE the scale-background
+      // paint so the engine educational scale can repaint the miss pads.
       var _isTastyMiss = false;
       if (tastyMidiSet && tastyMidiSet.size > 0) {
         if (tastyPadPosSet) {
@@ -272,6 +256,27 @@ function renderPads(svg, state, grid) {
           textColor = 'var(--text-muted)';
         }
       }
+      // Scale-background slot = a pad that is NOT a voicing hit, so the scale shows through.
+      // TASTY/STOCK mark hits via _isTastyMiss (their _voicingPass bypass makes every chord-tone
+      // pc "active" everywhere, so !isActive alone would leave the scale holey); basic form /
+      // all-positions / guitar use !isActive.
+      var _isScaleBgSlot = (tastyMidiSet && tastyMidiSet.size > 0) ? _isTastyMiss : !isActive;
+      // Basic-form / all-positions / engine layering: faint scale background + single-colour
+      // chord shape on top. The chord shape pads keep the colour set by the chain above; here we
+      // only paint the non-voicing pads: opaque blue scale, ORANGE tonic (scale root), off otherwise.
+      if ((basicPadSet || allPosScaleBg) && _isScaleBgSlot) {
+        if (state.scaleBgPCS && state.scaleBgPCS.has(pc)) {
+          if (pc === AppState.key) { fill = 'var(--pad-root)'; textColor = '#000'; }
+          else { fill = 'var(--pad-basic-scale)'; textColor = '#fff'; }
+        } else {
+          fill = 'var(--pad-off)'; textColor = 'var(--text-muted)';
+        }
+      }
+      // Engine educational mode: a scale-background pad here carries a readable scale-degree
+      // label (R, 2, 3, …) like basic form, driven off the key-rooted scaleBgPCS (deterministic,
+      // independent of any chord-rooted overlay selection).
+      var isEngineScaleBg = !grid && state.engineScaleBg && _isScaleBgSlot
+        && state.scaleBgPCS && state.scaleBgPCS.has(pc);
 
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
       // Blink removed (too high load). "Other positions exist" is shown by a 1/3 badge instead.
@@ -379,9 +384,12 @@ function renderPads(svg, state, grid) {
         }
         rect.setAttribute('stroke', 'none');
       }
-      // TASTY mode: fade off non-voicing pads completely
+      // TASTY mode: fade off non-voicing pads completely.
+      // Exception: when the scale background is drawn (allPosScaleBg, engine educational mode),
+      // the non-voicing pads ARE the scale (blue/orange) and must stay full brightness to match
+      // the Push display, the guitar engine, and the all-positions view (うりなみさん 2026-05-30).
       const isTastyActive = tastyMidiSet && tastyMidiSet.size > 0;
-      if (isTastyActive && _isTastyMiss) {
+      if (isTastyActive && _isTastyMiss && !(basicPadSet || allPosScaleBg)) {
         // Keep chord tone colors visible at low opacity for orientation
         rect.setAttribute('stroke', 'none');
         rect.setAttribute('opacity', '0.2');
@@ -398,12 +406,16 @@ function renderPads(svg, state, grid) {
       }
       svg.appendChild(rect);
 
-      const showDegree = rootPC !== null && !_isTastyMiss && (isTastyHit || isActive || isRoot || isBass || isOmitted || isChar || isGuide || isAvoid || isOverlay);
+      const showDegree = rootPC !== null && (isEngineScaleBg || (!_isTastyMiss && (isTastyHit || isActive || isRoot || isBass || isOmitted || isChar || isGuide || isAvoid || isOverlay)));
       let degName = '';
       let voicingDegreeRaw = null;
       if (showDegree) {
-        // TASTY/Stock mode: use recipe degree (e.g. "b7", "#11") instead of computed interval name
-        if (tastyDegreeMap && tastyMidiSet && tastyMidiSet.has(midi) && tastyDegreeMap[midi]) {
+        // Engine educational scale background: key-rooted scale degree (R, 2, 3, …) — same basis
+        // as basic form, independent of any chord-rooted overlay selection.
+        if (isEngineScaleBg) {
+          var _sbRoot = (AppState.padCFixed === true) ? 0 : AppState.key;
+          degName = SCALE_DEGREE_NAMES[((pc - _sbRoot) + 12) % 12];
+        } else if (tastyDegreeMap && tastyMidiSet && tastyMidiSet.has(midi) && tastyDegreeMap[midi]) {
           voicingDegreeRaw = tastyDegreeMap[midi];
           degName = displayDegreeLabel(voicingDegreeRaw, { qualityPCS: qualityPCS });
         } else if (isOverlay) {
@@ -431,7 +443,7 @@ function renderPads(svg, state, grid) {
         ? formatVoicingNoteName(midi, voicingDegreeRaw, pcName(rootPC), { qualityPCS: qualityPCS })
         : pcName(pc);
       if (isDimmed) text.setAttribute('opacity', isDimChordTone ? '0' : (isOverlayPad ? '0.9' : '0.4'));
-      if (isTastyActive && _isTastyMiss) text.setAttribute('opacity', '0.05');
+      if (isTastyActive && _isTastyMiss && !state.engineScaleBg) text.setAttribute('opacity', '0.05');
       svg.appendChild(text);
 
       if (showDegree) {
@@ -841,6 +853,21 @@ function render() {
     var _scAllPos = SCALES[AppState.scaleIdx];
     padState.scaleBgPCS = new Set(_scAllPos.pcs.map(function(iv){ return (iv + AppState.key) % 12; }));
     padState.allPosScaleBg = true;
+  }
+  // Engine modes (TASTY / STOCK / Guitar): paint the scale as the educational background behind
+  // the engine's voicing pads too, so the chord↔scale relationship stays visible — same colour
+  // language and layering as basic form / all-positions, and matching the Push pad display.
+  // C-fixed keeps the background C Major (same rule as basic form). うりなみさん 2026-05-30:
+  // 教育目的でエンジン (TASTY/STOCK/GUITAR) 動作中も本体にスケールを点灯させたい。
+  if (AppState.mode === 'chord' && !padState.scaleBgPCS
+      && (TastyState.enabled || StockState.enabled
+          || (typeof isGuitarEngineActive === 'function' && isGuitarEngineActive()))) {
+    var _eCFixed = AppState.padCFixed === true;
+    var _scEng = SCALES[_eCFixed ? 0 : AppState.scaleIdx];
+    var _eKey = _eCFixed ? 0 : AppState.key;
+    padState.scaleBgPCS = new Set(_scEng.pcs.map(function(iv){ return (iv + _eKey) % 12; }));
+    padState.allPosScaleBg = true;
+    padState.engineScaleBg = true;
   }
   renderPads(svg, padState);
   if (AppState.mode !== 'input' && !TastyState.enabled && !StockState.enabled && !(_voicingReflectMode && _guitarSyncSource === 'position') && !_stockReflectMode && !chordBasicFormActive()) {
