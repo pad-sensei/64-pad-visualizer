@@ -57,14 +57,21 @@ function toggleSoundExpand() {
 
 function toggleMemoryView(mode) {
   memoryViewMode = mode;
-  document.getElementById('mem-view-memory').classList.toggle('active', mode === 'memory');
-  document.getElementById('mem-view-perform').classList.toggle('active', mode === 'perform');
-  document.getElementById('perform-clear-wrap').style.display = mode === 'perform' ? '' : 'none';
+  // Single Perform toggle: lit in Perform (play-only) view, off in Memory (edit) view.
+  var tgl = document.getElementById('mem-perform-toggle');
+  if (tgl) tgl.classList.toggle('active', mode === 'perform');
   // Clear perform active pad when switching away
   if (mode === 'memory') {
     PerformState.activePad = null;
   }
   updateMemorySlotUI();
+}
+
+// Single Perform toggle switch (replaces the old Memory|Perform two-button pair).
+// OFF = Memory/edit view (tap selects+plays a slot; semitone/octave edits & re-saves it);
+// ON  = Perform view (tap plays only — saved slots are never overwritten).
+function togglePerformMode() {
+  toggleMemoryView(memoryViewMode === 'perform' ? 'memory' : 'perform');
 }
 
 function toggleInstrument(which) {

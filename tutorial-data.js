@@ -444,8 +444,8 @@ TutorialRegistry.add('memory', {
     {
       type: 'info',
       id: 'perform',
-      targets: ['#mem-view-perform'],
-      highlight: '#mem-view-perform',
+      targets: ['#mem-perform-toggle'],
+      highlight: '#mem-perform-toggle',
       titleKey: 'tut.memory.step4_title',
       msgKey: 'tut.memory.step4_msg',
       waitFor: 'next',

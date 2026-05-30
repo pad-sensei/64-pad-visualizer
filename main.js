@@ -587,15 +587,10 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // m: Toggle Memory view (Memory ↔ previous)
-  if (lk === 'm') {
-    toggleMemoryView(memoryViewMode === 'memory' ? 'perform' : 'memory');
-    return;
-  }
-
-  // p: Toggle Perform view (Perform ↔ previous)
-  if (lk === 'p') {
-    toggleMemoryView(memoryViewMode === 'perform' ? 'memory' : 'perform');
+  // m / p: Toggle the single Perform switch (Memory/edit ↔ Perform/play-only).
+  // Both keys are kept for muscle memory; the UI is now one toggle button.
+  if (lk === 'm' || lk === 'p') {
+    togglePerformMode();
     return;
   }
 
@@ -626,6 +621,7 @@ document.addEventListener('keydown', (e) => {
       }
       notes.forEach(n => PlainState.activeNotes.add(n));
       updatePlainDisplay(); render();
+      autoSaveEditedSlot();
     } else if (AppState.mode === 'chord' && BuilderState.quality && !VoicingState.shell) {
       e.preventDefault();
       // Basic form: Up/Down = inversion UNCAPPED (climbs across octaves on the grid).
@@ -653,6 +649,7 @@ document.addEventListener('keydown', (e) => {
       PlainState.activeNotes.forEach(n => newNotes.add(n + delta));
       PlainState.activeNotes = newNotes;
       updatePlainDisplay(); render();
+      autoSaveEditedSlot();
     } else if (AppState.mode === 'chord' && BuilderState.root !== null) {
       e.preventDefault();
       const delta = key === 'ArrowRight' ? 1 : 11;

@@ -820,6 +820,17 @@ function savePlainSlot(idx) {
   updateMemorySlotUI();
 }
 
+// Live edit auto-save: while editing a slot (Perform toggle OFF), any semitone/octave change
+// to the edit buffer immediately overwrites the selected slot and re-detects its chord label.
+// Perform toggle ON (perform view) is the safety valve — it never overwrites saved slots.
+function autoSaveEditedSlot() {
+  if (memoryViewMode === 'perform') return;
+  if (PlainState.subMode === 'edit' && PlainState.currentSlot !== null) {
+    savePlainSlot(PlainState.currentSlot);
+    if (typeof saveAppSettings === 'function') saveAppSettings();
+  }
+}
+
 function recallPlainSlot(idx) {
   const slot = PlainState.memory[idx];
   // Perform view: clicking a filled slot triggers playback
@@ -829,10 +840,11 @@ function recallPlainSlot(idx) {
     }
     return;
   }
-  // Chord/Scale mode: just select slot as target (auto-save on next chord change)
+  // Chord/Scale mode: select slot as target (auto-save on next chord change) + play if filled
   if (AppState.mode === 'chord' || AppState.mode === 'scale') {
     PlainState.currentSlot = idx;
     updateMemorySlotUI();
+    if (slot) { noteOffAll(); playMidiNotes(slot.midiNotes, 1.0); }  // tap always plays; cut previous voices first
     const toast = document.getElementById('slot-save-toast');
     if (toast) {
       toast.textContent = t('notify.slot_selected', {slot: idx + 1});
