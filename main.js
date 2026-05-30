@@ -101,8 +101,8 @@ function syncViewSetupControls() {
   viewSelects.forEach(function(sel) { sel.value = view; });
   var colorCodingToggles = document.querySelectorAll('[data-view-setup-color-coding]');
   colorCodingToggles.forEach(function(input) { input.checked = !AppState.colorOff; });
-  var showAllPositionsToggles = document.querySelectorAll('[data-view-setup-show-all-positions]');
-  showAllPositionsToggles.forEach(function(input) { input.checked = AppState.showAllPositions === true; });
+  // 全ポジション表示は表示設定パネルから外し、パッドフッターのボタン(+右クリック/⇧F)に一本化。
+  // フッターボタンの active 状態だけここで同期する。
   var sapBtn = document.getElementById('btn-show-all-positions');
   if (sapBtn) sapBtn.classList.toggle('active', AppState.showAllPositions === true);
   var cFixedToggles = document.querySelectorAll('[data-view-setup-c-fixed]');
@@ -130,7 +130,6 @@ function setViewSetupFocusField(field) {
     focus: true,
     layout: true,
     'color-coding': true,
-    'show-all-positions': true,
     'c-fixed': true,
     'color-root': true,
     'color-scale': true,
@@ -162,11 +161,20 @@ function openViewSetupPanel() {
   setViewSetupFocusField((document.body && document.body.dataset && document.body.dataset.viewSetupField) || 'focus');
   var overlay = document.getElementById('view-setup-overlay');
   if (overlay) overlay.classList.add('active');
+  // WYSIWYG: アプリ側で表示設定を開いたら Push も表示設定モードに入れる。これで Push の
+  // jog/D-pad がパネルナビに切り替わり、演奏(コード)に反応しなくなる(Desktop C++ 側が受信)。
+  if (typeof window !== 'undefined' && typeof window._pushNotifyViewSetupOpened === 'function') {
+    window._pushNotifyViewSetupOpened();
+  }
 }
 
 function closeViewSetupPanel() {
   var overlay = document.getElementById('view-setup-overlay');
   if (overlay) overlay.classList.remove('active');
+  // WYSIWYG: 表示設定を閉じたら Push を演奏モードへ戻す。
+  if (typeof window !== 'undefined' && typeof window._pushNotifyViewSetupClosed === 'function') {
+    window._pushNotifyViewSetupClosed();
+  }
 }
 
 // Restore saved pane order (default: ABC)

@@ -612,7 +612,6 @@ function toggleShowAllPositions(show) {
   // Basic form must not carry a stale box selection (boxes only exist in all-positions mode).
   if (!show && typeof resetVoicingSelection === 'function') resetVoicingSelection();
   if (typeof updateVoicingButtons === 'function') updateVoicingButtons();
-  document.querySelectorAll('[data-view-setup-show-all-positions]').forEach(function(i){ i.checked = show; });
   var sapBtn = document.getElementById('btn-show-all-positions');
   if (sapBtn) sapBtn.classList.toggle('active', show);
   if (typeof saveAppSettings === 'function') saveAppSettings();

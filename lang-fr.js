@@ -123,7 +123,6 @@ I18N.addLang('fr', {
     badge_toggle: 'Show shortcut key hints',
     c_fixed_toggle: 'Verrouiller en Do majeur',
     color_coding_toggle: 'Colorer notes caractéristiques et accords',
-    show_all_positions_toggle: 'Afficher toutes les positions de l\'accord',
     c_fixed_tip: 'Le pad affiche toujours la gamme Do majeur, indépendamment de Key/Scale/Chord.',
     layout: 'Disposition',
     footer: '64 Pad Explorer \u2014 HPS (Hardcore Pad Style)',

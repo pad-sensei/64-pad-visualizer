@@ -127,7 +127,6 @@ I18N.addLang('ja', {
     badge_toggle: 'ショートカットキーの案内を表示',
     c_fixed_toggle: 'Cメジャースケール固定',
     color_coding_toggle: '特性音・コードトーンに色を付ける',
-    show_all_positions_toggle: 'コードを全ポジション表示する',
     c_fixed_tip: 'パッドは常にCメジャースケールで表示されます。Key/Scale/Chordを変えてもパッドの配置は変わりません。楽器としての本来の振る舞いです。',
     layout: 'レイアウト',
     footer: '64 Pad Explorer \u2014 HPS（Hardcore Pad Style）',

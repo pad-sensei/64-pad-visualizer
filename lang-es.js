@@ -123,7 +123,6 @@ I18N.addLang('es', {
     badge_toggle: 'Show shortcut key hints',
     c_fixed_toggle: 'Fijar en Do mayor',
     color_coding_toggle: 'Colorear notas características y de acorde',
-    show_all_positions_toggle: 'Mostrar todas las posiciones del acorde',
     c_fixed_tip: 'El pad muestra siempre la escala de Do mayor, independientemente de Key/Scale/Chord.',
     layout: 'Diseño',
     footer: '64 Pad Explorer \u2014 HPS (Hardcore Pad Style)',
