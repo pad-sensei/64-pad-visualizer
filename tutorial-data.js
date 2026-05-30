@@ -66,13 +66,29 @@ TutorialRegistry.add('onboarding', {
   lsKey: '64pad-tutorial-complete',  // backward compatible
   steps: [
     {
+      // Shown only in Desktop (Standalone/VST/AU) mode to explain the audio difference
+      type: 'info',
+      id: 'app_version',
+      targets: [],
+      highlight: null,
+      titleKey: 'tut.onboarding.app_version_title',
+      msgKey: 'tut.onboarding.app_version_msg',
+      waitFor: 'next',
+      // Skip this step entirely in Web (browser) mode
+      skipIf: function() { return !window.IS_DESKTOP_MODE; },
+    },
+    {
       type: 'action',
       id: 'sound',
       targets: ['#sound-controls', '#organ-preset'],
       highlight: '#organ-preset',
       titleKey: 'tut.onboarding.sound_title',
+      titleKeyDesktop: 'tut.onboarding.sound_title_desktop',
       msgKey: 'tut.onboarding.sound_msg',
+      msgKeyDesktop: 'tut.onboarding.sound_msg_desktop',
       waitFor: 'preset-change',
+      // In Desktop mode, no built-in audio — show as info step instead of preset-change wait
+      waitForDesktop: 'next',
     },
     {
       type: 'info',
@@ -528,7 +544,9 @@ TutorialRegistry.add('sound', {
       targets: ['#organ-preset'],
       highlight: '#organ-preset',
       titleKey: 'tut.sound.step1_title',
+      titleKeyDesktop: 'tut.sound.step1_title_desktop',
       msgKey: 'tut.sound.step1_msg',
+      msgKeyDesktop: 'tut.sound.step1_msg_desktop',
       waitFor: 'next',
       beforeShow: function() {
         if (typeof showSound !== 'undefined' && !showSound && typeof toggleInstrument === 'function') {

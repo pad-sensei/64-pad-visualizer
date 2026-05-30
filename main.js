@@ -139,9 +139,17 @@ function setViewSetupFocusField(field) {
     'color-perform': true,
     tips: true,
     badges: true,
-    reset: true
+    reset: true,
+    close: true
   };
-  document.body.dataset.viewSetupField = allowed[field] ? field : 'focus';
+  var effective = allowed[field] ? field : 'focus';
+  document.body.dataset.viewSetupField = effective;
+  // Auto-scroll the focused row into view so Push jog navigation never hides items
+  // below the modal viewport (うりなみさん 2026-05-30: 設定画面でスクロール要らずに)。
+  var row = document.querySelector('.view-setup-row[data-view-setup-field="' + effective + '"]');
+  if (row && typeof row.scrollIntoView === 'function') {
+    try { row.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+  }
 }
 
 function startViewSetupPushColorPick(role) {
@@ -835,10 +843,17 @@ function _renderPadContextMenu(e, items) {
   });
   document.body.appendChild(menu);
   var mw = menu.offsetWidth, mh = menu.offsetHeight;
-  var x = Math.min(e.clientX, window.innerWidth - mw - 6);
-  var y = Math.min(e.clientY, window.innerHeight - mh - 6);
-  menu.style.left = Math.max(4, x) + 'px';
-  menu.style.top = Math.max(4, y) + 'px';
+  var vw = window.innerWidth, vh = window.innerHeight;
+  // Open the menu at the cursor; if it would overflow right/bottom, flip so the menu
+  // opens to the LEFT / ABOVE the cursor (right/bottom edge anchored at the cursor).
+  // This keeps the menu adjacent to the click, even on right-edge Memory slots.
+  var x = (e.clientX + mw + 6 <= vw) ? e.clientX : (e.clientX - mw);
+  var y = (e.clientY + mh + 6 <= vh) ? e.clientY : (e.clientY - mh);
+  // Final clamp keeps the menu fully inside the viewport with a small margin.
+  x = Math.max(4, Math.min(x, vw - mw - 4));
+  y = Math.max(4, Math.min(y, vh - mh - 4));
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
   setTimeout(function() {
     document.addEventListener('mousedown', _padMenuOutside, true);
     document.addEventListener('keydown', _padMenuEsc, true);

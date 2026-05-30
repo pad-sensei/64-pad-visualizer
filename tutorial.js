@@ -69,6 +69,10 @@ var TutorialEngine = {
   next: function() {
     this.step++;
     var steps = this._currentSteps || [];
+    // Skip steps whose skipIf() returns true (e.g. Web-only steps in Desktop mode)
+    while (this.step < steps.length && typeof steps[this.step].skipIf === 'function' && steps[this.step].skipIf()) {
+      this.step++;
+    }
     if (this.step >= steps.length) {
       this.complete();
       return;
@@ -173,11 +177,18 @@ var TutorialEngine = {
       dots += '<span class="tutorial-dot' + (i === this.step ? ' active' : '') + '"></span>';
     }
 
-    // Title
-    var title = t(stepDef.titleKey);
-    if (title === stepDef.titleKey) title = stepDef.id || '';
+    // Title — Desktop override mirrors msgKeyDesktop (うりなみさん 2026-05-30:
+    // ボディだけでなくタイトルも Web/Desktop で切り替える)。
+    var title;
+    if (window.IS_DESKTOP_MODE && stepDef.titleKeyDesktop) {
+      title = t(stepDef.titleKeyDesktop);
+      if (title === stepDef.titleKeyDesktop) title = t(stepDef.titleKey);
+    } else {
+      title = t(stepDef.titleKey);
+    }
+    if (title === stepDef.titleKey || title === stepDef.titleKeyDesktop) title = stepDef.id || '';
 
-    // Message — check for alt message (e.g., MIDI no device)
+    // Message — check for alt message (e.g., MIDI no device or Desktop mode)
     var msg = '';
     if (stepDef.id === 'midi' && this._currentTutorialId === 'onboarding') {
       var hasMidi = typeof midiAccess !== 'undefined' && midiAccess && midiAccess.inputs && midiAccess.inputs.size > 0;
@@ -186,6 +197,10 @@ var TutorialEngine = {
       } else {
         msg = t(stepDef.msgKeyAlt || stepDef.msgKey);
       }
+    } else if (window.IS_DESKTOP_MODE && stepDef.msgKeyDesktop) {
+      // Desktop-specific message overrides Web message
+      msg = t(stepDef.msgKeyDesktop);
+      if (msg === stepDef.msgKeyDesktop) msg = t(stepDef.msgKey);
     } else {
       msg = t(stepDef.msgKey);
     }
@@ -208,19 +223,21 @@ var TutorialEngine = {
     if (mediaHtml) html += mediaHtml;
     html += '<div class="tutorial-actions">';
 
-    if (stepDef.waitFor === 'preset-change') {
+    // waitForDesktop overrides waitFor in Desktop mode
+    var effectiveWaitFor = (window.IS_DESKTOP_MODE && stepDef.waitForDesktop) ? stepDef.waitForDesktop : stepDef.waitFor;
+    if (effectiveWaitFor === 'preset-change') {
       html += '<button class="tutorial-next-btn" style="' + (this._presetChanged ? '' : 'display:none') + '" onclick="TutorialEngine.next()">' + t('tut.next') + '</button>';
       html += '<button class="tutorial-skip-btn" onclick="TutorialEngine.next()">' + t('tut.skip_step') + '</button>';
-    } else if (stepDef.waitFor === 'close') {
-      // #1330: Show guide link for all tutorials
-      html += '<a class="tutorial-guide-link" href="guide.html" target="_blank">' + t('tut.open_guide') + '</a>';
+    } else if (effectiveWaitFor === 'close') {
+      // #1330: Show online manual link for all tutorials
+      html += '<a class="tutorial-guide-link" href="https://murinaikurashi.com/64-pad-explorer-manual/" target="_blank" rel="noopener">' + t('tut.open_guide') + '</a>';
       html += '<button class="tutorial-next-btn" onclick="TutorialEngine.complete()">' + t('tut.close') + '</button>';
     } else {
       html += '<button class="tutorial-next-btn" onclick="TutorialEngine.next()">' + t('tut.next') + '</button>';
     }
 
     // Skip tutorial (always available except on last step)
-    if (stepDef.waitFor !== 'close') {
+    if (effectiveWaitFor !== 'close') {
       html += '<button class="tutorial-skip-all-btn" onclick="TutorialEngine.skip()">' + t('tut.skip_all') + '</button>';
     }
 
@@ -279,9 +296,16 @@ var TutorialEngine = {
     this.highlightEl = null;
   },
 
-  // Legacy reset (from Help modal) — forces onboarding restart
+  // Reset for "チュートリアルをやり直す". Clears completion + noticed + per-item progress
+  // so the pulse icon comes back, the ✓ marks in the selector disappear, and onboarding
+  // can re-trigger on the next reload (うりなみさん 2026-05-30 全初期化フィードバック)。
   reset: function() {
     localStorage.removeItem('64pad-tutorial-complete');
+    localStorage.removeItem('64pad-tut-noticed');
+    if (typeof TutorialRegistry === 'object' && TutorialRegistry
+        && typeof TutorialRegistry.resetAll === 'function') {
+      try { TutorialRegistry.resetAll(); } catch (e) {}
+    }
     localStorage.setItem('64pad-tutorial-reset', '1');
   },
 
@@ -420,6 +444,14 @@ var TutorialEngine = {
   _onboardingDecline: function() {
     var dialog = document.getElementById('tut-onboarding-dialog');
     if (dialog) dialog.remove();
+    // If this dialog came from an explicit reset ("チュートリアルをやり直す"), don't mark
+    // tutorial complete — open the selector so the user can still pick a chapter to do
+    // (うりなみさん 2026-05-30: pulse + dialog + 選択モーダル の3点セット)。
+    if (localStorage.getItem('64pad-tutorial-reset') === '1') {
+      localStorage.removeItem('64pad-tutorial-reset');
+      try { TutorialEngine.showSelector(); } catch (e) {}
+      return;
+    }
     localStorage.setItem('64pad-tutorial-complete', '1');
   }
 };
@@ -434,6 +466,18 @@ var TutorialEngine = {
       setTimeout(function() { TutorialEngine._showOnboardingDialog(); }, 800);
     }
   };
+})();
+
+// Desktop: dismissAudioOverlay is no-op'd by IS_DESKTOP_MODE, so the hook above never
+// fires. Trigger the onboarding dialog directly on load if shouldStart() is true
+// (うりなみさん 2026-05-30: Desktop でも「やり直す」直後に何かが起きるべき)。
+(function ensureOnboardingOnDesktop() {
+  if (typeof window === 'undefined' || !window.IS_DESKTOP_MODE) return;
+  setTimeout(function() {
+    try {
+      if (TutorialEngine.shouldStart()) TutorialEngine._showOnboardingDialog();
+    } catch (e) {}
+  }, 800);
 })();
 
 // Pulse the tutorial button if user hasn't noticed it yet
