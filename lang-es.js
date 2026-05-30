@@ -122,7 +122,7 @@ I18N.addLang('es', {
     tips_toggle: 'Mostrar consejos al inicio',
     badge_toggle: 'Show shortcut key hints',
     c_fixed_toggle: 'Fijar en Do mayor',
-    color_coding_toggle: 'Colorear notas características',
+    color_coding_toggle: 'Colorear notas características y de acorde',
     show_all_positions_toggle: 'Mostrar todas las posiciones del acorde',
     c_fixed_tip: 'El pad muestra siempre la escala de Do mayor, independientemente de Key/Scale/Chord.',
     layout: 'Diseño',

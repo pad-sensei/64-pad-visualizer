@@ -126,7 +126,7 @@ I18N.addLang('it', {
     tips_toggle: 'Mostra suggerimenti all\'avvio',
     badge_toggle: 'Show shortcut key hints',
     c_fixed_toggle: 'Blocca in Do maggiore',
-    color_coding_toggle: 'Colora le note caratteristiche',
+    color_coding_toggle: 'Colora note caratteristiche e accordi',
     show_all_positions_toggle: 'Mostra tutte le posizioni dell\'accordo',
     c_fixed_tip: 'Il pad mostra sempre la scala di Do maggiore, indipendentemente da Key/Scale/Chord.',
     layout: 'Disposizione',

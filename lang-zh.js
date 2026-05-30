@@ -126,7 +126,7 @@ I18N.addLang('zh', {
     tips_toggle: '启动时显示提示',
     badge_toggle: 'Show shortcut key hints',
     c_fixed_toggle: '固定为C大调',
-    color_coding_toggle: '为特性音着色',
+    color_coding_toggle: '为特性音和和弦音着色',
     show_all_positions_toggle: '显示和弦的全部位置',
     c_fixed_tip: '无论 Key/Scale/Chord 如何选择，Pad 始终显示C大调音阶。',
     layout: '布局',
