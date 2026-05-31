@@ -126,6 +126,8 @@ I18N.addLang('it', {
     tips_toggle: 'Mostra suggerimenti all\'avvio',
     badge_toggle: 'Show shortcut key hints',
     c_fixed_toggle: 'Blocca in Do maggiore',
+    perform_same_notes: 'Mostra solo le note suonate in Perform',
+    perform_same_notes_tip: 'Attivo mostra solo le altezze registrate esatte in Perform. Disattivo compatta il voicing suonato in una singola posizione didattica.',
     color_coding_toggle: 'Colora note caratteristiche e accordi',
     c_fixed_tip: 'Il pad mostra sempre la scala di Do maggiore, indipendentemente da Key/Scale/Chord.',
     layout: 'Disposizione',

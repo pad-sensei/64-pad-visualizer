@@ -701,10 +701,20 @@ function playMemorySlots() {
     PlainState.currentSlot = slot.index;
     updateMemorySlotUI();
     // Show chord on pad grid + staff
-    PlainState.activeNotes = new Set(slot.notes);
-    updatePlainDisplay();
-    render();
-    highlightPlaybackPads(slot.notes);
+    if (memoryViewMode === 'perform') {
+      PerformState.activePad = slot.index;
+      PerformState.onePosIdx = 0;
+      PlainState.activeNotes = new Set(slot.notes);
+      BuilderState._fromDiatonic = true;
+      applyNotesToBuilder(slot.notes);
+      updatePlainDisplay();
+      render();
+    } else {
+      PlainState.activeNotes = new Set(slot.notes);
+      updatePlainDisplay();
+      render();
+      highlightPlaybackPads(slot.notes);
+    }
     // Play notes
     slot.notes.forEach(function(m) { noteOn(m, undefined, true); });
     // Schedule noteOff + next
@@ -723,6 +733,7 @@ function playMemorySlots() {
 function stopSlotPlayback() {
   if (_slotPlayTimer) { clearTimeout(_slotPlayTimer); _slotPlayTimer = null; }
   noteOffAll();
+  PerformState.activePad = null;
   PlainState.activeNotes.clear();
   updatePlainDisplay();
   highlightPlaybackPads(null);
@@ -1037,6 +1048,8 @@ function updateMemorySlotUI() {
     var playBtn = document.getElementById('btn-play-slots');
     if (playBtn) playBtn.textContent = sel ? t('memory.play_selected', {chord: sel.chordName}) : t('memory.play_all') + (slotCount ? ' (' + slotCount + ')' : '');
   }
+  var sameNotesBtn = document.getElementById('btn-perform-same-notes');
+  if (sameNotesBtn) sameNotesBtn.classList.toggle('active', AppState.performAllPositions === true);
   updateBankUI();
 }
 

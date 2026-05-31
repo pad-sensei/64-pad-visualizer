@@ -162,7 +162,12 @@ function renderPads(svg, state, grid) {
     && isGuitarEngineActive()
     && _instrumentPadSet;
   const specialVoicingActive = (tastyMidiSet && tastyMidiSet.size > 0) || guitarEngineActive;
-  const selBox = !grid && !specialVoicingActive && VoicingState.selectedBoxIdx !== null ? VoicingState.lastBoxes[VoicingState.selectedBoxIdx] : null;
+  // Perform view never uses a voicing-box selection (it has its own one-position / all-positions
+  // render). A stale selectedBoxIdx from before entering Perform must not dim pads or cancel the
+  // perform scale background. (When a slot is played, applyNotesToBuilder already resets it; this
+  // also covers the idle-perform state before any slot is pressed.)
+  const _performView = !grid && memoryViewMode === 'perform';
+  const selBox = !grid && !specialVoicingActive && !_performView && VoicingState.selectedBoxIdx !== null ? VoicingState.lastBoxes[VoicingState.selectedBoxIdx] : null;
   const selMidi = selBox ? new Set(selBox.midiNotes) : null;
   const selPos = selBox ? new Set(selBox.alternatives[selBox.currentAlt].positions.map(p => p.row + ',' + p.col)) : null;
   // Basic-form default (chord mode, no box): color only the one shape's pads via a position
@@ -170,6 +175,31 @@ function renderPads(svg, state, grid) {
   const basicPadSet = (!grid && !selBox && state.basicFormPadSet) ? state.basicFormPadSet : null;
   // All-positions view: paint the scale background behind every chord position (no single shape).
   const allPosScaleBg = (!grid && !selBox && state.allPosScaleBg) ? true : false;
+  // Perform "one position" view (beginner default): the explorer COLLAPSES the playing voicing's
+  // actual pitches to ONE compact pad arrangement for DISPLAY (educational), the same look as the
+  // chord basic form — grey single shape over the blue/orange scale background, degree/tension
+  // labels, "1/N" badge. render() supplies that one arrangement via state.basicFormPadSet (built
+  // from basicFormArrangements() on the played notes), so here we just drive the input-style grey
+  // off basic-form membership. AUDIO IS UNAFFECTED: perform.js always plays slot.midiNotes verbatim.
+  // 表示設定 toggle (AppState.performAllPositions === true) shows the exact recorded pitches.
+  // Perform must never inherit stale TASTY/STOCK voicing colour state. It is a memory-slot
+  // educational display only: grey played notes over the scale background.
+  const _performOnePos = _performView && AppState.performAllPositions !== true;
+  const _performSameNotes = _performView && AppState.performAllPositions === true
+    && PlainState.activeNotes && PlainState.activeNotes.size > 0;
+  // One-position display branch. In Perform view it is driven SOLELY by the toggle
+  // (AppState.performAllPositions) so the toggle actually switches the display; outside Perform,
+  // input mode keeps its own one-position behaviour. Previously these were OR'd
+  // (mode === 'input' || _performOnePos), which made the Perform toggle inert whenever the
+  // underlying mode happened to be 'input' (the usual case while playing saved slots).
+  const _onePosDisplay = _performView ? _performOnePos : (AppState.mode === 'input');
+  // Interval-PC set of the actual playing voicing (relative to the detected root), used as the
+  // finalPCS for chordDegreeName so #9 (interval 3 alongside a major 3rd) reads as "#9" not "m3".
+  // In Perform/input mode padComputeRenderState returns activeIvPCS = null (only chord mode fills
+  // it), but qualityPCS is present, so 11/#11/b13/13 already resolve; this only adds the #9 case.
+  const _performIvPCS = ((_performOnePos || _performSameNotes) && rootPC !== null && activePCS)
+    ? new Set(Array.from(activePCS).map(function(p) { return ((p - rootPC) + 12) % 12; }))
+    : null;
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const midi = midiNote(row, col);
@@ -183,28 +213,36 @@ function renderPads(svg, state, grid) {
       const _voicingPass = (tastyMidiSet && tastyMidiSet.size > 0)
         ? true  // TASTY mode: bypass instrument filters entirely (_isTastyMiss handles dimming)
         : (basicPadSet ? basicPadSet.has(row * cols + col) : (_padPosFilter ? _padPosFilter.has(row * cols + col) : (_instrFilter ? _instrFilter.has(midi) : true)));
-      const isRoot = pc === rootPC && !omittedPCS.has(pc) && _voicingPass;
-      const isBass = bassPC !== null && pc === bassPC && _voicingPass;
-      const isActive = _voicingPass ? activePCS.has(pc) : false;
-      const isOmitted = omittedPCS.has(pc) && _voicingPass;
-      const isChar = AppState.mode === 'scale' && charPCS.has(pc) && !isRoot;
-      const isGuide3 = AppState.mode === 'chord' && guide3PCS.has(pc) && !isRoot && !tensionPCS.has(pc) && _voicingPass;
-      const isGuide7 = AppState.mode === 'chord' && guide7PCS.has(pc) && !isRoot && !tensionPCS.has(pc) && _voicingPass;
+      const _performExactMidi = _performSameNotes && PlainState.activeNotes.has(midi);
+      const isRoot = !_performSameNotes && pc === rootPC && !omittedPCS.has(pc) && _voicingPass;
+      const isBass = !_performSameNotes && bassPC !== null && pc === bassPC && _voicingPass;
+      const isActive = _performSameNotes ? _performExactMidi : ((_voicingPass && !_performOnePos) ? activePCS.has(pc) : false);
+      const isOmitted = !_performSameNotes && omittedPCS.has(pc) && _voicingPass;
+      const isChar = !_performSameNotes && AppState.mode === 'scale' && charPCS.has(pc) && !isRoot;
+      const isGuide3 = !_performSameNotes && AppState.mode === 'chord' && guide3PCS.has(pc) && !isRoot && !tensionPCS.has(pc) && _voicingPass;
+      const isGuide7 = !_performSameNotes && AppState.mode === 'chord' && guide7PCS.has(pc) && !isRoot && !tensionPCS.has(pc) && _voicingPass;
       const isGuide = isGuide3 || isGuide7;
       const isTension = AppState.mode === 'chord' && tensionPCS.has(pc) && !isRoot && !isGuide && _voicingPass;
-      const isAvoid = AppState.mode === 'chord' && avoidPCS.has(pc) && !isRoot && _voicingPass;
-      const isOverlay = !(_padPosFilter || _instrFilter) && !isOmitted && overlayPCS && overlayPCS.has(pc) && !activePCS.has(pc);
+      const isAvoid = !_performSameNotes && AppState.mode === 'chord' && avoidPCS.has(pc) && !isRoot && _voicingPass;
+      const isOverlay = !_performSameNotes && !(_padPosFilter || _instrFilter) && !isOmitted && overlayPCS && overlayPCS.has(pc) && !activePCS.has(pc);
 
-      // Plain mode: highlight selected notes only
-      const isPlainActive = AppState.mode === 'input' && PlainState.activeNotes.has(midi);
+      // Plain mode: highlight selected notes only (exact-MIDI match → input WYSIWYG).
+      // Perform one-position view instead highlights the ONE compact arrangement (basicPadSet,
+      // built in render() from the played voicing) so the same pitch shows at a single position,
+      // not at every duplicate grid slot. Both feed the grey single-colour chord shape below.
+      const isPlainActive = _performSameNotes
+        ? _performExactMidi
+        : (_performOnePos
+        ? (basicPadSet !== null && basicPadSet.has(row * cols + col))
+        : (_onePosDisplay && PlainState.activeNotes.has(midi)));
 
       // colorOff = single-color mode: keep the root colour, collapse every other
       // lit pad (bass/3rd/7th/tension/avoid/characteristic) to one scale/chord colour.
       const colorOff = AppState.colorOff;
       let fill = 'var(--pad-off)', textColor = 'var(--text-muted)';
-      if (AppState.mode === 'input') {
-        // input: pressed notes are a single neutral colour (no root distinction) — free
-        // input → chord detection, key-agnostic, minimal colours.
+      if (_onePosDisplay || _performSameNotes) {
+        // input / perform display: only the shown pads are coloured (single neutral grey, no root
+        // distinction). In perform ON, shown pads are exact recorded MIDI pitches only.
         if (isPlainActive) { fill = 'var(--pad-basic-chord)'; textColor = '#000'; }
       } else if (isOmitted) { fill = 'var(--pad-omitted)'; textColor = '#999'; }
       else if (isRoot) {
@@ -261,7 +299,7 @@ function renderPads(svg, state, grid) {
       // pc "active" everywhere, so !isActive alone would leave the scale holey); basic form /
       // all-positions / guitar use !isActive.
       var _isScaleBgSlot = (tastyMidiSet && tastyMidiSet.size > 0) ? _isTastyMiss
-        : (AppState.mode === 'input' ? !isPlainActive : !isActive);
+        : ((_onePosDisplay || _performSameNotes) ? !isPlainActive : !isActive);
       // Basic-form / all-positions / engine layering: faint scale background + single-colour
       // chord shape on top. The chord shape pads keep the colour set by the chain above; here we
       // only paint the non-voicing pads: opaque blue scale, ORANGE tonic (scale root), off otherwise.
@@ -271,6 +309,26 @@ function renderPads(svg, state, grid) {
           else { fill = 'var(--pad-basic-scale)'; textColor = '#fff'; }
         } else {
           fill = 'var(--pad-off)'; textColor = 'var(--text-muted)';
+        }
+      }
+      // Input / Perform direct-education view: force the final colour language to match
+      // Scale/Chord basic form. Background = scale (blue) + tonic (orange). Shown/played notes
+      // = neutral grey. This intentionally overrides root/guide/tension/engine colours so
+      // Perform never shows green, and Input stays readable against a calm scale surface.
+      var _directEduView = !grid && (AppState.mode === 'input' || _performOnePos || _performSameNotes);
+      if (_directEduView && state.scaleBgPCS) {
+        var _directEduActive = _performSameNotes
+          ? _performExactMidi
+          : (_performOnePos ? isPlainActive : PlainState.activeNotes.has(midi));
+        if (_directEduActive) {
+          fill = 'var(--pad-basic-chord)';
+          textColor = '#000';
+        } else if (state.scaleBgPCS.has(pc)) {
+          if (pc === AppState.key) { fill = 'var(--pad-root)'; textColor = '#000'; }
+          else { fill = 'var(--pad-basic-scale)'; textColor = '#fff'; }
+        } else {
+          fill = 'var(--pad-off)';
+          textColor = 'var(--text-muted)';
         }
       }
       // Engine educational mode: a scale-background pad here carries a readable scale-degree
@@ -407,7 +465,12 @@ function renderPads(svg, state, grid) {
       }
       svg.appendChild(rect);
 
-      const showDegree = rootPC !== null && (isEngineScaleBg || (!_isTastyMiss && (isTastyHit || isActive || isRoot || isBass || isOmitted || isChar || isGuide || isAvoid || isOverlay)));
+      // Perform one-position view: the playing voicing pads carry chord-degree labels
+      // (R, 3, 5, 7, 9, 11, 13) so tensions read as tensions, not raw scale steps or note names.
+      const _performVoicingLabel = (_performOnePos || _performSameNotes) && isPlainActive;
+      // In Perform one-position view ONLY the playing voicing pads carry labels (鳴っている押さえだけ);
+      // the PC-based isRoot/isBass/… clause is suppressed so stray labels don't appear on dark pads.
+      const showDegree = rootPC !== null && (isEngineScaleBg || _performVoicingLabel || (!(_performOnePos || _performSameNotes) && !_isTastyMiss && (isTastyHit || isActive || isRoot || isBass || isOmitted || isChar || isGuide || isAvoid || isOverlay)));
       let degName = '';
       let voicingDegreeRaw = null;
       if (showDegree) {
@@ -416,6 +479,11 @@ function renderPads(svg, state, grid) {
         if (isEngineScaleBg) {
           var _sbRoot = (AppState.padCFixed === true) ? 0 : AppState.key;
           degName = SCALE_DEGREE_NAMES[((pc - _sbRoot) + 12) % 12];
+        } else if (_performVoicingLabel) {
+          // Always use chord-degree names for the playing voicing so a 9/11/13 reads as a
+          // tension regardless of the underlying mode (input/scale). Pass the voicing's own
+          // interval set as finalPCS so #9 (interval 3 + major 3rd present) reads as "#9".
+          degName = chordDegreeName(interval, qualityPCS, _performIvPCS);
         } else if (tastyDegreeMap && tastyMidiSet && tastyMidiSet.has(midi) && tastyDegreeMap[midi]) {
           voicingDegreeRaw = tastyDegreeMap[midi];
           degName = displayDegreeLabel(voicingDegreeRaw, { qualityPCS: qualityPCS });
@@ -692,6 +760,7 @@ function chordBasicFormActive() {
   // shape to press for this chord; it lives ON that fixed surface, so the two coexist.
   return AppState.mode === 'chord'
     && !AppState.showAllPositions
+    && memoryViewMode !== 'perform'  // Perform view has its own one-position / all-positions render (never the chord grey basic-form shape)
     && BuilderState.root !== null && BuilderState.quality
     && !TastyState.enabled && !StockState.enabled
     && !(typeof isGuitarEngineActive === 'function' && isGuitarEngineActive())
@@ -705,7 +774,7 @@ function chordBasicFormActive() {
 // Basic-form "1/3" badge: shows how many same-register arrangements exist and which one is
 // shown. Clickable (cycles to the next) so it works without remembering the Space shortcut.
 // No white border (avoids the white-bracket look) — a dark pill with light text.
-function drawBasicFormBadge(svg, positions, current, total) {
+function drawBasicFormBadge(svg, positions, current, total, onCycle) {
   if (!positions || !positions.length) return;
   var NS = 'http://www.w3.org/2000/svg';
   // Basic form: anchor the count badge on the LOWEST note (bass) pad — that pad is
@@ -736,8 +805,99 @@ function drawBasicFormBadge(svg, positions, current, total) {
   t.setAttribute('font-size', '8px'); t.setAttribute('font-weight', '700'); t.setAttribute('fill', '#fff');
   t.textContent = current + '/' + total;
   g.appendChild(r); g.appendChild(t);
-  g.addEventListener('click', function(e){ e.stopPropagation(); if (typeof cycleBasicFormPosition === 'function') cycleBasicFormPosition(); });
+  g.addEventListener('click', function(e){
+    e.stopPropagation();
+    var _fn = (typeof onCycle === 'function') ? onCycle : cycleBasicFormPosition;
+    if (typeof _fn === 'function') _fn();
+  });
   svg.appendChild(g);
+}
+
+// Perform one-position badge cycle: advance to the next compact arrangement of the SAME recorded
+// pitches and re-render. DISPLAY ONLY — unlike cycleBasicFormPosition this never calls
+// playMidiNotes, so the recorded playback is left exactly as it is (録音した音のまま再生は絶対).
+function cyclePerformOnePos() {
+  var arr = computePerformOnePosArrangements();
+  if (arr.length <= 1) return false;
+  PerformState.onePosIdx = ((PerformState.onePosIdx || 0) + 1) % arr.length;
+  render();  // re-layout only; playback untouched
+  return true;
+}
+
+function computePerformRegisterOctave() {
+  if (!PlainState.activeNotes || PlainState.activeNotes.size === 0) return 0;
+  var notes = Array.from(PlainState.activeNotes);
+  var minNote = Math.min.apply(null, notes);
+  var maxNote = Math.max.apply(null, notes);
+  var gridLo = baseMidi();
+  var gridHi = baseMidi() + (ROWS - 1) * ROW_INTERVAL + (COLS - 1);
+  var bestOct = 0;
+  var bestScore = Infinity;
+  for (var oct = -4; oct <= 4; oct++) {
+    var lo = minNote + oct * 12;
+    var hi = maxNote + oct * 12;
+    var overflow = Math.max(0, gridLo - lo) + Math.max(0, hi - gridHi);
+    var registerDistance = Math.abs(oct);
+    var score = overflow * 1000 + registerDistance;
+    if (score < bestScore) {
+      bestScore = score;
+      bestOct = oct;
+    }
+  }
+  return bestOct;
+}
+
+function computePerformOnePosArrangements() {
+  if (!PlainState.activeNotes || PlainState.activeNotes.size === 0) return [];
+  var oct = computePerformRegisterOctave();
+  var notes = Array.from(PlainState.activeNotes).map(function(n) {
+    return n + oct * 12;
+  }).sort(function(a, b) { return a - b; });
+  var bass = notes[0];
+  var offsets = notes.map(function(n) { return n - bass; });
+  var bm = baseMidi();
+  var bassPositions = [];
+  for (var r = 0; r < ROWS; r++) {
+    var c = bass - bm - r * ROW_INTERVAL;
+    if (c >= 0 && c < COLS) bassPositions.push({ row: r, col: c });
+  }
+  var all = [];
+  bassPositions.forEach(function(bp) {
+    var arr = calcAllVoicingPositions(bp.row, bp.col, offsets);
+    if (arr) arr.forEach(function(vp) { all.push(vp); });
+  });
+  var seen = {}, uniq = [];
+  all.forEach(function(vp) {
+    var key = vp.positions.map(function(p) { return p.row + ',' + p.col; }).sort().join('|');
+    if (!seen[key]) { seen[key] = 1; uniq.push(vp); }
+  });
+  uniq.sort(function(a, b) { return a.maxDim - b.maxDim || a.area - b.area; });
+  return uniq;
+}
+
+function applyPerformPlayedChordState(state) {
+  if (!PlainState.activeNotes || PlainState.activeNotes.size === 0) return;
+  var notes = Array.from(PlainState.activeNotes).sort(function(a, b) { return a - b; });
+  var candidates = (typeof detectChord === 'function') ? detectChord(notes) : [];
+  if (!candidates || candidates.length === 0) return;
+  var root = candidates[0].rootPC;
+  state.rootPC = root;
+  state.activePCS = new Set(notes.map(function(n) { return n % 12; }));
+  state.activeIvPCS = new Set(notes.map(function(n) { return ((n % 12) - root + 12) % 12; }));
+  state.bassPC = null;
+  state.omittedPCS = new Set();
+  state.guide3PCS = new Set();
+  state.guide7PCS = new Set();
+  state.tensionPCS = new Set();
+  state.avoidPCS = new Set();
+  state.overlayPCS = null;
+  state.tastyMidiSet = null;
+  state.tastyDegreeMap = null;
+  state.tastyTopMidi = null;
+  state.tastyPadPositions = null;
+  if (BuilderState.quality && BuilderState.quality.pcs) {
+    state.qualityPCS = BuilderState.quality.pcs;
+  }
 }
 
 function render() {
@@ -809,6 +969,34 @@ function render() {
   // 他 UI（staff/guitar/bass/piano/circle/legend/info）は通常の state を使う。
   // Codex P1 fix 2026-04-14.
   const padState = (typeof padApplyPadOverride === 'function') ? padApplyPadOverride(state) : state;
+  if (memoryViewMode === 'perform' && PlainState.activeNotes.size > 0) {
+    applyPerformPlayedChordState(padState);
+  } else if (memoryViewMode === 'perform') {
+    padState.activePCS = new Set();
+    padState.activeIvPCS = null;
+    padState.rootPC = null;
+    padState.bassPC = null;
+    padState.omittedPCS = new Set();
+    padState.guide3PCS = new Set();
+    padState.guide7PCS = new Set();
+    padState.tensionPCS = new Set();
+    padState.avoidPCS = new Set();
+    padState.charPCS = new Set();
+    padState.overlayPCS = null;
+    padState.overlayCharPCS = new Set();
+    padState.tastyMidiSet = null;
+    padState.tastyDegreeMap = null;
+    padState.tastyTopMidi = null;
+    padState.tastyPadPositions = null;
+  }
+  // Input/Perform are direct note displays, not engine voicing displays. A previously enabled
+  // TASTY/STOCK/Guitar render state must not leak green/pink/tension colours into these views.
+  if (AppState.mode === 'input' || memoryViewMode === 'perform') {
+    padState.tastyMidiSet = null;
+    padState.tastyDegreeMap = null;
+    padState.tastyTopMidi = null;
+    padState.tastyPadPositions = null;
+  }
   // Basic-form default: compute the one shape's pad positions and dim the rest.
   // No voicing box is touched, so transpose/inversion just recompute this set (no #13).
   if (chordBasicFormActive()) {
@@ -874,23 +1062,75 @@ function render() {
   // against a visible scale. C-fixed keeps it C Major, matching Scale mode
   // (padApplyScaleOnlyOverride). うりなみさん 2026-05-31: input の画面も Scale/Chord のように
   // Scale を表示する。pressed pads (isPlainActive) はコード色のまま、それ以外にスケールを敷く。
-  if (AppState.mode === 'input') {
+  if (AppState.mode === 'input' && memoryViewMode !== 'perform') {
     // 無条件上書きで安全。pad-core の input 分岐 (pad-core/render.js の input branch)
     // は scaleBgPCS を返さないため、先行値を尊重する !padState.scaleBgPCS ガードは不要。
     // pad-core が将来 input で scaleBgPCS を返すようになったら、このガード前提を見直すこと。
+    // memoryViewMode === 'perform' は除外: Perform view は下の perform ブロックで
+    // performAllPositions に応じてスケール背景を制御する (input mode が穴埋めしてはいけない)。
     var _inCFixed = AppState.padCFixed === true;
     var _scIn = SCALES[_inCFixed ? 0 : AppState.scaleIdx];
     var _inKey = _inCFixed ? 0 : AppState.key;
     padState.scaleBgPCS = new Set(_scIn.pcs.map(function(iv){ return (iv + _inKey) % 12; }));
     padState.allPosScaleBg = true;
   }
+  // Perform view: the scale surface is always visible, even before a slot is triggered.
+  // This keeps the screen calm and educational: the grid always shows the current scale context,
+  // and the played/selected memory voicing is drawn on top when present.
+  if (memoryViewMode === 'perform') {
+    var _pfScaleCFixed = AppState.padCFixed === true;
+    var _pfScale = SCALES[_pfScaleCFixed ? 0 : AppState.scaleIdx];
+    var _pfScaleKey = _pfScaleCFixed ? 0 : AppState.key;
+    padState.scaleBgPCS = new Set(_pfScale.pcs.map(function(iv){ return (iv + _pfScaleKey) % 12; }));
+    padState.allPosScaleBg = true;
+  }
+  // Perform view DISPLAY (audio is never touched — perform.js plays slot.midiNotes verbatim):
+  //  • default (one position / 同一音を表示 OFF): COLLAPSE the playing voicing's actual pitches to
+  //    ONE compact pad arrangement, drawn exactly like the chord basic form (grey single shape +
+  //    blue/orange scale background + degree/tension labels + "1/N" badge). The arrangement is
+  //    computed directly from PlainState.activeNotes, so the saved slot register is kept — only
+  //    the LAYOUT collapses to one position. うりなみさん 2026-05-31: なっている音を鳴らしつつ、
+  //    表示だけ1ポジション(教育用)。
+  //  • same notes (performAllPositions === true): show ONLY the exact recorded MIDI pitches in
+  //    grey over the same blue/orange educational scale background. No octave copies, no green.
+  // Runs LAST so it wins over any basic-form state above (chordBasicFormActive is gated off here).
+  var _performOnePosState = (memoryViewMode === 'perform' && AppState.performAllPositions !== true);
+  if (_performOnePosState && PlainState.activeNotes.size > 0) {
+    // Arrange the recorded pitches directly. Do not call basicFormArrangements() here: in Chord /
+    // Scale mode it reads BuilderState and can normalize away the saved slot register.
+    var _pfArr = computePerformOnePosArrangements();
+    if (_pfArr.length > 0) {
+      var _pfIdx = PerformState.onePosIdx || 0;
+      if (_pfIdx >= _pfArr.length) _pfIdx = 0;
+      PerformState.onePosIdx = _pfIdx;
+      var _pfChosen = _pfArr[_pfIdx];
+      padState.basicFormPadSet = new Set(_pfChosen.positions.map(function(p){ return p.row * COLS + p.col; }));
+      var _pfCF = AppState.padCFixed === true;
+      var _pfScOne = SCALES[_pfCF ? 0 : AppState.scaleIdx];
+      var _pfKeyOne = _pfCF ? 0 : AppState.key;
+      padState.scaleBgPCS = new Set(_pfScOne.pcs.map(function(iv){ return (iv + _pfKeyOne) % 12; }));
+      padState.basicFormShapePositions = _pfChosen.positions;
+      padState.basicFormArrCount = _pfArr.length;
+      padState.basicFormPosIdx = _pfIdx;
+    }
+  } else if (memoryViewMode === 'perform' && AppState.performAllPositions === true && PlainState.activeNotes.size > 0) {
+    var _pfCFixed = AppState.padCFixed === true;
+    var _scPf = SCALES[_pfCFixed ? 0 : AppState.scaleIdx];
+    var _pfKey = _pfCFixed ? 0 : AppState.key;
+    padState.scaleBgPCS = new Set(_scPf.pcs.map(function(iv){ return (iv + _pfKey) % 12; }));
+    padState.allPosScaleBg = true;
+  }
   renderPads(svg, padState);
-  if (AppState.mode !== 'input' && !TastyState.enabled && !StockState.enabled && !(_voicingReflectMode && _guitarSyncSource === 'position') && !_stockReflectMode && !chordBasicFormActive()) {
+  if (AppState.mode !== 'input' && memoryViewMode !== 'perform' && !TastyState.enabled && !StockState.enabled && !(_voicingReflectMode && _guitarSyncSource === 'position') && !_stockReflectMode && !chordBasicFormActive()) {
     renderVoicingBoxes(svg, state);
   }
   // Basic-form "other positions exist" cue: a clickable "current/total" badge (no blink).
-  if (chordBasicFormActive() && padState.basicFormArrCount > 1 && padState.basicFormShapePositions) {
-    drawBasicFormBadge(svg, padState.basicFormShapePositions, (padState.basicFormPosIdx || 0) + 1, padState.basicFormArrCount);
+  // Chord mode cycles via cycleBasicFormPosition (which replays the shape). Perform view uses a
+  // DISPLAY-ONLY cycle (cyclePerformOnePos) that re-lays-out the same recorded pitches without
+  // ever replaying — the recorded playback is left exactly as-is.
+  if ((chordBasicFormActive() || _performOnePosState) && padState.basicFormArrCount > 1 && padState.basicFormShapePositions) {
+    drawBasicFormBadge(svg, padState.basicFormShapePositions, (padState.basicFormPosIdx || 0) + 1, padState.basicFormArrCount,
+      _performOnePosState ? cyclePerformOnePos : null);
   }
   renderLegend(state);
 

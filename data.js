@@ -50,6 +50,7 @@ const AppState = {
   showBadges: true,  // voicing box badge (A, B, C…) visibility
   colorOff: true,    // single-color mode: root keeps its color, every other lit pad is one color. Default ON.
   showAllPositions: false, // chord mode: false=basic form (one shape) only, true=all grid positions (overview + voicing boxes). The single source of truth for screen all-positions AND Push chord overview. Default OFF.
+  performAllPositions: false, // Perform view DISPLAY ONLY (audio always plays slot.midiNotes verbatim): false=collapse the played voicing to ONE compact educational position near the recorded register (grey shape over blue/orange scale bg + degree/tension labels + "1/N" badge, like chord basic form), true=show ONLY the exact recorded MIDI pitches in grey over the same scale background. Beginner default OFF (one shape). Toggled by the Perform memory-row button #btn-perform-same-notes (active=same notes ON); not a 表示設定 panel field.
   padCFixed: false,  // Pad OS: lock pad display to C Major scale (urinami 2026-04-14)
   pushScaleRootColor: 3, // Push 3 palette index: scale root
   pushScaleToneColor: 122, // Push 3 palette index: scale tone
@@ -93,6 +94,7 @@ const PlainState = {
 
 const PerformState = {
   activePad: null,              // 現在再生中のパッドインデックス
+  onePosIdx: 0,                 // perform one-position view: which compact pad arrangement is shown (badge cycles). View-only, display only — never re-triggers playback; reset to 0 on each slot tap, clamped each render.
 };
 
 // ======== GUITAR/BASS POSITION STATE (v3.19) ========
@@ -227,6 +229,7 @@ function saveAppSettings() {
       padCFixed: AppState.padCFixed,
       colorOff: AppState.colorOff,
       showAllPositions: AppState.showAllPositions,
+      performAllPositions: AppState.performAllPositions,
       pushScaleRootColor: AppState.pushScaleRootColor,
       pushScaleToneColor: AppState.pushScaleToneColor,
       pushPressedColor: AppState.pushPressedColor,
@@ -275,6 +278,7 @@ function loadAppSettings() {
     if (s.colorOff !== undefined) AppState.colorOff = s.colorOff === true;
     if (s.showAllPositions !== undefined) AppState.showAllPositions = s.showAllPositions === true;
     else if (s.pushVoicingOverview === true) AppState.showAllPositions = true; // migrate retired pushVoicingOverview key
+    if (s.performAllPositions !== undefined) AppState.performAllPositions = s.performAllPositions === true;
     if (s.pushLedColorSettingsVersion === AppState.pushLedColorSettingsVersion) {
       if (s.pushScaleRootColor !== undefined && s.pushScaleRootColor >= 0 && s.pushScaleRootColor <= 127) AppState.pushScaleRootColor = s.pushScaleRootColor;
       if (s.pushScaleToneColor !== undefined && s.pushScaleToneColor >= 0 && s.pushScaleToneColor <= 127) AppState.pushScaleToneColor = s.pushScaleToneColor;

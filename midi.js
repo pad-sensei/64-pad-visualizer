@@ -331,6 +331,10 @@ function highlightMidiPads(midiNotes) {
 
 function highlightPlaybackPads(midiNotes) {
   document.querySelectorAll('.playback-highlight').forEach(el => el.remove());
+  // Perform has its own educational display:
+  // one-position by default, exact recorded notes only when the toggle is on.
+  // Never add the old green playback overlay in Perform.
+  if (typeof memoryViewMode !== 'undefined' && memoryViewMode === 'perform') return;
   if (!midiNotes || midiNotes.length === 0) return;
   const svg = document.getElementById('pad-grid');
   const bm = baseMidi();

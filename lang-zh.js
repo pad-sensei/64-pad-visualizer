@@ -126,6 +126,8 @@ I18N.addLang('zh', {
     tips_toggle: '启动时显示提示',
     badge_toggle: 'Show shortcut key hints',
     c_fixed_toggle: '固定为C大调',
+    perform_same_notes: '在Perform中仅显示演奏音',
+    perform_same_notes_tip: '开启时，Perform 只显示录制的准确音高。关闭时，会把正在演奏的按法折叠为一个教学用位置。',
     color_coding_toggle: '为特性音和和弦音着色',
     c_fixed_tip: '无论 Key/Scale/Chord 如何选择，Pad 始终显示C大调音阶。',
     layout: '布局',

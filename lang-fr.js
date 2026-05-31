@@ -122,6 +122,8 @@ I18N.addLang('fr', {
     tips_toggle: 'Afficher les astuces au démarrage',
     badge_toggle: 'Show shortcut key hints',
     c_fixed_toggle: 'Verrouiller en Do majeur',
+    perform_same_notes: 'Afficher seulement les notes jouées en Perform',
+    perform_same_notes_tip: 'Activé affiche seulement les hauteurs enregistrées exactes en Perform. Désactivé replie le voicing joué vers une seule position pédagogique.',
     color_coding_toggle: 'Colorer notes caractéristiques et accords',
     c_fixed_tip: 'Le pad affiche toujours la gamme Do majeur, indépendamment de Key/Scale/Chord.',
     layout: 'Disposition',

@@ -126,6 +126,8 @@ I18N.addLang('ko', {
     tips_toggle: '시작 시 팁 표시',
     badge_toggle: 'Show shortcut key hints',
     c_fixed_toggle: 'C 메이저 고정',
+    perform_same_notes: 'Perform에서 연주음만 표시',
+    perform_same_notes_tip: '켜면 Perform에서 녹음된 정확한 음높이만 표시합니다. 끄면 연주 중인 보이싱을 교육용 한 포지션으로 접어 표시합니다.',
     color_coding_toggle: '특성음·코드톤에 색칠하기',
     c_fixed_tip: '패드는 Key/Scale/Chord 선택과 관계없이 항상 C 메이저 스케일을 표시합니다.',
     layout: '레이아웃',

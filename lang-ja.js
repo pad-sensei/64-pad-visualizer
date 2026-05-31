@@ -126,6 +126,8 @@ I18N.addLang('ja', {
     tips_toggle: '起動時にヒントを表示',
     badge_toggle: 'ショートカットキーの案内を表示',
     c_fixed_toggle: 'Cメジャースケール固定',
+    perform_same_notes: '再生時に同一音を表示',
+    perform_same_notes_tip: 'オンにすると、Performで録音された同一音だけをその音域で表示します。オフでは鳴っている押さえを教育用の1ポジションに畳んで表示します。',
     color_coding_toggle: '特性音・コードトーンに色を付ける',
     c_fixed_tip: 'パッドは常にCメジャースケールで表示されます。Key/Scale/Chordを変えてもパッドの配置は変わりません。楽器としての本来の振る舞いです。',
     layout: 'レイアウト',

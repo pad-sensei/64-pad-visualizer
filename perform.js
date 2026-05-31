@@ -19,15 +19,17 @@ function performPadTap(idx) {
   if (!slot) return;
   noteOffAll();
   PerformState.activePad = idx;
+  // AUDIO: play the recorded voicing exactly as saved — never altered by the display mode.
   playMidiNotes(slot.midiNotes, 1.0);
   // Show chord on pad grid + staff (same as Input mode display)
   PlainState.activeNotes = new Set(slot.midiNotes);
+  // New slot → show its compact (basic-form) arrangement first in one-position view.
+  PerformState.onePosIdx = 0;
   // Sync BuilderState so guitar diagram, chord name, degree labels update
   BuilderState._fromDiatonic = true;
   applyNotesToBuilder(slot.midiNotes);
   updatePlainDisplay();
   render();
-  highlightPlaybackPads(slot.midiNotes);
   updateMemorySlotUI();
 }
 

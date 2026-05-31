@@ -126,6 +126,8 @@ I18N.addLang('de', {
     tips_toggle: 'Tipps beim Start anzeigen',
     badge_toggle: 'Show shortcut key hints',
     c_fixed_toggle: 'Auf C-Dur sperren',
+    perform_same_notes: 'Im Perform nur gespielte Noten zeigen',
+    perform_same_notes_tip: 'Ein zeigt nur die exakt aufgenommenen Tonhöhen in Perform. Aus fasst das gespielte Voicing zu einer pädagogischen Einzelposition zusammen.',
     color_coding_toggle: 'Charakteristische & Akkordtöne färben',
     c_fixed_tip: 'Das Pad zeigt immer die C-Dur-Tonleiter an, unabhängig von Key/Scale/Chord.',
     layout: 'Layout',

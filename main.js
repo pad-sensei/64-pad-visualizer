@@ -107,6 +107,10 @@ function syncViewSetupControls() {
   if (sapBtn) sapBtn.classList.toggle('active', AppState.showAllPositions === true);
   var cFixedToggles = document.querySelectorAll('[data-view-setup-c-fixed]');
   cFixedToggles.forEach(function(input) { input.checked = AppState.padCFixed === true; });
+  // 「再生時に同一音を表示」は表示設定パネルから外し、Perform のボタン列(Play ▶ の隣)に一本化。
+  // ボタンの active 状態(=同一音表示 ON)だけここで同期する。
+  var psnBtn = document.getElementById('btn-perform-same-notes');
+  if (psnBtn) psnBtn.classList.toggle('active', AppState.performAllPositions === true);
   var pushColorLabels = document.querySelectorAll('[data-push-color-label]');
   pushColorLabels.forEach(function(el) {
     var role = el.getAttribute('data-push-color-label');
@@ -364,6 +368,17 @@ function toggleCFixed(on) {
   if (typeof window !== 'undefined' && typeof window._pushNotifyCFixedChanged === 'function') {
     window._pushNotifyCFixedChanged();
   }
+}
+
+// Perform view positions: OFF (default) = collapse the recorded voicing to one educational
+// position; ON = show the exact recorded pitches only. Display-only, applies live.
+function togglePerformAllPositions(on) {
+  AppState.performAllPositions = on === true;
+  saveAppSettings();
+  // Perform ボタン列のトグル active 状態を同期(active = 同一音表示 ON)。
+  var psnBtn = document.getElementById('btn-perform-same-notes');
+  if (psnBtn) psnBtn.classList.toggle('active', AppState.performAllPositions === true);
+  if (typeof render === 'function') render();
 }
 
 showStartupTip();

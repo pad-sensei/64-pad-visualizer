@@ -126,6 +126,8 @@ I18N.addLang('pt', {
     tips_toggle: 'Mostrar dicas na inicialização',
     badge_toggle: 'Show shortcut key hints',
     c_fixed_toggle: 'Fixar em Dó maior',
+    perform_same_notes: 'Mostrar apenas as notas tocadas no Perform',
+    perform_same_notes_tip: 'Ligado mostra apenas as alturas exatas gravadas no Perform. Desligado compacta o voicing tocado em uma única posição educativa.',
     color_coding_toggle: 'Colorir notas características e de acorde',
     c_fixed_tip: 'O pad sempre mostra a escala de Dó maior, independentemente de Key/Scale/Chord.',
     layout: 'Layout',

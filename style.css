@@ -275,6 +275,17 @@ body[data-view-setup-field="close"] .view-setup-row[data-view-setup-field="close
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/* Perform ボタン列「再生時に同一音を表示」トグル: active = 同一音表示 ON */
+#btn-perform-same-notes {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+#btn-perform-same-notes.active {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+}
 .push-color-pick-modal {
   width: min(460px, calc(100vw - 28px));
 }
