@@ -19,6 +19,13 @@ let midiDebounceTimer = null;
 const MIDI_DEBOUNCE_MS = 40; // PUSHのシリアルMIDI対策: 40ms以内のノートをまとめる
 let midiNoteRemap = null; // null = no remap, 'push-serial' = Push serial→4th chromatic
 
+function chordPracticeDisplayLocked() {
+  return !linkMode
+    && AppState.mode === 'chord'
+    && BuilderState.root !== null
+    && !!BuilderState.quality;
+}
+
 // Launchpad LED output (HPS exclusive — gated by ?hps URL parameter)
 let midiOutput = null;       // Output port for LED Note-On
 let midiOutputDAW = null;    // DAW port for SysEx (may be same as midiOutput)
@@ -61,7 +68,7 @@ function onMidiNoteOn(note, velocity) {
   // Auto-adjust octave if MIDI note is outside pad grid range
   var bm = baseMidi();
   var padHi = bm + (ROWS - 1) * ROW_INTERVAL + (COLS - 1);
-  if (mapped < bm || mapped > padHi) {
+  if (!chordPracticeDisplayLocked() && (mapped < bm || mapped > padHi)) {
     var targetOct = Math.round((mapped - BASE_MIDI) / 12);
     if (setOctaveShift(targetOct)) {
       render();
@@ -149,6 +156,7 @@ function updateMidiDisplay() {
   if (notes.length === 0) {
     document.querySelectorAll('.midi-highlight').forEach(el => el.remove());
     document.querySelectorAll('.link-highlight').forEach(el => el.remove());
+    if (chordPracticeDisplayLocked()) return;
     // Plain mode: #midi-detect is SSOT of updatePlainDisplay(), don't clear
     if (!linkMode && AppState.mode === 'input') return;
     if (linkMode) { detectEl.innerHTML = ''; return; } // Link mode: just clear highlights, keep display
@@ -163,6 +171,10 @@ function updateMidiDisplay() {
     }
     return;
   }
+  // Chord practice: when a chord is already displayed, external/Push pad input should
+  // play only. Do not replace the chord display, diagrams, octave range, or add white
+  // practice highlights; the screen is the exercise target.
+  if (chordPracticeDisplayLocked()) return;
   // Guitar/Bass/Piano input active: preserve instrument chord name, only add MIDI highlights
   if (!linkMode && instrumentInputActive) {
     highlightMidiPads(notes);
