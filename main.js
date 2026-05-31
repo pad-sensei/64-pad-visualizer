@@ -573,6 +573,16 @@ document.addEventListener('keydown', (e) => {
     if (tipEl) { e.preventDefault(); dismissStartupTip(); return; }
     e.preventDefault();
     ensureAudioResumed();
+    if (memoryViewMode === 'perform' && PerformState.activePad !== null
+        && typeof cyclePerformOnePos === 'function' && cyclePerformOnePos()) {
+      return;
+    }
+    if (AppState.mode === 'chord'
+        && typeof isGuitarEngineActive === 'function' && isGuitarEngineActive()
+        && typeof cycleGuitarEngine === 'function') {
+      cycleGuitarEngine(false);
+      return;
+    }
     // Voicing box selected with multiple alternatives: Space cycles to the next alternative + plays
     // (works in all-positions view too, where basic-form cycling is off).
     if (AppState.mode === 'chord' && VoicingState.selectedBoxIdx !== null

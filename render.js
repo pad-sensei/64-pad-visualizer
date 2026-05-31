@@ -359,23 +359,6 @@ function renderPads(svg, state, grid) {
             _heldMidi = m; noteOn(m);
           } else {
             _heldMidi = m; noteOn(m);
-            if (AppState.mode === 'chord' && BuilderState.root !== null && BuilderState.quality) {
-              if (padExtNotes.size === 0) {
-                // First press: seed from builder chord so existing tones are toggleable
-                const builderNotes = getCurrentChordMidiNotes() || [];
-                builderNotes.forEach(n => padExtNotes.add(n));
-              }
-              const pc = m % 12;
-              const existing = [...padExtNotes].find(n => n % 12 === pc);
-              if (existing !== undefined) { padExtNotes.delete(existing); } else { padExtNotes.add(m); }
-              // Try to apply back to builder panel directly
-              const extMidi = [...padExtNotes].sort((a, b) => a - b);
-              if (extMidi.length > 0 && applyNotesToBuilder(extMidi)) {
-                padExtNotes.clear(); // builder now holds the state, no overlay needed
-              }
-              syncGuitarFromNotes(getCurrentChordMidiNotes() || extMidi);
-              render();
-            }
           }
         });
         r.addEventListener('touchstart', (e) => {
@@ -391,21 +374,6 @@ function renderPads(svg, state, grid) {
           } else {
             for (const t of e.changedTouches) { _heldTouches.set(t.identifier, m); }
             noteOn(m);
-            if (AppState.mode === 'chord' && BuilderState.root !== null && BuilderState.quality) {
-              if (padExtNotes.size === 0) {
-                const builderNotes = getCurrentChordMidiNotes() || [];
-                builderNotes.forEach(n => padExtNotes.add(n));
-              }
-              const pc = m % 12;
-              const existing = [...padExtNotes].find(n => n % 12 === pc);
-              if (existing !== undefined) { padExtNotes.delete(existing); } else { padExtNotes.add(m); }
-              const extMidi = [...padExtNotes].sort((a, b) => a - b);
-              if (extMidi.length > 0 && applyNotesToBuilder(extMidi)) {
-                padExtNotes.clear();
-              }
-              syncGuitarFromNotes(getCurrentChordMidiNotes() || extMidi);
-              render();
-            }
           }
         });
       })(midi, rect);
@@ -924,12 +892,7 @@ function render() {
 
   // Voicing reflect: auto-positioned guitar voicing → deduped pad positions (WYSIWYG)
   if (_voicingReflectMode && _guitarSyncSource === 'position') {
-    var reflectNotes = [];
-    for (var s = 0; s < 6; s++) {
-      if (guitarSelectedFrets[s] !== null) {
-        reflectNotes.push(GUITAR_OPEN_MIDI[s] + guitarSelectedFrets[s]);
-      }
-    }
+    var reflectNotes = (typeof getGuitarEngineMidiNotes === 'function') ? getGuitarEngineMidiNotes() : [];
     if (reflectNotes.length >= 2) {
       _instrumentMidiSet = new Set(reflectNotes);
       var layout = _computeVoicingPadPositions(_instrumentMidiSet);
@@ -1169,7 +1132,7 @@ function render() {
   renderCircle();
 
   // Re-apply instrument highlights after SVG rebuild
-  if (instrumentInputActive) {
+  if (instrumentInputActive && !(typeof isGuitarEngineActive === 'function' && isGuitarEngineActive())) {
     highlightInstrumentPads(getAllInputMidiNotes());
   }
 

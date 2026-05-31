@@ -149,7 +149,8 @@ function renderGuitarDiagram(rootPC, pcsSet, bassPC, overlayPCS, overlayCharPCS,
   // Build ghost forms from guitar position groups
   let ghostForms = null;
   let curFretSet = null;
-  if (GuitarPositionState.enabled && GuitarPositionState.groups.length > 0) {
+  if (GuitarPositionState.enabled && GuitarPositionState.groups.length > 0 &&
+      !(typeof isGuitarEngineActive === 'function' && isGuitarEngineActive())) {
     const gGroup = GuitarPositionState.groups[GuitarPositionState.currentGroupIdx];
     if (gGroup && gGroup.forms.length > 1) {
       curFretSet = new Set();
@@ -191,6 +192,7 @@ function renderGuitarDiagram(rootPC, pcsSet, bassPC, overlayPCS, overlayCharPCS,
     onFretClick: toggleGuitarFret,
     ghostForms: ghostForms,
     currentFretSet: curFretSet,
+    colorOff: AppState.colorOff,
   });
 }
 
@@ -238,10 +240,12 @@ function renderBassDiagram(rootPC, pcsSet, bassPC, overlayPCS, overlayCharPCS, e
     isLandscape: _isLandscape,
     padRange: { lo: bPadLo, hi: bPadHi },
     onFretClick: toggleBassFret,
+    colorOff: AppState.colorOff,
   });
 }
 
 function toggleBassFret(stringIdx, fret) {
+  if (AppState.mode !== 'input' && typeof setMode === 'function') setMode('input');
   if (bassSelectedFrets[stringIdx] === fret) {
     bassSelectedFrets[stringIdx] = null;
   } else {
@@ -293,7 +297,10 @@ function renderPianoDisplay(stateOrRootPC, pcsSetOpt) {
       if (!stockMidiSet.has(midi)) return { fill: baseOff, textColor: null, opacity: 1, showLabel: false };
       var deg = StockState.degreeMap[midi];
       var fill, textColor;
-      if (deg === '1')                                       { fill = PAD_INST_COLORS.root; textColor = '#fff'; }
+      if (AppState.colorOff) {
+        fill = isWhite ? PAD_INST_COLORS.pianoChordWhite : PAD_INST_COLORS.pianoChordBlack;
+        textColor = isWhite ? '#333' : '#fff';
+      } else if (deg === '1')                                { fill = PAD_INST_COLORS.root; textColor = '#fff'; }
       else if (deg === '3' || deg === 'b3')                  { fill = PAD_INST_COLORS.guide3; textColor = '#fff'; }
       else if (deg === '7' || deg === 'b7' || deg === 'bb7') { fill = PAD_INST_COLORS.guide7; textColor = '#fff'; }
       else if (deg === '5' || deg === 'b5' || deg === '#5')  { fill = isWhite ? PAD_INST_COLORS.pianoChordWhite : PAD_INST_COLORS.pianoChordBlack; textColor = isWhite ? '#333' : '#fff'; }
@@ -337,6 +344,7 @@ function renderPianoDisplay(stateOrRootPC, pcsSetOpt) {
     labelFn: labelFn,
     keyColorFn: keyColorFn,
     onKeyClick: togglePianoNote,
+    colorOff: AppState.colorOff,
   });
 }
 
@@ -448,11 +456,10 @@ function _computeVoicingPadPositions(midiSet) {
   return { padSet: padSet, dualCount: duals.length, layoutCount: unique.length };
 }
 
-// ギターエンジンの発音/パッド表示は実音より 1 オクターブ上げる (うりなみさん FB 2026-05-28:
-// 低 E2 始まりの素のギター音域は音源で鳴らすと低すぎる)。フォーム探索 / TAB 表示は
-// GUITAR_OPEN_MIDI のまま (運指は不変)、出力だけ +12。パッドは centerPadOnMidiNotes で
-// 再センタリングされるため見た目位置は変わらず、音域だけ上がる。
-var GUITAR_ENGINE_OCTAVE_OFFSET = 12;
+// Guitar engine is educational: pad / Push display should match the real guitar register.
+// Form search and emitted/displayed MIDI stay in the same register so one visible position maps
+// to the actual fretboard shape.
+var GUITAR_ENGINE_OCTAVE_OFFSET = 0;
 function getGuitarEngineMidiNotes() {
   var notes = [];
   for (var s = 0; s < 6; s++) {
@@ -844,6 +851,7 @@ function getAllInputMidiNotes() {
 }
 
 function toggleGuitarFret(stringIdx, fret) {
+  if (AppState.mode !== 'input' && typeof setMode === 'function') setMode('input');
   if (guitarSelectedFrets[stringIdx] === fret) {
     guitarSelectedFrets[stringIdx] = null;
   } else {
@@ -864,6 +872,7 @@ function toggleGuitarFret(stringIdx, fret) {
 }
 
 function togglePianoNote(midi) {
+  if (AppState.mode !== 'input' && typeof setMode === 'function') setMode('input');
   if (pianoSelectedNotes.has(midi)) {
     pianoSelectedNotes.delete(midi);
   } else {
@@ -876,7 +885,7 @@ function updateInstrumentInput() {
   const instrNotes = getAllInputMidiNotes();
   instrumentInputActive = instrNotes.length > 0;
   const ctrlEl = document.getElementById('instrument-controls');
-  if (ctrlEl) ctrlEl.style.display = instrumentInputActive ? 'flex' : 'none';
+  if (ctrlEl) ctrlEl.style.display = 'none';
   // Pre-warm audio on first note selection so Play button works instantly
   if (instrumentInputActive) ensureAudioResumed();
   if (instrNotes.length === 0) {
@@ -1052,6 +1061,7 @@ function highlightInstrumentPads(midiNotes) {
   if (VoicingState.selectedBoxIdx !== null) return;
   if (TastyState.enabled && TastyState.midiNotes.length > 0) return;
   if (StockState.enabled && StockState.currentIndex >= 0) return;
+  if (typeof isGuitarEngineActive === 'function' && isGuitarEngineActive()) return;
   // Basic-form draws its own single clean shape — never overlay the white position frames.
   if (typeof chordBasicFormActive === 'function' && chordBasicFormActive()) return;
   // All-positions view already shows every chord position in grey over the scale background;

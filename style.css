@@ -670,6 +670,10 @@ body.pane-view-single #staff-ep-panel {
   line-height: 1.15;
   margin: 0 auto;
 }
+.chord-display.engine-guitar-active .builder-nav button[onclick^="builderClear"],
+.chord-display.engine-guitar-active .builder-nav .builder-play-btn {
+  display: none;
+}
 .chord-engine-detail {
   margin: -4px 0 8px; padding: 5px 8px 7px;
   border: 1px solid var(--border); border-radius: 7px;
