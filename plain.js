@@ -638,30 +638,19 @@ function findNextEmptySlot(from) {
 
 function updatePlainUI() {
   const statusEl = document.getElementById('plain-status-text');
-  const captureBtn = document.getElementById('btn-plain-capture');
-  const endBtn = document.getElementById('btn-plain-end');
-  if (!statusEl) return;
-  var kbdC = '<span class="kbd-hint" style="color:rgba(255,255,255,0.4);">C</span>';
-  if (PlainState.subMode === 'idle') {
-    statusEl.textContent = t('input.status_idle');
-    statusEl.style.color = 'var(--text-muted)';
-    captureBtn.innerHTML = kbdC + t('memory.capture');
-    captureBtn.style.background = '#2a4a6a';
-    endBtn.style.display = 'none';
-  } else if (PlainState.subMode === 'capture') {
-    const slotNum = Math.min(PlainState.captureIndex + 1, 16);
-    statusEl.textContent = t('input.status_capturing', {slot: slotNum});
-    statusEl.style.color = '#5a8aaa';
-    captureBtn.innerHTML = kbdC + t('memory.capture') + ' (' + slotNum + ')';
-    captureBtn.style.background = '#2a4a6a';
-    endBtn.style.display = '';
-  } else if (PlainState.subMode === 'edit') {
-    const slotNum = PlainState.currentSlot !== null ? PlainState.currentSlot + 1 : '?';
-    statusEl.textContent = t('input.status_editing', {slot: slotNum});
-    statusEl.style.color = 'var(--accent)';
-    captureBtn.innerHTML = kbdC + t('memory.capture');
-    captureBtn.style.background = '#2a4a6a';
-    endBtn.style.display = '';
+  if (statusEl) {
+    if (PlainState.subMode === 'idle') {
+      statusEl.textContent = t('input.status_idle');
+      statusEl.style.color = 'var(--text-muted)';
+    } else if (PlainState.subMode === 'capture') {
+      const slotNum = Math.min(PlainState.captureIndex + 1, 16);
+      statusEl.textContent = t('input.status_capturing', {slot: slotNum});
+      statusEl.style.color = '#5a8aaa';
+    } else if (PlainState.subMode === 'edit') {
+      const slotNum = PlainState.currentSlot !== null ? PlainState.currentSlot + 1 : '?';
+      statusEl.textContent = t('input.status_editing', {slot: slotNum});
+      statusEl.style.color = 'var(--accent)';
+    }
   }
   updateMemorySlotUI();
 }
@@ -822,13 +811,56 @@ function savePlainSlot(idx) {
 
 // Live edit auto-save: while editing a slot (Perform toggle OFF), any semitone/octave change
 // to the edit buffer immediately overwrites the selected slot and re-detects its chord label.
-// Perform toggle ON (perform view) is the safety valve — it never overwrites saved slots.
+// Perform toggle ON (perform view) is the safety valve for non-held slots — but the pad you are
+// holding (PerformState.activePad) IS live-editable and saved (Push WYSIWYG, うりなみさん 2026-05-31).
 function autoSaveEditedSlot() {
-  if (memoryViewMode === 'perform') return;
+  if (memoryViewMode === 'perform') {
+    // Perform live-edit: 押さえているスロット(activePad)を半音(←→)/オクターブ(Shift+↑↓)で
+    // 動かしたら、その場でそのスロットに保存する。「見えている＝鳴っている＝保存されている」
+    // (Push WYSIWYG)。「perform は上書きしない」安全弁は、押さえているパッドに限り解除する。
+    // currentSlot には触らない (saveBtn 表示 / export ラベルが perform で誤作動するため)。
+    if (PerformState.activePad !== null) {
+      const _pi = PerformState.activePad;
+      const _notes = [...PlainState.activeNotes].sort((a, b) => a - b);
+      if (_notes.length > 0) {
+        const _cands = detectChord(_notes);
+        const _name = _cands.length > 0 ? _cands[0].name : _notes.map(n => NOTE_NAMES_SHARP[n % 12]).join(' ');
+        pushUndoState();
+        PlainState.memory[_pi] = makeMemorySlot(_notes, _name, null);
+        updateMemorySlotUI();
+        if (typeof saveAppSettings === 'function') saveAppSettings();
+      }
+    }
+    return;
+  }
   if (PlainState.subMode === 'edit' && PlainState.currentSlot !== null) {
     savePlainSlot(PlainState.currentSlot);
     if (typeof saveAppSettings === 'function') saveAppSettings();
   }
+}
+
+// Perform live-edit: replay the held slot's edited notes so the sound follows the pitch nudge.
+// updatePlainDisplay() only refreshes text, so we re-trigger audio explicitly here.
+function performReplayActive() {
+  if (memoryViewMode !== 'perform' || PerformState.activePad === null) return;
+  if (PlainState.activeNotes.size === 0) return;
+  noteOffAll();
+  playMidiNotes([...PlainState.activeNotes].sort((a, b) => a - b), 1.0);
+}
+
+// Whole-chord octave nudge (±12) shared by Web Shift+Up/Down (main.js) and Push octave
+// buttons (midi.js). In perform it moves the held slot and saves it (autoSaveEditedSlot →
+// activePad); in input-edit it moves the edit buffer and saves to currentSlot. NOT a global
+// transpose — octaveShift is never touched (Push WYSIWYG, うりなみさん 2026-05-31).
+function performOctaveEdit(dir) {
+  if (PlainState.activeNotes.size === 0) return;
+  const _oct = dir > 0 ? 12 : -12;
+  const _octNotes = new Set();
+  PlainState.activeNotes.forEach(n => _octNotes.add(n + _oct));
+  PlainState.activeNotes = _octNotes;
+  updatePlainDisplay(); render();
+  performReplayActive();
+  autoSaveEditedSlot();
 }
 
 function recallPlainSlot(idx) {

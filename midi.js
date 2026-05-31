@@ -479,7 +479,15 @@ function initWebMIDI() {
             var now = performance.now();
             if (now - _lastOctCC < 100) return;
             _lastOctCC = now;
-            shiftOctave(rawNote === 55 ? 1 : -1);
+            var _octDir = rawNote === 55 ? 1 : -1;
+            // Perform + held pad: octave-shift that slot and save (Push WYSIWYG, うりなみさん
+            // 2026-05-31) instead of the global octave transpose. Other modes keep shiftOctave.
+            if (memoryViewMode === 'perform' && PerformState.activePad !== null &&
+                PlainState.activeNotes.size > 0) {
+              performOctaveEdit(_octDir);
+            } else {
+              shiftOctave(_octDir);
+            }
             return;
           }
           // Launchpad octave buttons: CC#91=▲, CC#92=▼ (X/Mini MK3/Pro MK3)

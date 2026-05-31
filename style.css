@@ -1032,6 +1032,9 @@ body.pane-view-single #staff-ep-panel {
   box-shadow: 0 6px 22px rgba(0,0,0,0.55);
   min-width: 190px;
   font-size: 0.8rem;
+  /* Menu is appended to <html> (outside <body>) so it escapes the Desktop body zoom;
+     set the UI font explicitly since it no longer inherits body { font-family }. */
+  font-family: var(--font-ui);
 }
 .pad-context-menu-item {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;

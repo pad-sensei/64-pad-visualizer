@@ -12,6 +12,18 @@ function setMode(mode) {
   if (mode === 'chord' && AppState.mode === 'input' && PlainState.activeNotes.size >= 2) {
     if (transferToChordMode()) return; // transferToChordMode handles everything
   }
+  // Input → 他モード: build buffer をクリアする。
+  // コードビルダーへの転送は transferToChordMode (上で early-return) と
+  // transferDetectedCandidate (setMode を経由せず AppState.mode を直接設定) の
+  // 2 経路のみで、どちらもこの行に到達しないため自然に除外される
+  // (うりなみさん 2026-05-31: input でコードをコードビルダーへ渡す以外、他モードへ移ったらクリア)。
+  if (AppState.mode === 'input' && mode !== 'input') {
+    PlainState.activeNotes.forEach(function(m) { noteOff(m); });
+    PlainState.activeNotes.clear();
+    PlainState.subMode = 'idle';
+    if (instrumentInputActive) clearInstrumentInput();
+    updatePlainDisplay();
+  }
   AppState.mode = mode;
   document.getElementById('mode-scale').classList.toggle('active', mode === 'scale');
   document.getElementById('mode-chord').classList.toggle('active', mode === 'chord');

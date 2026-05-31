@@ -499,9 +499,9 @@ document.addEventListener('keydown', (e) => {
     }
   }
 
-  // c: Plain capture (input mode only)
+  // c: Capture current chord/voicing to Memory Slot (input mode only)
   if (lk === 'c' && AppState.mode === 'input') {
-    plainCapture(); return;
+    captureCurrentToMemorySlot(); return;
   }
 
   // Escape: Close help modal → exit Plain edit → deselect slot → deselect voicing box
@@ -608,6 +608,15 @@ document.addEventListener('keydown', (e) => {
       else shiftOctave(_octDir);
       return;
     }
+    // Shift+Up/Down in Input/Perform: move the (held) chord a whole octave ±12 and save.
+    // Perform: 押さえているスロット(activePad)をオクターブ単位で動かし、そのスロットに保存する
+    // (Push WYSIWYG, うりなみさん 2026-05-31)。全体移調 (octaveShift) には一切触らない。
+    // Must precede the rotation branch below, which does not check shiftKey.
+    if (e.shiftKey && AppState.mode === 'input' && PlainState.activeNotes.size > 0) {
+      e.preventDefault();
+      performOctaveEdit(key === 'ArrowUp' ? 1 : -1);
+      return;
+    }
     if (AppState.mode === 'input' && PlainState.activeNotes.size >= 2) {
       e.preventDefault();
       const notes = [...PlainState.activeNotes].sort((a, b) => a - b);
@@ -621,6 +630,7 @@ document.addEventListener('keydown', (e) => {
       }
       notes.forEach(n => PlainState.activeNotes.add(n));
       updatePlainDisplay(); render();
+      performReplayActive();
       autoSaveEditedSlot();
     } else if (AppState.mode === 'chord' && BuilderState.quality && !VoicingState.shell) {
       e.preventDefault();
@@ -649,6 +659,7 @@ document.addEventListener('keydown', (e) => {
       PlainState.activeNotes.forEach(n => newNotes.add(n + delta));
       PlainState.activeNotes = newNotes;
       updatePlainDisplay(); render();
+      performReplayActive();
       autoSaveEditedSlot();
     } else if (AppState.mode === 'chord' && BuilderState.root !== null) {
       e.preventDefault();
@@ -672,7 +683,6 @@ document.addEventListener('keydown', (e) => {
 
   // Plain mode shortcuts
   if (AppState.mode === 'input') {
-    if (lk === 'e') { plainEnd(); return; }
     if (lk === 'x') { clearPlainNotes(); return; }
     // Number keys 1-9, 0: recall/edit slot (1-9→slot 0-8, 0→slot 9)
     if (key >= '0' && key <= '9' && e.location !== 3) {
@@ -846,19 +856,40 @@ function _renderPadContextMenu(e, items) {
     row.addEventListener('click', function(ev) { ev.stopPropagation(); _closePadContextMenu(); it.run(); });
     menu.appendChild(row);
   });
-  document.body.appendChild(menu);
-  var mw = menu.offsetWidth, mh = menu.offsetHeight;
+  // Desktop (Standalone/VST) magnifies the whole UI via document.body.style.zoom
+  // (PluginEditor.cpp resized() sets it to a unitless float, e.g. '1.2000'). A menu placed
+  // inside <body> therefore renders in that zoomed coordinate frame, and on macOS WKWebView
+  // the way CSS zoom interacts with getBoundingClientRect / clientX differs from Chromium,
+  // so measuring the menu's on-screen rect is unreliable (it clipped on the real Desktop even
+  // though it passed in Chromium). Instead we take the menu OUT of the zoomed subtree by
+  // attaching it to <html> (document.documentElement) — body zoom does not apply there — and
+  // we recreate the magnification ourselves. We use real CSS `zoom` (NOT transform: scale):
+  // transform rasterizes the menu at its natural size then stretches that bitmap, which makes
+  // the text look blurry; `zoom` re-runs layout/paint at the target size so the text stays
+  // crisp — the same primitive the body itself uses. Geometry stays in plain viewport pixels.
+  document.documentElement.appendChild(menu);
+  var zoomStr = document.body.style.zoom || '';
+  var z = parseFloat(zoomStr) || 1;                    // 1 on Web (no body zoom)
+  if (/%\s*$/.test(zoomStr)) z = z / 100;              // normalize a 'NN%' form (defensive)
+  if (!isFinite(z) || z <= 0) z = 1;
+  // Measure the footprint at NATURAL size first (offsetWidth/Height = un-zoomed layout px on
+  // both engines), then magnify. On-screen footprint is the natural size times z.
+  var mw = menu.offsetWidth * z, mh = menu.offsetHeight * z;
+  if (z !== 1) menu.style.zoom = z;
   var vw = window.innerWidth, vh = window.innerHeight;
-  // Open the menu at the cursor; if it would overflow right/bottom, flip so the menu
-  // opens to the LEFT / ABOVE the cursor (right/bottom edge anchored at the cursor).
-  // This keeps the menu adjacent to the click, even on right-edge Memory slots.
-  var x = (e.clientX + mw + 6 <= vw) ? e.clientX : (e.clientX - mw);
-  var y = (e.clientY + mh + 6 <= vh) ? e.clientY : (e.clientY - mh);
-  // Final clamp keeps the menu fully inside the viewport with a small margin.
-  x = Math.max(4, Math.min(x, vw - mw - 4));
-  y = Math.max(4, Math.min(y, vh - mh - 4));
-  menu.style.left = x + 'px';
-  menu.style.top = y + 'px';
+  // Default: open the menu ABOVE the cursor (うりなみさん 2026-05-31 preference). If it would
+  // run off the top edge, drop it below instead. Horizontally open to the right, flipping to
+  // the left if it would overflow the right edge.
+  var sx = (e.clientX + mw + 6 <= vw) ? e.clientX : (e.clientX - mw);
+  var sy = (e.clientY - mh >= 4) ? (e.clientY - mh) : e.clientY;
+  // Final clamp keeps the menu fully inside the viewport with a small margin (sx/sy are the
+  // intended on-screen viewport px).
+  sx = Math.max(4, Math.min(sx, vw - mw - 4));
+  sy = Math.max(4, Math.min(sy, vh - mh - 4));
+  // `zoom` multiplies the element's used left/top, so divide by z to land at the intended
+  // viewport px (verified in Chromium; body zoom proves WebKit scales positions the same way).
+  menu.style.left = (sx / z) + 'px';
+  menu.style.top = (sy / z) + 'px';
   setTimeout(function() {
     document.addEventListener('mousedown', _padMenuOutside, true);
     document.addEventListener('keydown', _padMenuEsc, true);

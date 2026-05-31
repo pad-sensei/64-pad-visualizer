@@ -260,7 +260,8 @@ function renderPads(svg, state, grid) {
       // TASTY/STOCK mark hits via _isTastyMiss (their _voicingPass bypass makes every chord-tone
       // pc "active" everywhere, so !isActive alone would leave the scale holey); basic form /
       // all-positions / guitar use !isActive.
-      var _isScaleBgSlot = (tastyMidiSet && tastyMidiSet.size > 0) ? _isTastyMiss : !isActive;
+      var _isScaleBgSlot = (tastyMidiSet && tastyMidiSet.size > 0) ? _isTastyMiss
+        : (AppState.mode === 'input' ? !isPlainActive : !isActive);
       // Basic-form / all-positions / engine layering: faint scale background + single-colour
       // chord shape on top. The chord shape pads keep the colour set by the chain above; here we
       // only paint the non-voicing pads: opaque blue scale, ORANGE tonic (scale root), off otherwise.
@@ -867,6 +868,21 @@ function render() {
     padState.scaleBgPCS = new Set(_scEng.pcs.map(function(iv){ return (iv + _eKey) % 12; }));
     padState.allPosScaleBg = true;
     padState.engineScaleBg = true;
+  }
+  // Input mode: paint the current key's scale as the educational background (same colour
+  // language and layering as Scale / Chord all-positions) so free chord building happens
+  // against a visible scale. C-fixed keeps it C Major, matching Scale mode
+  // (padApplyScaleOnlyOverride). うりなみさん 2026-05-31: input の画面も Scale/Chord のように
+  // Scale を表示する。pressed pads (isPlainActive) はコード色のまま、それ以外にスケールを敷く。
+  if (AppState.mode === 'input') {
+    // 無条件上書きで安全。pad-core の input 分岐 (pad-core/render.js の input branch)
+    // は scaleBgPCS を返さないため、先行値を尊重する !padState.scaleBgPCS ガードは不要。
+    // pad-core が将来 input で scaleBgPCS を返すようになったら、このガード前提を見直すこと。
+    var _inCFixed = AppState.padCFixed === true;
+    var _scIn = SCALES[_inCFixed ? 0 : AppState.scaleIdx];
+    var _inKey = _inCFixed ? 0 : AppState.key;
+    padState.scaleBgPCS = new Set(_scIn.pcs.map(function(iv){ return (iv + _inKey) % 12; }));
+    padState.allPosScaleBg = true;
   }
   renderPads(svg, padState);
   if (AppState.mode !== 'input' && !TastyState.enabled && !StockState.enabled && !(_voicingReflectMode && _guitarSyncSource === 'position') && !_stockReflectMode && !chordBasicFormActive()) {
