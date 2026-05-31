@@ -809,6 +809,15 @@ function applyParsedChordToBuilder(parsed) {
 
   if (!bestQuality) return;
 
+  // Reset active chord engines (TASTY / STOCK / Guitar reflect) so that typing a
+  // chord name returns to the grey basic-form default, matching selectRoot() /
+  // selectQuality(). Without this, inputting a new chord name while an engine is
+  // active leaves the previous engine's voicing applied (= 基本形にならない /
+  // ギターのボイシングが残る / 灰色にならない、 うりなみさん 2026-05-31 報告のバグ)。
+  if (TastyState.enabled) disableTasty();
+  if (StockState.enabled) disableStock();
+  if (typeof disableGuitarEngine === 'function') disableGuitarEngine({ render: false });
+
   // Find extra intervals → tension
   var qualitySet = new Set(bestQuality.pcs);
   var extras = [];
