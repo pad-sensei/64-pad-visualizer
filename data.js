@@ -97,6 +97,14 @@ const PerformState = {
   onePosIdx: 0,                 // perform one-position view: which compact pad arrangement is shown (badge cycles). View-only, display only — never re-triggers playback; reset to 0 on each slot tap, clamped each render.
 };
 
+const DoubleStopState = {
+  enabled: false,
+  scaleSetIndex: 0,
+  intervalIndex: 0,
+  degreeIndex: 0,
+  posIndex: 0,
+};
+
 // ======== GUITAR/BASS POSITION STATE (v3.19) ========
 const GuitarPositionState = {
   alternatives: [],   // padEnumGuitarChordForms results
@@ -236,6 +244,9 @@ function saveAppSettings() {
       pushMemorySlotColor: AppState.pushMemorySlotColor,
       pushPerformActiveColor: AppState.pushPerformActiveColor,
       pushLedColorSettingsVersion: AppState.pushLedColorSettingsVersion,
+      doubleStopEnabled: DoubleStopState.enabled,
+      doubleStopScaleSetIndex: DoubleStopState.scaleSetIndex,
+      doubleStopIntervalIndex: DoubleStopState.intervalIndex,
     };
     const serialized = JSON.stringify(s);
     localStorage.setItem('64pad-settings', serialized);
@@ -279,6 +290,9 @@ function loadAppSettings() {
     if (s.showAllPositions !== undefined) AppState.showAllPositions = s.showAllPositions === true;
     else if (s.pushVoicingOverview === true) AppState.showAllPositions = true; // migrate retired pushVoicingOverview key
     if (s.performAllPositions !== undefined) AppState.performAllPositions = s.performAllPositions === true;
+    if (s.doubleStopEnabled !== undefined) DoubleStopState.enabled = s.doubleStopEnabled === true;
+    if (s.doubleStopScaleSetIndex !== undefined && s.doubleStopScaleSetIndex >= 0) DoubleStopState.scaleSetIndex = s.doubleStopScaleSetIndex;
+    if (s.doubleStopIntervalIndex !== undefined && s.doubleStopIntervalIndex >= 0) DoubleStopState.intervalIndex = s.doubleStopIntervalIndex;
     if (s.pushLedColorSettingsVersion === AppState.pushLedColorSettingsVersion) {
       if (s.pushScaleRootColor !== undefined && s.pushScaleRootColor >= 0 && s.pushScaleRootColor <= 127) AppState.pushScaleRootColor = s.pushScaleRootColor;
       if (s.pushScaleToneColor !== undefined && s.pushScaleToneColor >= 0 && s.pushScaleToneColor <= 127) AppState.pushScaleToneColor = s.pushScaleToneColor;
@@ -324,7 +338,7 @@ if (typeof module !== 'undefined') module.exports = {
   BUILDER_QUALITIES, TENSION_ROWS, SCALE_AVAIL_TENSIONS,
   GRID, ROWS, COLS, BASE_MIDI, ROW_INTERVAL, COL_INTERVAL, PAD_SIZE, PAD_GAP, MARGIN,
   SCALE_DEGREE_NAMES, PC_TO_TENSION_NAME, TENSION_NAME_TO_PC,
-  AppState, BuilderState, VoicingState, PlainState, PerformState, TastyState, StockState, BankState,
+  AppState, BuilderState, VoicingState, PlainState, PerformState, DoubleStopState, TastyState, StockState, BankState,
   GuitarPositionState, BassPositionState,
   resetVoicingSelection, getParentMajorKey, pcName, onReady, IS_DEV,
   getActiveBank, syncMemoryToActiveBank, loadBankMemory,

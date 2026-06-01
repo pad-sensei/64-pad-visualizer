@@ -176,7 +176,7 @@
   vertical-align: middle;
 }
 .mode-badge.scale { background: var(--accent); color: #000; }
-.mode-badge.chord { background: var(--step-green); color: #000; }
+.mode-badge.chord { background: var(--accent); color: #000; }
 .mode-badge.input { background: var(--pad-root); color: #000; }
 
 /* Footer */
@@ -305,11 +305,11 @@
   <p style="font-size:0.9rem;color:var(--text-muted);margin-bottom:8px;" data-i18n="guide.ss_chord_desc">Root → Quality → Tension の3ステップでコードを構築。ボイシングの転回・Drop・Shell・Omitも操作できます。Parent Scaleパネルでそのコードが属しうるスケールを逆引きできます。</p>
   <div class="screenshot-wrap">
     <img src="img/screenshot-chord.png" alt="Chord Mode" data-i18n="guide.ss_chord_alt" data-i18n-attr="alt" loading="lazy">
-    <p class="caption" data-i18n="guide.ss_chord_caption">Dm7 — コードトーン、3rd(ピンク)、7th(グリーン)を表示。ボイシングボックスで配置候補を確認</p>
+    <p class="caption" data-i18n="guide.ss_chord_caption">Dm7 — コードトーンをグレー、スケール音を背景色で表示。複数候補は Space で切り替え</p>
   </div>
 
   <h3 data-i18n="guide.ss_input"><span class="mode-badge input">Input</span> Inputモード</h3>
-  <p style="font-size:0.9rem;color:var(--text-muted);margin-bottom:8px;" data-i18n="guide.ss_input_desc">MIDIコントローラー、パッドをクリック、指板、鍵盤などからコードを入力できます。コードの判定は基本的にどのモードでも動作します。</p>
+  <p style="font-size:0.9rem;color:var(--text-muted);margin-bottom:8px;" data-i18n="guide.ss_input_desc">MIDIコントローラー、パッド、指板、鍵盤から音を入力してコード名を判定します。Chordモードでのパッド押下は練習表示として扱い、Input判定画面には移りません。</p>
   <div class="screenshot-wrap">
     <img src="img/screenshot-plain.png" alt="Input Mode" data-i18n="guide.ss_input_alt" data-i18n-attr="alt" loading="lazy">
     <p class="caption" data-i18n="guide.ss_input_caption">C7 — パッドをクリックするだけでコード名を自動判定。複数候補も表示</p>

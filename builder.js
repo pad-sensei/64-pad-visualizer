@@ -59,6 +59,7 @@ function setMode(mode) {
     updatePlainUI();
     updatePlainDisplay();
   }
+  if (typeof renderDoubleStopControls === 'function') renderDoubleStopControls();
   render();
   saveAppSettings();
 }
@@ -103,6 +104,14 @@ function initKeyButtons() {
   updateKeyButtons();
 }
 function onKeyChanged() {
+  if (typeof DoubleStopState !== 'undefined') {
+    if (typeof doubleStopResetToPreferredSet === 'function') doubleStopResetToPreferredSet();
+    else {
+      DoubleStopState.scaleSetIndex = 0;
+      DoubleStopState.degreeIndex = 0;
+      DoubleStopState.posIndex = 0;
+    }
+  }
   updateKeyButtons();
   var sel = document.getElementById('scale-select');
   if (sel) sel.value = AppState.scaleIdx;
@@ -118,6 +127,14 @@ function setScaleKeyMode(mode) {
   } else if (mode === 'minor' && AppState.scaleIdx === 0) {
     AppState.key = (AppState.key + 9) % 12;
     AppState.scaleIdx = 5;
+  }
+  if (typeof DoubleStopState !== 'undefined') {
+    if (typeof doubleStopResetToPreferredSet === 'function') doubleStopResetToPreferredSet();
+    else {
+      DoubleStopState.scaleSetIndex = 0;
+      DoubleStopState.degreeIndex = 0;
+      DoubleStopState.posIndex = 0;
+    }
   }
   updateKeyButtons();
   updateScaleKeyDisplay();
@@ -171,7 +188,20 @@ function initScaleSelect() {
     });
     sel.appendChild(og);
   }
-  sel.onchange = () => { AppState.scaleIdx = parseInt(sel.value); render(); saveAppSettings(); };
+  sel.onchange = () => {
+    AppState.scaleIdx = parseInt(sel.value);
+    if (typeof DoubleStopState !== 'undefined') {
+      if (typeof doubleStopResetToPreferredSet === 'function') doubleStopResetToPreferredSet();
+      else {
+        DoubleStopState.scaleSetIndex = 0;
+        DoubleStopState.degreeIndex = 0;
+        DoubleStopState.posIndex = 0;
+      }
+      if (typeof doubleStopIsAvailable === 'function' && !doubleStopIsAvailable()) DoubleStopState.enabled = false;
+    }
+    render();
+    saveAppSettings();
+  };
 }
 
 // ======== TRIAD → TETRAD PROMOTION ========

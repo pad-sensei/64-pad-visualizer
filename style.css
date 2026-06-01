@@ -935,6 +935,33 @@ body.pane-view-single #staff-ep-panel {
 /* 全ポジション表示 toggle lives in the footer next to the legend; match the legend's
    font size and its margin-top:10px offset so it sits exactly on the "Off" line. */
 #btn-show-all-positions { font-size: 0.7rem; padding: 2px 10px; margin-top: 10px; align-self: center; }
+.double-stop-controls {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.double-stop-controls select {
+  font-size: 0.65rem;
+  padding: 3px 6px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+#double-stop-degree {
+  display: none;
+}
+.double-stop-controls:not(.active) #double-stop-set,
+.double-stop-controls:not(.active) [data-double-stop-interval] {
+  display: none;
+}
+.double-stop-controls .inst-toggle {
+  font-size: 0.65rem;
+  padding: 3px 8px;
+}
 .info { margin-top: 8px; font-size: 0.75rem; color: var(--text-muted); text-align: center; max-width: 500px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* === Octave Switch === */

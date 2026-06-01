@@ -369,6 +369,48 @@ function selectVoicingBox(idx) {
   }
 }
 
+// Low interval limits for automatic builder playback.
+// Key = pitch-class distance between the lower note and an upper chord tone.
+// Value = the lowest MIDI note where that interval still speaks clearly enough.
+// These are conservative keyboard voicing defaults; recorded Perform slots and
+// curated TASTY/Stock/Guitar voicings keep their saved register.
+var CHORD_PLAYBACK_LOW_INTERVAL_LIMITS = {
+  1: 60, // b9 / m2
+  2: 48, // 9 / M2
+  3: 43, // b3 / #9
+  4: 43, // 3
+  5: 40, // 11 / sus4
+  6: 42, // #11 / b5
+  7: 36, // 5
+  8: 36, // #5 / b13
+  9: 36, // 6 / 13
+  10: 34, // b7
+  11: 36  // maj7
+};
+
+function applyChordPlaybackRangeRules(notes) {
+  if (!notes || notes.length < 2) return notes;
+  var out = notes.slice().sort(function(a, b) { return a - b; });
+  var guard = 0;
+  while (guard++ < 4) {
+    var tooLow = false;
+    for (var i = 0; i < out.length - 1 && !tooLow; i++) {
+      for (var j = i + 1; j < out.length; j++) {
+        var distance = (out[j] - out[i]) % 12;
+        if (distance === 0) continue;
+        var limit = CHORD_PLAYBACK_LOW_INTERVAL_LIMITS[distance];
+        if (limit !== undefined && out[i] < limit) {
+          tooLow = true;
+          break;
+        }
+      }
+    }
+    if (!tooLow) break;
+    out = out.map(function(n) { return n + 12; });
+  }
+  return out;
+}
+
 // Play current chord automatically (for tension/shell/voicing changes)
 function playCurrentChord() {
   if (AppState.mode !== 'chord' || BuilderState.root === null || !BuilderState.quality) return;
@@ -398,7 +440,7 @@ function playCurrentChord() {
   if (BuilderState.bass !== null) {
     midiNotes.unshift(36 + BuilderState.bass + octOff);
   }
-  playMidiNotes(midiNotes, 2);
+  playMidiNotes(applyChordPlaybackRangeRules(midiNotes), 2);
 }
 
 
@@ -999,13 +1041,17 @@ function detectedUstBaseQuality(chordName) {
   var rootMatch = chord.match(/^[A-G](?:#|b)?/);
   var quality = rootMatch ? chord.slice(rootMatch[0].length) : chord;
   var isMinor = /^m/i.test(quality) && !/^maj/i.test(quality);
-  var isHalfDiminished = /^(m7\(b5\)|m7b5|m7-5|\u00F87|\u00F8)/i.test(quality);
+  var isHalfDiminished = /^(m7\((?:b5|\u266D5)|m7b5|m7-5|\u00F87|\u00F8)/i.test(quality);
   var hasMajorSeventh = quality.indexOf('\u25B37') !== -1 || /maj7/i.test(quality);
   var hasExplicitSeventh = quality.indexOf('7') !== -1;
+  var isMajorSixFamily = /^(?:maj)?6(?:\/?9|\.9|\(|$)/i.test(quality);
+  var isMinorSixFamily = /^m6(?:\/?9|\.9|\(|$)/i.test(quality);
   var impliesDominantSeventh = /^(9|11|13)(\(|$)/.test(quality);
   var impliesMinorSeventh = /^(m9|m11|m13|min9|min11|min13)(\(|$)/i.test(quality);
   var hasSeventhExtension = hasExplicitSeventh || impliesDominantSeventh || impliesMinorSeventh;
-  if (isHalfDiminished) return '';
+  if (isHalfDiminished) return 'm7(b5)';
+  if (!isMinor && isMajorSixFamily) return '6';
+  if (isMinor && isMinorSixFamily) return 'm6';
   if (isMinor && hasMajorSeventh) return 'm\u25B37';
   if (isMinor && hasSeventhExtension) return 'm7';
   if (hasMajorSeventh) return '\u25B37';
@@ -1023,19 +1069,187 @@ function detectedUstTriadRootName(rootPC, triadRoot, chordName) {
     : NOTE_NAMES_SHARP[triadRoot];
 }
 
+function detectedUstTriadAvailable(pcs, rootPC, offset, quality) {
+  var intervals = DETECTED_UST_QUALITIES[quality]
+    ? DETECTED_UST_QUALITIES[quality].intervals
+    : (quality === 'm' ? [0, 3, 7] : [0, 4, 7]);
+  var triadRoot = (rootPC + offset) % 12;
+  return intervals.every(function(iv) {
+    return pcs.has((triadRoot + iv) % 12);
+  });
+}
+
+function detectedUstQuartalAvailable(notes, rootPC, offset) {
+  var pcs = [offset, offset + 5, offset + 10].map(function(iv) { return (rootPC + iv) % 12; });
+  var sorted = notes.slice().sort(function(a, b) { return a - b; });
+  for (var i = 0; i < sorted.length; i++) {
+    if (((sorted[i] % 12) + 12) % 12 !== pcs[0]) continue;
+    for (var j = 0; j < sorted.length; j++) {
+      if (sorted[j] <= sorted[i]) continue;
+      if (((sorted[j] % 12) + 12) % 12 !== pcs[1]) continue;
+      var gap1 = sorted[j] - sorted[i];
+      if (gap1 !== 5 && gap1 !== 17) continue;
+      for (var k = 0; k < sorted.length; k++) {
+        if (sorted[k] <= sorted[j]) continue;
+        if (((sorted[k] % 12) + 12) % 12 !== pcs[2]) continue;
+        var gap2 = sorted[k] - sorted[j];
+        if (gap2 === 5 || gap2 === 17) return true;
+      }
+    }
+  }
+  return false;
+}
+
+var DETECTED_UST_QUALITIES = {
+  major: { suffix: '\u25B3', intervals: [0, 4, 7] },
+  m: { suffix: 'm', intervals: [0, 3, 7] },
+  q: { suffix: 'Q', intervals: [0, 5, 10], quartal: true }
+};
+
+var DETECTED_UST_RULES = {
+  '7': [
+    // Standard dominant USTs over a 3+b7 shell. bII major is intentionally
+    // excluded: it includes the natural 11 against the dominant 3rd and is
+    // better treated as an advanced side-slip color, not a default label.
+    { offset: 2, quality: 'q' },      // Q2: 9, 5, R
+    { offset: 3, quality: 'q' },      // Qb3: #9, b13, b9
+    { offset: 4, quality: 'q' },      // Q3: 3, 13, 9
+    { offset: 8, quality: 'q' },      // Qb6: b13, b9, #11
+    { offset: 9, quality: 'q' },      // Q6: 13, 9, 5
+    { offset: 2, quality: 'major' },  // II: 9, #11, 13
+    { offset: 3, quality: 'major' },  // bIII: #9, 5, b7
+    { offset: 6, quality: 'major' },  // bV: #11, b7, b9
+    { offset: 8, quality: 'major' },  // bVI: b13, R, #9
+    { offset: 9, quality: 'major' },  // VI: 13, b9, 3
+    { offset: 1, quality: 'm', forbid: [5] }, // bIIm: b9, 3, b13
+    { offset: 2, quality: 'm' },      // IIm: 9, 11, 13
+    { offset: 7, quality: 'm' }       // Vm: 5, b7, 9
+  ],
+  '\u25B37': [
+    { offset: 2, quality: 'q' },      // Q2: 9, 5, R
+    { offset: 4, quality: 'q' },      // Q3: 3, 13, 9
+    { offset: 7, quality: 'major' },  // V: 5, 7, 9
+    { offset: 4, quality: 'major' },  // III: 3, #5, 7
+    { offset: 2, quality: 'major' },  // II: 9, #11, 13
+    { offset: 11, quality: 'm' }      // VIIm: 7, 9, #11
+  ],
+  'm7': [
+    { offset: 0, quality: 'q' },      // Q1: R, 11, b7
+    { offset: 2, quality: 'q' },      // Q2: 9, 5, R
+    { offset: 5, quality: 'q' },      // Q4: 11, b7, m3
+    { offset: 7, quality: 'q' },      // Q5: 5, R, 11
+    { offset: 2, quality: 'm' },      // IIm: 9, 11, 13
+    { offset: 10, quality: 'major' }, // bVII: b7, 9, 11
+    { offset: 7, quality: 'm' },      // Vm: 5, b7, 9
+    { offset: 5, quality: 'major' }   // IV: 11, 13, R
+  ],
+  'm6': [
+    { offset: 5, quality: 'major' },  // IV: 11, 13, R
+    { offset: 7, quality: 'major' }   // V: 5, 7, 9
+  ],
+  'm7(b5)': [
+    { offset: 0, quality: 'q' },      // Q1: R, 11, b7
+    { offset: 5, quality: 'q' },      // Q4: 11, b7, m3
+    { offset: 10, quality: 'q' },     // Qb7: b7, m3, b13
+    { offset: 10, quality: 'major' }, // bVII: b7, 9, 11
+    { offset: 8, quality: 'major' }   // bVI: b13, R, m3
+  ],
+  '6': [
+    { offset: 2, quality: 'major' }   // II over C6: 9, #11, 13
+  ]
+};
+
+function detectedUstHasShellContext(intervals, baseQuality) {
+  if (baseQuality === '7') return intervals.has(4) && intervals.has(10) && !intervals.has(11);
+  if (baseQuality === '\u25B37') return intervals.has(4) && intervals.has(11) && !intervals.has(10);
+  if (baseQuality === 'm7') return intervals.has(3) && intervals.has(10) && !intervals.has(11);
+  if (baseQuality === 'm6') return intervals.has(3) && intervals.has(9);
+  if (baseQuality === 'm7(b5)') return intervals.has(3) && intervals.has(6) && intervals.has(10) && !intervals.has(11);
+  if (baseQuality === '6') return intervals.has(4) && intervals.has(9);
+  return false;
+}
+
+function detectedUstDictionaryCandidate(notes, pcs, rootPC, intervals, baseQuality) {
+  if (!detectedUstHasShellContext(intervals, baseQuality)) return null;
+  var rules = DETECTED_UST_RULES[baseQuality];
+  if (!rules) return null;
+  for (var i = 0; i < rules.length; i++) {
+    var rule = rules[i];
+    if (rule.forbid && rule.forbid.some(function(iv) { return intervals.has(iv); })) continue;
+    var quality = DETECTED_UST_QUALITIES[rule.quality];
+    var available = quality && quality.quartal
+      ? detectedUstQuartalAvailable(notes, rootPC, rule.offset)
+      : detectedUstTriadAvailable(pcs, rootPC, rule.offset, rule.quality);
+    if (available) {
+      if (detectedUstTensionLabels(rule.offset, quality, baseQuality).length < 1) continue;
+      return {
+        triadRoot: (rootPC + rule.offset) % 12,
+        quality: quality,
+        offset: rule.offset
+      };
+    }
+  }
+  return null;
+}
+
+function detectedUstTensionLabels(offset, quality, baseQuality) {
+  var intervals = quality.intervals.map(function(iv) { return (offset + iv) % 12; });
+  var tensionNames = {
+    1: 'b9',
+    2: '9',
+    3: '#9',
+    5: '11',
+    6: '#11',
+    9: '13'
+  };
+  tensionNames[8] = baseQuality === '\u25B37' ? '#5' : 'b13';
+  var seen = {};
+  var labels = [];
+  intervals.forEach(function(iv) {
+    if (baseQuality === '6' && iv === 9) return;
+    var label = tensionNames[iv];
+    if (label && !seen[label]) {
+      seen[label] = true;
+      labels.push(label);
+    }
+  });
+  return labels;
+}
+
+function detectedUstQuartalName(offset) {
+  var names = ['Q1', 'Qb2', 'Q2', 'Qb3', 'Q3', 'Q4', 'Qb5', 'Q5', 'Qb6', 'Q6', 'Qb7', 'Q7'];
+  return names[((offset % 12) + 12) % 12] || 'Q';
+}
+
+function formatDetectedUstUpperName(rootPC, chordName, candidate, baseQuality) {
+  var offset = candidate.offset !== undefined ? candidate.offset : ((candidate.triadRoot - rootPC + 12) % 12);
+  var name = candidate.quality.quartal
+    ? detectedUstQuartalName(offset)
+    : detectedUstTriadRootName(rootPC, candidate.triadRoot, chordName) + candidate.quality.suffix;
+  var labels = detectedUstTensionLabels(offset, candidate.quality, baseQuality);
+  return labels.length ? name + ' [' + labels.join(',') + ']' : name;
+}
+
 function formatDetectedUstText(notes, rootPC, chordName) {
   if (rootPC === null || rootPC === undefined || !notes || notes.length < 4) return '';
   var pcs = new Set(notes.map(function(n) { return ((n % 12) + 12) % 12; }));
   var baseQuality = detectedUstBaseQuality(chordName);
   if (!baseQuality) return '';
   var intervals = new Set(notes.map(function(n) { return (((n % 12) - rootPC) + 12) % 12; }));
+  var dictionary = detectedUstDictionaryCandidate(notes, pcs, rootPC, intervals, baseQuality);
+  if (dictionary) {
+    var dictionaryBase = (chordRootDisplayName(chordName) || NOTE_NAMES_SHARP[rootPC]) + baseQuality;
+    return 'UST: ' + formatDetectedUstUpperName(rootPC, chordName, dictionary, baseQuality) + ' / ' + dictionaryBase;
+  }
+  if (DETECTED_UST_RULES[baseQuality]) return '';
   var hasThird = intervals.has(3) || intervals.has(4);
   var hasSeventh = intervals.has(10) || intervals.has(11);
-  if (!hasThird || !hasSeventh) return '';
+  if (!hasThird) return '';
   var qualities = [
     { suffix: '\u25B3', intervals: [0, 4, 7] },
     { suffix: 'm', intervals: [0, 3, 7] }
   ];
+  if (!hasSeventh) return '';
   var fallbackPriority = { 2: 10, 3: 9, 8: 8, 9: 7, 10: 6, 5: 5, 1: 4, 6: 3, 7: 2, 11: 1 };
   var best = null;
   for (var offset = 1; offset < 12; offset++) {
@@ -1064,23 +1278,13 @@ function formatDetectedUstText(notes, rootPC, chordName) {
   if (best) {
     var bestOffset = best.offset !== undefined ? best.offset : ((best.triadRoot - rootPC + 12) % 12);
     var bestThirdOffset = (bestOffset + (best.quality.suffix === '\u25B3' ? 4 : 3)) % 12;
-    var bestUsesFlatNine = bestOffset === 1 || bestThirdOffset === 1 || ((bestOffset + 7) % 12) === 1;
-    var thirteenthRoot = (rootPC + 9) % 12;
-    var thirteenthMinorAvailable = baseQuality === '7'
-      && pcs.has(thirteenthRoot)
-      && pcs.has(rootPC)
-      && pcs.has((rootPC + 4) % 12);
-    if (bestUsesFlatNine && thirteenthMinorAvailable) {
-      best = { score: best.score, triadRoot: thirteenthRoot, quality: qualities[1], offset: 9 };
-      bestOffset = 9;
-    }
     var majorThirdAsFlatNine = best.quality.suffix === '\u25B3' && ((bestOffset + 4) % 12) === 1;
     var sameRootMinorAvailable = pcs.has(best.triadRoot)
       && pcs.has((best.triadRoot + 3) % 12)
       && pcs.has((best.triadRoot + 7) % 12);
-    if (majorThirdAsFlatNine && sameRootMinorAvailable) best.quality = qualities[1];
+    if (baseQuality !== '7' && majorThirdAsFlatNine && sameRootMinorAvailable) best.quality = qualities[1];
     var base = (chordRootDisplayName(chordName) || NOTE_NAMES_SHARP[rootPC]) + baseQuality;
-    return 'UST: ' + detectedUstTriadRootName(rootPC, best.triadRoot, chordName) + best.quality.suffix + ' / ' + base;
+    return 'UST: ' + formatDetectedUstUpperName(rootPC, chordName, best, baseQuality) + ' / ' + base;
   }
   return '';
 }

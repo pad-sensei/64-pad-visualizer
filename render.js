@@ -336,6 +336,11 @@ function renderPads(svg, state, grid) {
       // independent of any chord-rooted overlay selection).
       var isEngineScaleBg = !grid && state.engineScaleBg && _isScaleBgSlot
         && state.scaleBgPCS && state.scaleBgPCS.has(pc);
+      var _doubleStopPad = !grid && state.doubleStopPadSet && state.doubleStopPadSet.has(row * cols + col);
+      if (_doubleStopPad) {
+        fill = 'var(--pad-basic-chord)';
+        textColor = '#000';
+      }
 
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
       // Blink removed (too high load). "Other positions exist" is shown by a 1/3 badge instead.
@@ -345,7 +350,7 @@ function renderPads(svg, state, grid) {
       rect.setAttribute('rx', 6); rect.setAttribute('fill', fill);
       // Hold pad: noteOn on press, noteOff on global release (no mouseleave)
       // Plain mode: click toggles note on/off
-      (function(m, r) {
+      (function(m, r, gridRow, gridCol) {
         r.addEventListener('mousedown', (e) => {
           // Right-click (button 2) opens the pad context menu — never play the note.
           if (e.button !== 0) return;
@@ -353,7 +358,9 @@ function renderPads(svg, state, grid) {
           if (linkMode) {
             _heldMidi = m; noteOn(m); midiActiveNotes.add(m); scheduleMidiUpdate(); return;
           }
-          if (AppState.mode === 'input') { togglePlainNote(m); }
+          if (!grid && AppState.mode === 'scale' && typeof doubleStopPlayPad === 'function' && doubleStopPlayPad(gridRow, gridCol)) {
+            _heldMidi = null;
+          } else if (AppState.mode === 'input') { togglePlainNote(m); }
           else if (TastyState.enabled || StockState.enabled) {
             // TASTY/Stock mode: play note only, don't modify chord builder
             _heldMidi = m; noteOn(m);
@@ -367,7 +374,9 @@ function renderPads(svg, state, grid) {
             for (const t of e.changedTouches) { _heldTouches.set(t.identifier, m); }
             noteOn(m); midiActiveNotes.add(m); scheduleMidiUpdate(); return;
           }
-          if (AppState.mode === 'input') { togglePlainNote(m); }
+          if (!grid && AppState.mode === 'scale' && typeof doubleStopPlayPad === 'function' && doubleStopPlayPad(gridRow, gridCol)) {
+            // Double-stop playback is momentary through playMidiNotes.
+          } else if (AppState.mode === 'input') { togglePlainNote(m); }
           else if (TastyState.enabled || StockState.enabled) {
             for (const t of e.changedTouches) { _heldTouches.set(t.identifier, m); }
             noteOn(m);
@@ -376,7 +385,7 @@ function renderPads(svg, state, grid) {
             noteOn(m);
           }
         });
-      })(midi, rect);
+      })(midi, rect, row, col);
       if (selMidi) {
         // Voicing box selected: no individual pad strokes (dashed box is the boundary)
         rect.setAttribute('stroke', 'none');
@@ -1083,6 +1092,13 @@ function render() {
     padState.scaleBgPCS = new Set(_scPf.pcs.map(function(iv){ return (iv + _pfKey) % 12; }));
     padState.allPosScaleBg = true;
   }
+  if (AppState.mode === 'scale' && typeof doubleStopActive === 'function' && doubleStopActive()) {
+    var _dsLayout = doubleStopComputeLayout();
+    padState.doubleStopPadSet = _dsLayout.allPadIdxs;
+    padState.doubleStopPairs = _dsLayout.pairs;
+    padState.doubleStopAltCount = _dsLayout.altCount;
+    padState.doubleStopBadgePositions = _dsLayout.badgePositions;
+  }
   renderPads(svg, padState);
   if (AppState.mode !== 'input' && memoryViewMode !== 'perform' && !TastyState.enabled && !StockState.enabled && !(_voicingReflectMode && _guitarSyncSource === 'position') && !_stockReflectMode && !chordBasicFormActive()) {
     renderVoicingBoxes(svg, state);
@@ -1095,12 +1111,17 @@ function render() {
     drawBasicFormBadge(svg, padState.basicFormShapePositions, (padState.basicFormPosIdx || 0) + 1, padState.basicFormArrCount,
       _performOnePosState ? cyclePerformOnePos : null);
   }
+  if (AppState.mode === 'scale' && padState.doubleStopAltCount > 1 && padState.doubleStopBadgePositions) {
+    drawBasicFormBadge(svg, padState.doubleStopBadgePositions, (DoubleStopState.posIndex || 0) + 1, padState.doubleStopAltCount,
+      typeof cycleDoubleStopPosition === 'function' ? cycleDoubleStopPosition : null);
+  }
   renderLegend(state);
 
   // 全ポジション表示 button (now in the pad footer): a chord-mode display toggle, so hide it
   // outside chord mode where all-positions has no effect.
   var _sapBtn = document.getElementById('btn-show-all-positions');
   if (_sapBtn) _sapBtn.style.display = (AppState.mode === 'chord') ? '' : 'none';
+  if (typeof renderDoubleStopControls === 'function') renderDoubleStopControls();
 
   // Staff notation
   if (AppState.mode === 'input') {

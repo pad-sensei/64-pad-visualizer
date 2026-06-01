@@ -231,6 +231,7 @@ _landscapeMediaQuery.addEventListener('change', handleLandscapeChange);
   // Scale selector
   const sel = document.getElementById('scale-select');
   if (sel) sel.value = AppState.scaleIdx;
+  if (typeof renderDoubleStopControls === 'function') renderDoubleStopControls();
   // Display toggles
   // Enforce exclusive theory view (staff / circle)
   if (showStaff && showCircle) showCircle = false;
@@ -598,6 +599,12 @@ document.addEventListener('keydown', (e) => {
         && typeof cycleBasicFormPosition === 'function' && cycleBasicFormPosition()) {
       return;
     }
+    if (AppState.mode === 'scale'
+        && typeof doubleStopActive === 'function' && doubleStopActive()
+        && typeof cycleDoubleStopPosition === 'function') {
+      cycleDoubleStopPosition();
+      return;
+    }
     const notes = typeof getCurrentChordPlaybackMidiNotes === 'function'
       ? getCurrentChordPlaybackMidiNotes()
       : getCurrentChordMidiNotes();
@@ -621,6 +628,13 @@ document.addEventListener('keydown', (e) => {
 
   // Arrow Up/Down: Inversion (Plain: move lowest/highest note ±1oct, Chord: cycle inversion)
   if (key === 'ArrowUp' || key === 'ArrowDown') {
+    if (!e.shiftKey && AppState.mode === 'scale'
+        && typeof doubleStopActive === 'function' && doubleStopActive()
+        && typeof cycleDoubleStopDegree === 'function') {
+      e.preventDefault();
+      cycleDoubleStopDegree(key === 'ArrowUp' ? 1 : -1);
+      return;
+    }
     // Shift+Up/Down: octave up/down (Chord/Scale) — completes basic-form keyboard nav
     // (Up/Down=inversion, Shift+Up/Down=octave, Left/Right=semitone) so the shape can be
     // moved entirely from the arrows without reaching for the ▼▲ buttons or A/B/C/D boxes.

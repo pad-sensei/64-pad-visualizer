@@ -234,6 +234,10 @@ function getCurrentChordPlaybackMidiNotes() {
   if (StockState.enabled && StockState.currentIndex >= 0 && typeof getStockPlaybackNotes === 'function') {
     return getStockPlaybackNotes(notes);
   }
+  if ((AppState.mode === 'chord' || AppState.mode === 'scale')
+      && typeof applyChordPlaybackRangeRules === 'function') {
+    return applyChordPlaybackRangeRules(notes);
+  }
   return notes;
 }
 
