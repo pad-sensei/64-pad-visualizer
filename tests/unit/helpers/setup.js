@@ -25,7 +25,8 @@ globalThis.document = {
   createElement: () => mockElement(),
 };
 
-globalThis.location = { pathname: '/apps/64-pad/' };
+globalThis.window = globalThis;
+globalThis.location = { pathname: '/apps/64-pad/', search: '' };
 globalThis.localStorage = { getItem: () => null, setItem: () => {} };
 
 // Load pad-core modules first (SSOT: theory calculations, data constants, render)
@@ -57,3 +58,6 @@ Object.assign(globalThis, builder);
 // Load midi.js
 const midi = require('../../../midi.js');
 Object.assign(globalThis, midi);
+
+// Load Double Stop overlay helpers (attaches to window/globalThis)
+require('../../../double-stop.js');

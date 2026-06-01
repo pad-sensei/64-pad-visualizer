@@ -99,41 +99,41 @@ describe('formatDetectedUstText', () => {
 
   it('uses the standard bV major UST for dominant b9 #11 colors', () => {
     expect(formatDetectedUstText([67, 71, 77, 80, 85, 88, 91], 7, 'G7(b9,#11,13)'))
-      .toBe('UST: Db△ [#11,b9] / G7');
+      .toBe('UST: Db△ [#11,b7,b9] / G7');
   });
 
   it('shows the standard V major UST on major seventh bases', () => {
     expect(formatDetectedUstText([60, 64, 67, 71, 74], 0, 'CMaj7(9)'))
-      .toBe('UST: G△ [9] / C△7');
+      .toBe('UST: G△ [5,7,9] / C△7');
   });
 
   it('shows the jazz major seventh sharp-five UST', () => {
     expect(formatDetectedUstText([60, 64, 71, 76, 80, 83], 0, 'CMaj7(#5)'))
-      .toBe('UST: E△ [#5] / C△7');
+      .toBe('UST: E△ [3,#5,7] / C△7');
   });
 
   it('shows quartal UST only when the actual stack is fourth-based', () => {
     expect(formatDetectedUstText([60, 64, 71, 74, 79, 84], 0, 'CMaj7(9)'))
-      .toBe('UST: Q2 [9] / C△7');
+      .toBe('UST: Q2 [9,5,1] / C△7');
     expect(formatDetectedUstText([60, 64, 67, 71, 74], 0, 'CMaj7(9)'))
-      .toBe('UST: G△ [9] / C△7');
+      .toBe('UST: G△ [5,7,9] / C△7');
   });
 
   it('keeps minor seventh bases minor when they are UST targets', () => {
     expect(formatDetectedUstText([50, 53, 60, 64, 67], 2, 'Dm7(9,11)'))
-      .toBe('UST: C△ [9,11] / Dm7');
+      .toBe('UST: C△ [b7,9,11] / Dm7');
   });
 
   it('prefers the bVII major triad over the Vm reading on minor 7(9,11)', () => {
     expect(formatDetectedUstText([60, 63, 67, 70, 74, 77], 0, 'Cm7(9,11)'))
-      .toBe('UST: Bb△ [9,11] / Cm7');
+      .toBe('UST: Bb△ [b7,9,11] / Cm7');
   });
 
   it('shows quartal UST on minor seventh and half-diminished bases', () => {
     expect(formatDetectedUstText([60, 63, 70, 72, 77, 82], 0, 'Cm7(11)'))
-      .toBe('UST: Q1 [11] / Cm7');
+      .toBe('UST: Q1 [1,11,b7] / Cm7');
     expect(formatDetectedUstText([60, 63, 66, 70, 72, 77, 82], 0, 'Cm7(b5,11)'))
-      .toBe('UST: Q1 [11] / Cm7(b5)');
+      .toBe('UST: Q1 [1,11,b7] / Cm7(b5)');
   });
 
   it('does not treat half-diminished chords as minor UST targets', () => {

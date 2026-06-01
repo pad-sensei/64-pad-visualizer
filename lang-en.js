@@ -380,7 +380,7 @@ I18N.addLang('en', {
     header_icons: 'Header Icons',
     header_icons_desc: 'Three icon buttons in the top-right corner.',
     icon_save: '<strong>\uD83D\uDCBE Save</strong> \u2014 Save current settings (sound, effects, display options, etc.) to the browser. Auto-restored on next visit',
-    icon_tutorial: '<strong>\uD83D\uDCD6 Tutorial</strong> \u2014 Browse 11 interactive tutorials. Learn each feature step by step',
+    icon_tutorial: '<strong>\uD83D\uDCD6 Tutorial</strong> \u2014 Browse 12 interactive tutorials. Learn each feature step by step',
     icon_help: '<strong>? Help</strong> \u2014 View shortcut keys, version history, and mode descriptions. Also opens with <kbd>?</kbd> key',
     // Sound Panel
     sound_panel: 'Sound Panel',
@@ -488,6 +488,7 @@ I18N.addLang('en', {
   whats_new_650: 'V6.5.0 is live: HPS TASTY / STOCK / Guitar voicings now live inside the Chord Builder. Sixth-family names use C6(9) / C6(9,#11), and guitar voicing filters, display balance, and playback range are improved.',
   whats_new_660: 'V6.6.0 is live: a stronger chord-detection engine, expanded TASTY voicings (including quartal / So What), and sus chords added to the Chord Builder.',
   whats_new_670: 'V6.7.0 is live: a redesigned Chord mode. Selecting a chord now shows one easy basic form first, with a "Show all positions" button (lower left) to see every voicing. Pads are single-colour by default — switch to degree colours in Display settings. Right-click a pad for Capture / All positions / Clear.',
+  whats_new_6716: 'V6.7.16 is live: HPS member access and the Desktop version now include Double Stop display in Scale mode for 3rd / 4th / 6th two-note harmonies. UST detection is clearer, with degree labels for the notes inside the upper structure. A Double Stop tutorial video is now available from Tutorials.',
 
   // Legacy tutorial keys (backward compat for old lang files)
   tutorial: {
@@ -569,6 +570,25 @@ I18N.addLang('en', {
       step3_msg: 'Major, Minor, Dorian, Mixolydian, Pentatonic...\n31 scales available. The pads update in real time.',
       step4_title: 'Diatonic Bar',
       step4_msg: 'The diatonic chords for your chosen scale appear here.\nPress 3 for triads, 4 for tetrads (7th chords).\nClick any chord to jump into Chord mode with that voicing.',
+    },
+    // Double Stop tutorial
+    double_stop_title: 'Double Stop',
+    double_stop_desc: 'Explore two-note harmonies inside a scale',
+    double_stop: {
+      step1_title: 'Turn on Double Stop',
+      step1_msg: 'In Scale mode, Double Stop overlays a two-note harmony on top of the normal scale display.\nIt is for moving from single-note scale practice into melodic harmony.',
+      step2_title: 'Scale Set',
+      step2_msg: 'Choose the scale set used for Double Stop.\nMajor / Ionian, Mixolydian, Dorian, and Melodic Minor focus on practical seven-note scale vocabulary.',
+      step3_title: '3rd / 4th / 6th',
+      step3_msg: '3rd / 4th / 6th are scale-degree intervals, not fixed semitone counts.\nIn C Major, 3rd means C-E, D-F, E-G, and so on.',
+      step4_title: 'Move the Starting Note',
+      step4_msg: 'Use Up / Down, or the Push 3 Jog Wheel / D-pad left-right, to move the starting note.\nEach move updates the display and plays the current Double Stop so you can learn it by eye and ear.',
+      step5_title: 'Cycle Positions',
+      step5_msg: 'When the same two notes have multiple pad positions, use Space, Push 3 Jog Wheel press, or D-pad center to cycle them.\nThe goal is to find positions that are playable with one hand.',
+      fb_step1_title: 'What is Double Stop?',
+      fb_step1_msg: 'Double Stop means playing a two-note harmony.\n64Pad Explorer overlays 3rd / 4th / 6th shapes in Scale mode. It is available with HPS member access or in the Desktop version.',
+      fb_step2_title: 'Video Walkthrough',
+      fb_step2_msg: 'You can also watch the Double Stop workflow in this tutorial video.',
     },
     // Chord Mode tutorial
     chord_mode_title: 'Chord Mode',

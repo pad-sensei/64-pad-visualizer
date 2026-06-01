@@ -380,7 +380,7 @@ I18N.addLang('ja', {
     header_icons: 'ヘッダーアイコン',
     header_icons_desc: '画面右上に3つのアイコンボタンがあります。',
     icon_save: '<strong>\uD83D\uDCBE 保存</strong> \u2014 現在の設定（音色・エフェクト・表示オプション等）をブラウザに保存します。次回アクセス時に自動復元されます',
-    icon_tutorial: '<strong>\uD83D\uDCD6 チュートリアル</strong> \u2014 11種類のインタラクティブチュートリアルを一覧表示。各機能の使い方をステップごとに体験できます',
+    icon_tutorial: '<strong>\uD83D\uDCD6 チュートリアル</strong> \u2014 12種類のインタラクティブチュートリアルを一覧表示。各機能の使い方をステップごとに体験できます',
     icon_help: '<strong>? ヘルプ</strong> \u2014 ショートカットキー一覧・バージョン履歴・各モードの説明を表示します。<kbd>?</kbd>キーでも開けます',
     // サウンドパネル
     sound_panel: 'サウンドパネル',
@@ -488,6 +488,7 @@ I18N.addLang('ja', {
   whats_new_650: 'V6.5.0にアップデートしました。HPSのTASTY / STOCK / Guitarボイシングをコードビルダー内に整理し、6系統の表記をC6(9) / C6(9,#11)に統一しました。ギターボイシングの絞り込み、表示バランス、再生音域も改善しています。',
   whats_new_660: 'V6.6.0にアップデート。コード判定エンジンを強化し、TASTYのボイシング（4度堆積など）を拡充、コードビルダーにsus系も追加しました。',
   whats_new_670: 'V6.7.0にアップデート。コードモードの表示を見直しました。コードを選ぶとまず基本形（押さえやすい配置）を1つ表示し、左下の「全ポジション表示」で全配置を確認できます。パッドは単色がデフォルトになり、表示設定で度数ごとの色分けに切り替え可能。パッドの右クリックでキャプチャ／全ポジション／クリアを呼び出せます。',
+  whats_new_6716: 'V6.7.16にアップデート。HPS会員アクセスとDesktop版で、ScaleモードにDouble Stop表示を追加しました。3rd / 4th / 6thの2音ハーモニーをスケール上で確認できます。UST判定も整理し、構成音の度数が読みやすくなりました。チュートリアルからDouble Stop動画も見られます。',
 
   // チュートリアル（初回オンボーディング）— 後方互換
   tutorial: {
@@ -569,6 +570,25 @@ I18N.addLang('ja', {
       step3_msg: 'メジャー、マイナー、ドリアン、ミクソリディアン、ペンタトニック...\n31種類のスケール。パッドがリアルタイムで更新されます。',
       step4_title: 'ダイアトニックバー',
       step4_msg: '選んだスケールのダイアトニックコードが表示されます。\n3で3和音（トライアド）、4で4和音（テトラッド）を切り替えられます。\nクリックするとそのコードでChordモードに移動します。',
+    },
+    // Double Stop
+    double_stop_title: 'Double Stop',
+    double_stop_desc: 'スケール上の2音ハーモニーを探す',
+    double_stop: {
+      step1_title: 'Double StopをON',
+      step1_msg: 'ScaleモードでDouble StopをONにすると、スケール表示の上に2音ハーモニーが重なります。\n単音練習から、メロディに和音を混ぜる練習へ進むための表示です。',
+      step2_title: 'スケールセット',
+      step2_msg: 'Double Stop用のスケールセットを選びます。\nMajor / Ionian、Mixolydian、Dorian、Melodic Minorなど、実用頻度の高い7音スケールを中心にしています。',
+      step3_title: '3rd / 4th / 6th',
+      step3_msg: '3rd / 4th / 6thは半音数固定ではなく、選んだスケール内で何番目の音を重ねるかです。\nC Majorの3rdなら、C-E、D-F、E-Gのように進みます。',
+      step4_title: '開始音を動かす',
+      step4_msg: '↑ / ↓キー、またはPush 3のJog Wheel / 十字キー左・右で開始音を動かします。\n開始音が変わるたびに表示と発音が更新されるので、スケール全体の形を耳と目で確認できます。',
+      step5_title: '配置候補を切り替える',
+      step5_msg: '同じ2音に複数のパッド配置がある場合は、Spaceキー、Push 3のJog Wheel押し込み、または十字キー中央で循環します。\n片手で弾きやすい位置を探すのがポイントです。',
+      fb_step1_title: 'Double Stopとは',
+      fb_step1_msg: 'Double Stopは、2音だけを同時に鳴らすハーモニーです。\n64Pad ExplorerではScaleモードに重ねて、3rd / 4th / 6thの形を学べます。HPS会員アクセス、またはDesktop版で利用できます。',
+      fb_step2_title: '操作動画',
+      fb_step2_msg: 'Double Stopの見方と操作は動画でも確認できます。',
     },
     // Chordモード
     chord_mode_title: 'Chordモード',

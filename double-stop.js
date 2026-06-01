@@ -18,11 +18,24 @@ const DOUBLE_STOP_SCALE_SETS = [
 
 function doubleStopAvailableSets() {
   if (typeof AppState === 'undefined') return [];
+  if (!doubleStopHpsUnlocked()) return [];
   return DOUBLE_STOP_SCALE_SETS.slice();
 }
 
 function doubleStopIsAvailable() {
   return doubleStopAvailableSets().length > 0;
+}
+
+function doubleStopHpsUnlocked() {
+  if (typeof TastyState !== 'undefined' && TastyState.hpsUnlocked) return true;
+  if (typeof StockState !== 'undefined' && StockState.hpsUnlocked) return true;
+  try {
+    return typeof window !== 'undefined'
+      && window.location
+      && new URLSearchParams(window.location.search).has('hps');
+  } catch (_) {
+    return false;
+  }
 }
 
 function doubleStopPreferredSetIndexForScale(scaleIdx) {
@@ -274,7 +287,12 @@ function doubleStopIntervalAvailable(index) {
   var set = doubleStopCurrentSet();
   var interval = DOUBLE_STOP_INTERVALS[index];
   if (!set || !interval || !doubleStopIntervalAllowedBySet(set, interval)) return false;
-  return doubleStopBuildLayout(set, interval, 0).pairs.length > 0;
+  var prevDegree = DoubleStopState.degreeIndex;
+  var prevPos = DoubleStopState.posIndex;
+  var layout = doubleStopBuildLayout(set, interval, prevPos || 0);
+  DoubleStopState.degreeIndex = prevDegree;
+  DoubleStopState.posIndex = prevPos;
+  return layout.pairs.length > 0;
 }
 
 function doubleStopAvailableIntervalIndices() {
@@ -294,19 +312,46 @@ function doubleStopPlayPad(row, col) {
   return true;
 }
 
+function doubleStopPlayCurrent() {
+  if (!doubleStopActive()) return false;
+  var layout = doubleStopComputeLayout();
+  if (!layout.pairs || !layout.pairs.length) return false;
+  var notes = layout.pairs[0].notes;
+  if (!notes || !notes.length || typeof playMidiNotes !== 'function') return false;
+  if (typeof ensureAudioResumed === 'function') ensureAudioResumed();
+  playMidiNotes(notes, 1.0);
+  return true;
+}
+
 function doubleStopSyncPush() {
-  // Desktop Push sync is owned by the Desktop bridge. Calling it here would
-  // make the web-facing state helper re-enter the Push LED resend loop.
+  if (typeof window === 'undefined' || window._doubleStopPushSyncing) return;
+  window._doubleStopPushSyncing = true;
+  setTimeout(function() {
+    try {
+      if (typeof window._pushSyncPadPlaybackBlock === 'function') window._pushSyncPadPlaybackBlock();
+      if (typeof window._pushRefreshPadLEDs === 'function') window._pushRefreshPadLEDs();
+      if (typeof window._pushSyncScaleDisplay === 'function') window._pushSyncScaleDisplay();
+    } finally {
+      window._doubleStopPushSyncing = false;
+    }
+  }, 0);
 }
 
 function toggleDoubleStop(force) {
-  if (!doubleStopIsAvailable()) return false;
+  if (!doubleStopIsAvailable()) {
+    if (typeof DoubleStopState !== 'undefined') DoubleStopState.enabled = false;
+    renderDoubleStopControls();
+    if (typeof render === 'function') render();
+    if (typeof saveAppSettings === 'function') saveAppSettings();
+    return false;
+  }
   DoubleStopState.enabled = force === undefined ? !DoubleStopState.enabled : force === true;
   if (DoubleStopState.enabled) DoubleStopState.degreeIndex = 0;
   DoubleStopState.posIndex = 0;
   renderDoubleStopControls();
   if (typeof render === 'function') render();
   if (typeof saveAppSettings === 'function') saveAppSettings();
+  if (DoubleStopState.enabled) doubleStopPlayCurrent();
   doubleStopSyncPush();
   return true;
 }
@@ -322,6 +367,7 @@ function cycleDoubleStopScaleSet(delta) {
   renderDoubleStopControls();
   if (typeof render === 'function') render();
   if (typeof saveAppSettings === 'function') saveAppSettings();
+  doubleStopPlayCurrent();
   doubleStopSyncPush();
   return true;
 }
@@ -337,6 +383,7 @@ function cycleDoubleStopInterval(delta) {
   renderDoubleStopControls();
   if (typeof render === 'function') render();
   if (typeof saveAppSettings === 'function') saveAppSettings();
+  doubleStopPlayCurrent();
   doubleStopSyncPush();
   return true;
 }
@@ -350,6 +397,7 @@ function cycleDoubleStopDegree(delta) {
   renderDoubleStopControls();
   if (typeof render === 'function') render();
   if (typeof saveAppSettings === 'function') saveAppSettings();
+  doubleStopPlayCurrent();
   doubleStopSyncPush();
   return true;
 }
@@ -357,13 +405,12 @@ function cycleDoubleStopDegree(delta) {
 function cycleDoubleStopPosition() {
   if (!doubleStopActive()) return false;
   var layout = doubleStopComputeLayout();
-  if (layout.altCount <= 1) return false;
-  DoubleStopState.posIndex = ((DoubleStopState.posIndex || 0) + 1) % layout.altCount;
-  if (typeof render === 'function') render();
-  var next = doubleStopComputeLayout();
-  if (next.pairs && next.pairs.length && typeof playMidiNotes === 'function') {
-    playMidiNotes(next.pairs[0].notes, 1.0);
+  if (!layout.pairs || !layout.pairs.length) return false;
+  if (layout.altCount > 1) {
+    DoubleStopState.posIndex = ((DoubleStopState.posIndex || 0) + 1) % layout.altCount;
+    if (typeof render === 'function') render();
   }
+  doubleStopPlayCurrent();
   doubleStopSyncPush();
   return true;
 }
@@ -379,6 +426,7 @@ function setDoubleStopScaleSet(index) {
   renderDoubleStopControls();
   if (typeof render === 'function') render();
   if (typeof saveAppSettings === 'function') saveAppSettings();
+  doubleStopPlayCurrent();
   doubleStopSyncPush();
 }
 
@@ -390,18 +438,20 @@ function setDoubleStopDegree(index) {
   renderDoubleStopControls();
   if (typeof render === 'function') render();
   if (typeof saveAppSettings === 'function') saveAppSettings();
+  doubleStopPlayCurrent();
   doubleStopSyncPush();
   return true;
 }
 
 function setDoubleStopInterval(index) {
-  DoubleStopState.enabled = true;
   if (!doubleStopIntervalAvailable(index)) return false;
+  DoubleStopState.enabled = true;
   DoubleStopState.intervalIndex = Math.max(0, Math.min(DOUBLE_STOP_INTERVALS.length - 1, index | 0));
   DoubleStopState.posIndex = 0;
   renderDoubleStopControls();
   if (typeof render === 'function') render();
   if (typeof saveAppSettings === 'function') saveAppSettings();
+  doubleStopPlayCurrent();
   doubleStopSyncPush();
   return true;
 }
@@ -412,32 +462,13 @@ function renderDoubleStopControls() {
   var sets = doubleStopAvailableSets();
   var available = sets.length > 0;
   var isScaleMode = typeof AppState !== 'undefined' && AppState.mode === 'scale';
-  wrap.style.display = isScaleMode ? '' : 'none';
+  wrap.style.display = (isScaleMode && available) ? '' : 'none';
   if (!isScaleMode) return;
-  wrap.classList.toggle('active', available && DoubleStopState.enabled);
   if (!available) {
-    DoubleStopState.enabled = false;
-    var offBtn = document.getElementById('double-stop-toggle');
-    if (offBtn) {
-      offBtn.classList.remove('active');
-      offBtn.disabled = true;
-    }
-    var offSel = document.getElementById('double-stop-set');
-    if (offSel) {
-      offSel.innerHTML = '<option value="-1">No Double Stop set</option>';
-      offSel.disabled = true;
-    }
-    var offDegree = document.getElementById('double-stop-degree');
-    if (offDegree) {
-      offDegree.innerHTML = '<option value="-1">Root</option>';
-      offDegree.disabled = true;
-    }
-    document.querySelectorAll('[data-double-stop-interval]').forEach(function(b) {
-      b.classList.remove('active');
-      b.disabled = true;
-    });
+    if (typeof DoubleStopState !== 'undefined') DoubleStopState.enabled = false;
     return;
   }
+  wrap.classList.toggle('active', available && DoubleStopState.enabled);
   var toggleBtn = document.getElementById('double-stop-toggle');
   if (toggleBtn) {
     toggleBtn.classList.toggle('active', DoubleStopState.enabled);
@@ -486,6 +517,7 @@ if (typeof window !== 'undefined') {
     doubleStopPreferredSetIndexForScale,
     doubleStopResetToPreferredSet,
     doubleStopActive,
+    doubleStopHpsUnlocked,
     doubleStopCurrentSet,
     doubleStopCurrentInterval,
     doubleStopCurrentDegreeIndex,
@@ -495,6 +527,7 @@ if (typeof window !== 'undefined') {
     doubleStopAvailableIntervalIndices,
     doubleStopComputeLayout,
     doubleStopPlayPad,
+    doubleStopPlayCurrent,
     doubleStopSyncPush,
     toggleDoubleStop,
     cycleDoubleStopScaleSet,

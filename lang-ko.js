@@ -605,6 +605,7 @@ I18N.addLang('ko', {
   whats_new_640: 'V6.4.0으로 업데이트되었습니다. 3개 텐션 판정, UST 분석, Note/Degree 표시, 키에 맞춘 # / b 표기를 지원합니다.',
   whats_new_650: 'V6.5.0으로 업데이트되었습니다. HPS TASTY / STOCK / Guitar 보이싱을 Chord Builder 안에 정리했습니다. 6 계열 표기는 C6(9) / C6(9,#11)로 통일했고, 기타 보이싱 필터, 표시 균형, 재생 음역을 개선했습니다.',
   whats_new_660: 'V6.6.0으로 업데이트되었습니다. HPS 회원 전용으로 TASTY에 4도 적층(So What) 모달 보이싱을 추가했습니다 — Miles Davis / McCoy Tyner의 사운드로, 마이너 / 메이저 / 도미넌트 코드에서 사용할 수 있습니다. Chord Builder의 코드 종류 배열도 정리했습니다.',
+  whats_new_6716: 'V6.7.16으로 업데이트되었습니다. Scale 모드에 3rd / 4th / 6th 두 음 하모니를 확인하는 Double Stop 표시가 추가되었습니다. UST 판정도 더 읽기 쉽게 정리되었습니다.',
 
   // Tutorial (first-time onboarding)
   tutorial: {

@@ -510,6 +510,7 @@ var TutorialHints = {
     { sel: '#sound-expand-btn', id: 'sound' },
     { sel: '#chord-engine-tasty', id: 'tasty' },
     { sel: '#chord-engine-stock', id: 'stock' },
+    { sel: '#double-stop-toggle', id: 'double_stop' },
     { sel: '#inst-toggle-circle', id: 'circle' },
     { sel: '#inst-toggle-guitar', id: 'guitar' },
     { sel: '#inst-toggle-bar', id: 'settings' }

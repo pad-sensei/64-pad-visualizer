@@ -53,6 +53,12 @@ describe('detectChord', () => {
       expect(results[0].name).toBe('CMaj7');
     });
 
+    it('prefers modal major seventh b9 #11 over lower-structure slash readings', () => {
+      const results = detectChord([60, 61, 64, 66, 68, 71]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].name).toBe('CMaj7(b9,#11)');
+    });
+
     it('C7 [60,64,67,70]', () => {
       const results = detectChord([60, 64, 67, 70]);
       expect(results.length).toBeGreaterThan(0);

@@ -604,6 +604,7 @@ I18N.addLang('de', {
   whats_new_640: 'V6.4.0 ist live: Erkennung von drei Tensions, UST-Analyse, Note/Degree-Anzeige und tonartbewusste # / b-Schreibweise.',
   whats_new_650: 'V6.5.0 ist live: HPS TASTY / STOCK / Guitar-Voicings sind jetzt im Chord Builder gebündelt. Die Sext-Familie verwendet C6(9) / C6(9,#11); Gitarrenfilter, Anzeige-Balance und Wiedergabebereich wurden verbessert.',
   whats_new_660: 'V6.6.0 ist live: HPS-Mitglieder erhalten Quarten-Voicings (So What) in TASTY — der Sound von Miles Davis / McCoy Tyner — für Moll-, Dur- und Dominantakkorde. Die Reihenfolge der Akkordtypen im Chord Builder wurde ebenfalls überarbeitet.',
+  whats_new_6716: 'V6.7.16 ist live: Scale Mode enthält jetzt Double Stop für 3rd / 4th / 6th Zwei-Noten-Harmonien. Die UST-Erkennung ist klarer und zeigt die Stufen der Noten in der Upper Structure.',
 
   // Tutorial (first-time onboarding)
   tutorial: {

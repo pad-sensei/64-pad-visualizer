@@ -147,6 +147,49 @@ describe('TASTY functional chord display', () => {
   });
 });
 
+describe('Double Stop HPS gate and state invariants', () => {
+  it('hides Double Stop sets unless HPS is unlocked', () => {
+    location.search = '';
+    TastyState.hpsUnlocked = false;
+    StockState.hpsUnlocked = false;
+    expect(doubleStopAvailableSets()).toEqual([]);
+
+    location.search = '?hps=1';
+    expect(doubleStopAvailableSets().length).toBeGreaterThan(0);
+  });
+
+  it('keeps degree and position unchanged while checking interval availability', () => {
+    location.search = '?hps=1';
+    AppState.mode = 'scale';
+    DoubleStopState.enabled = true;
+    DoubleStopState.scaleSetIndex = 0;
+    DoubleStopState.intervalIndex = 0;
+    DoubleStopState.degreeIndex = 1;
+    DoubleStopState.posIndex = 1;
+
+    expect(doubleStopIntervalAvailable(2)).toBe(true);
+    expect(DoubleStopState.degreeIndex).toBe(1);
+    expect(DoubleStopState.posIndex).toBe(1);
+  });
+
+  it('cycles alternate positions without render-time availability checks resetting them', () => {
+    location.search = '?hps=1';
+    AppState.mode = 'scale';
+    DoubleStopState.enabled = true;
+    DoubleStopState.scaleSetIndex = 0;
+    DoubleStopState.intervalIndex = 0;
+    DoubleStopState.degreeIndex = 1;
+    DoubleStopState.posIndex = 0;
+
+    var layout = doubleStopComputeLayout();
+    expect(layout.altCount).toBeGreaterThan(1);
+    expect(cycleDoubleStopPosition()).toBe(true);
+    expect(DoubleStopState.posIndex).toBe(1);
+    doubleStopAvailableIntervalIndices();
+    expect(DoubleStopState.posIndex).toBe(1);
+  });
+});
+
 describe('Stock voicing quality mapping', () => {
   it('supports builder major seventh names used by the UI', () => {
     expect(getStockMapping({ name: 'Maj7' })).toEqual({ cat: 'major', sub: 'Maj7' });

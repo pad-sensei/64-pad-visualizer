@@ -187,6 +187,77 @@ TutorialRegistry.add('scale_mode', {
 });
 
 // =============================================
+// DOUBLE STOP (HPS)
+// =============================================
+function prepareDoubleStopTutorial() {
+  if (typeof setMode === 'function') setMode('scale');
+  if (typeof DoubleStopState !== 'undefined' && typeof doubleStopIsAvailable === 'function' && doubleStopIsAvailable()) {
+    DoubleStopState.enabled = true;
+    DoubleStopState.intervalIndex = 0;
+    DoubleStopState.degreeIndex = 0;
+    DoubleStopState.posIndex = 0;
+    if (typeof doubleStopResetToPreferredSet === 'function') doubleStopResetToPreferredSet();
+    if (typeof renderDoubleStopControls === 'function') renderDoubleStopControls();
+    if (typeof render === 'function') render();
+  }
+}
+
+TutorialRegistry.add('double_stop', {
+  titleKey: 'tut.double_stop_title',
+  descKey: 'tut.double_stop_desc',
+  category: 'features',
+  requireEl: '#double-stop-controls',
+  steps: [
+    {
+      type: 'info',
+      id: 'activate',
+      targets: ['#double-stop-controls'],
+      highlight: '#double-stop-toggle',
+      titleKey: 'tut.double_stop.step1_title',
+      msgKey: 'tut.double_stop.step1_msg',
+      waitFor: 'next',
+      beforeShow: prepareDoubleStopTutorial
+    },
+    {
+      type: 'info',
+      id: 'scale_set',
+      targets: ['#double-stop-set'],
+      highlight: '#double-stop-set',
+      titleKey: 'tut.double_stop.step2_title',
+      msgKey: 'tut.double_stop.step2_msg',
+      waitFor: 'next',
+    },
+    {
+      type: 'info',
+      id: 'interval',
+      targets: ['#double-stop-controls'],
+      highlight: '#double-stop-controls',
+      titleKey: 'tut.double_stop.step3_title',
+      msgKey: 'tut.double_stop.step3_msg',
+      waitFor: 'next',
+    },
+    {
+      type: 'info',
+      id: 'degree',
+      targets: ['#double-stop-degree'],
+      highlight: '#double-stop-degree',
+      titleKey: 'tut.double_stop.step4_title',
+      msgKey: 'tut.double_stop.step4_msg',
+      waitFor: 'next',
+    },
+    {
+      type: 'info',
+      id: 'position',
+      targets: ['#pad-grid'],
+      highlight: '#pad-grid',
+      titleKey: 'tut.double_stop.step5_title',
+      msgKey: 'tut.double_stop.step5_msg',
+      waitFor: 'close',
+    },
+  ],
+});
+
+// =============================================
 // CHORD MODE
 // =============================================
 TutorialRegistry.add('chord_mode', {

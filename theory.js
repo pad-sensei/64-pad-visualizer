@@ -1194,20 +1194,24 @@ function detectedUstDictionaryCandidate(notes, pcs, rootPC, intervals, baseQuali
 
 function detectedUstTensionLabels(offset, quality, baseQuality) {
   var intervals = quality.intervals.map(function(iv) { return (offset + iv) % 12; });
-  var tensionNames = {
+  var degreeNames = {
+    0: '1',
     1: 'b9',
     2: '9',
     3: '#9',
+    4: '3',
     5: '11',
     6: '#11',
-    9: '13'
+    7: '5',
+    9: baseQuality === '6' ? '6' : '13',
+    10: 'b7',
+    11: '7'
   };
-  tensionNames[8] = baseQuality === '\u25B37' ? '#5' : 'b13';
+  degreeNames[8] = baseQuality === '\u25B37' ? '#5' : 'b13';
   var seen = {};
   var labels = [];
   intervals.forEach(function(iv) {
-    if (baseQuality === '6' && iv === 9) return;
-    var label = tensionNames[iv];
+    var label = degreeNames[iv];
     if (label && !seen[label]) {
       seen[label] = true;
       labels.push(label);
