@@ -270,7 +270,12 @@ function getCurrentVoicingMeta() {
         engine: 'TASTY',
         count: (TastyState.currentIndex + 1) + '/' + TastyState.currentMatches.length,
         label: recipe.name || '',
-        chordName: typeof getTastyChordDisplayName === 'function' ? getTastyChordDisplayName() : ''
+        chordName: typeof getTastyChordDisplayName === 'function' ? getTastyChordDisplayName() : '',
+        sourceDegrees: (recipe.v || []).slice(),
+        rawMidiNotes: (TastyState.rawMidiNotes || []).slice(),
+        rawDegrees: (TastyState.rawDegrees || []).slice(),
+        adjustedMidiNotes: (TastyState.midiNotes || []).slice(),
+        adjustedDegrees: (TastyState.midiDegrees || []).slice()
       };
     }
   }
@@ -281,7 +286,17 @@ function getCurrentVoicingMeta() {
         engine: 'STOCK',
         count: (StockState.currentIndex + 1) + '/' + StockState.currentMatches.length,
         label: entry.label || '',
-        chordName: typeof getStockChordDisplayName === 'function' ? getStockChordDisplayName() : ''
+        chordName: typeof getStockChordDisplayName === 'function' ? getStockChordDisplayName() : '',
+        sourceLH: (entry.LH || []).slice(),
+        sourceRH: (entry.RH || []).slice(),
+        rawLhMidi: (StockState.rawLhMidi || []).slice(),
+        rawRhMidi: (StockState.rawRhMidi || []).slice(),
+        rawLhDegrees: (StockState.rawLhDegrees || []).slice(),
+        rawRhDegrees: (StockState.rawRhDegrees || []).slice(),
+        adjustedLhMidi: (StockState.lhMidi || []).slice(),
+        adjustedRhMidi: (StockState.rhMidi || []).slice(),
+        adjustedLhDegrees: (StockState.lhDegrees || []).slice(),
+        adjustedRhDegrees: (StockState.rhDegrees || []).slice()
       };
     }
   }

@@ -283,6 +283,69 @@ function doubleStopComputeLayout() {
   return doubleStopBuildLayout(set, interval, DoubleStopState.posIndex || 0);
 }
 
+function doubleStopCurrentNotes() {
+  if (!doubleStopActive()) return [];
+  var layout = doubleStopComputeLayout();
+  if (!layout.pairs || !layout.pairs.length || !layout.pairs[0].notes) return [];
+  return layout.pairs[0].notes.slice();
+}
+
+function doubleStopPreferredStringPairs(intervalId, stringCount) {
+  var pairs = [];
+  var step = intervalId === 'sixth' ? 2 : 1;
+  for (var s = 0; s + step < stringCount; s++) pairs.push([s, s + step]);
+  return pairs;
+}
+
+function doubleStopGuitarForms(notes, interval, tuning, options) {
+  if (!notes || notes.length < 2 || !interval || !tuning || !tuning.length) return [];
+  var opts = options || {};
+  var maxFret = opts.maxFret == null ? 21 : opts.maxFret;
+  var maxSpan = opts.maxSpan == null ? 5 : opts.maxSpan;
+  var lower = Math.min(notes[0], notes[1]);
+  var upper = Math.max(notes[0], notes[1]);
+  var pairs = doubleStopPreferredStringPairs(interval.id, tuning.length);
+  var out = [];
+  var seen = {};
+
+  pairs.forEach(function(pair, pairIndex) {
+    [
+      { highStringNote: upper, lowStringNote: lower, orientationPenalty: 0 },
+      { highStringNote: lower, lowStringNote: upper, orientationPenalty: 80 },
+    ].forEach(function(assign) {
+      var fHigh = assign.highStringNote - tuning[pair[0]];
+      var fLow = assign.lowStringNote - tuning[pair[1]];
+      if (fHigh < 0 || fHigh > maxFret || fLow < 0 || fLow > maxFret) return;
+      var span = Math.abs(fHigh - fLow);
+      if (span > maxSpan) return;
+      var frets = new Array(tuning.length).fill(null);
+      frets[pair[0]] = fHigh;
+      frets[pair[1]] = fLow;
+      var key = frets.join(',');
+      if (seen[key]) return;
+      seen[key] = true;
+      var openPenalty = (fHigh === 0 || fLow === 0) ? 18 : 0;
+      var avg = (fHigh + fLow) / 2;
+      var highPositionPenalty = Math.max(0, avg - 9) * 3;
+      var sameFretBonus = fHigh === fLow ? -8 : 0;
+      out.push({
+        frets: frets,
+        stringPair: pair.slice(),
+        notes: [assign.highStringNote, assign.lowStringNote],
+        score: pairIndex * 8 + span * 18 + assign.orientationPenalty + openPenalty + highPositionPenalty + sameFretBonus,
+      });
+    });
+  });
+
+  out.sort(function(a, b) {
+    return a.score - b.score
+      || Math.abs(a.frets[a.stringPair[0]] - a.frets[a.stringPair[1]]) - Math.abs(b.frets[b.stringPair[0]] - b.frets[b.stringPair[1]])
+      || a.stringPair[0] - b.stringPair[0]
+      || (a.frets[a.stringPair[0]] + a.frets[a.stringPair[1]]) - (b.frets[b.stringPair[0]] + b.frets[b.stringPair[1]]);
+  });
+  return out;
+}
+
 function doubleStopIntervalAvailable(index) {
   var set = doubleStopCurrentSet();
   var interval = DOUBLE_STOP_INTERVALS[index];
@@ -526,6 +589,9 @@ if (typeof window !== 'undefined') {
     doubleStopIntervalAvailable,
     doubleStopAvailableIntervalIndices,
     doubleStopComputeLayout,
+    doubleStopCurrentNotes,
+    doubleStopPreferredStringPairs,
+    doubleStopGuitarForms,
     doubleStopPlayPad,
     doubleStopPlayCurrent,
     doubleStopSyncPush,

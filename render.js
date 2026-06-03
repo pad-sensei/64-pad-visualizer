@@ -363,6 +363,7 @@ function renderPads(svg, state, grid) {
           } else if (AppState.mode === 'input') { togglePlainNote(m); }
           else if (TastyState.enabled || StockState.enabled) {
             // TASTY/Stock mode: play note only, don't modify chord builder
+            e.stopPropagation();
             _heldMidi = m; noteOn(m);
           } else {
             _heldMidi = m; noteOn(m);
@@ -378,6 +379,7 @@ function renderPads(svg, state, grid) {
             // Double-stop playback is momentary through playMidiNotes.
           } else if (AppState.mode === 'input') { togglePlainNote(m); }
           else if (TastyState.enabled || StockState.enabled) {
+            e.stopPropagation();
             for (const t of e.changedTouches) { _heldTouches.set(t.identifier, m); }
             noteOn(m);
           } else {
@@ -420,15 +422,16 @@ function renderPads(svg, state, grid) {
         }
         rect.setAttribute('stroke', 'none');
       }
-      // TASTY mode: fade off non-voicing pads completely.
-      // Exception: when the scale background is drawn (allPosScaleBg, engine educational mode),
-      // the non-voicing pads ARE the scale (blue/orange) and must stay full brightness to match
-      // the Push display, the guitar engine, and the all-positions view (うりなみさん 2026-05-30).
+      // TASTY/STOCK mode: show only the actual voicing positions as hits.
+      // Earlier versions left same-pitch-class duplicates as faint chord-tone ghosts; that made
+      // Desktop disagree with Push, where Stock/Tasty are WYSIWYG pad positions.
       const isTastyActive = tastyMidiSet && tastyMidiSet.size > 0;
-      if (isTastyActive && _isTastyMiss && !(basicPadSet || allPosScaleBg)) {
-        // Keep chord tone colors visible at low opacity for orientation
+      if (isTastyActive && _isTastyMiss) {
         rect.setAttribute('stroke', 'none');
-        rect.setAttribute('opacity', '0.2');
+        if (!(basicPadSet || allPosScaleBg)) {
+          rect.setAttribute('fill', 'var(--pad-off)');
+          rect.setAttribute('opacity', '0.7');
+        }
       } else if (isTastyActive) {
         rect.setAttribute('stroke', 'none');
       }

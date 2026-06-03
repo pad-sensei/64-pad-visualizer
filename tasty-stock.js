@@ -33,6 +33,98 @@ function buildTastyVoicing(rootMidi, degrees) {
   return result;
 }
 
+function buildTastyVoicingItems(rootMidi, degrees, hand) {
+  var midiNotes = buildTastyVoicing(rootMidi, degrees || []);
+  var items = [];
+  for (var i = 0; i < midiNotes.length; i++) {
+    items.push({ midi: midiNotes[i], degree: degrees[i], hand: hand || null, originalIndex: i });
+  }
+  return items;
+}
+
+// Last-resort low-interval-limit guard.
+//
+// Important: curated TASTY/STOCK voicings are meaningful as voicings. Their
+// normal path preserves the original shape and uses whole-octave playback/range
+// movement first. This helper is kept for exceptional/generated cases where a
+// local octave escape is musically less damaging than leaving an unusably muddy
+// low clash.
+var LOW_INTERVAL_LIMITS = {
+  1: 60,  // b9 / minor 2nd
+  2: 55,  // 9 / major 2nd
+  3: 48,  // b3
+  4: 46,  // 3
+  5: 43,  // sus4 / 11
+  6: 42,  // #11 / b5
+  7: 36,  // 5
+  8: 40,  // #5 / b13
+  9: 40,  // 6 / 13
+  10: 36, // b7
+  11: 36  // major 7
+};
+
+function lowIntervalLimitForPair(lowerMidi, upperMidi) {
+  var interval = upperMidi - lowerMidi;
+  if (interval <= 0 || interval >= 12) return null;
+  var simple = ((interval % 12) + 12) % 12;
+  return LOW_INTERVAL_LIMITS[simple] || null;
+}
+
+function applyLowIntervalLimitToItems(items) {
+  if (!items || items.length < 2) return (items || []).slice();
+  var out = items.map(function(item, idx) {
+    return {
+      midi: item.midi,
+      degree: item.degree,
+      hand: item.hand || null,
+      originalIndex: item.originalIndex !== undefined ? item.originalIndex : idx
+    };
+  });
+
+  for (var guard = 0; guard < 24; guard++) {
+    out.sort(function(a, b) { return a.midi - b.midi || a.originalIndex - b.originalIndex; });
+    var changed = false;
+    for (var i = 0; i < out.length - 1; i++) {
+      for (var j = i + 1; j < out.length; j++) {
+        var limit = lowIntervalLimitForPair(out[i].midi, out[j].midi);
+        if (limit !== null && out[i].midi < limit) {
+          out[j].midi += 12;
+          changed = true;
+          break;
+        }
+      }
+      if (changed) break;
+    }
+    if (!changed) break;
+  }
+  out.sort(function(a, b) { return a.midi - b.midi || a.originalIndex - b.originalIndex; });
+  return out;
+}
+
+function voicingItemsToMidi(items) {
+  return (items || []).map(function(item) { return item.midi; });
+}
+
+function voicingItemsToDegrees(items) {
+  return (items || []).map(function(item) { return item.degree; });
+}
+
+function buildDegreeMapFromItems(items) {
+  var map = {};
+  (items || []).forEach(function(item) {
+    map[item.midi] = item.degree;
+  });
+  return map;
+}
+
+function makeVoicingItemsFromMidiDegrees(midiNotes, degrees) {
+  var items = [];
+  for (var i = 0; i < midiNotes.length; i++) {
+    items.push({ midi: midiNotes[i], degree: degrees[i], originalIndex: i });
+  }
+  return items;
+}
+
 // Detect Rootless / Omit3 / Omit5 from degree array
 function getTastyLabels(degrees) {
   var labels = [];
@@ -352,15 +444,21 @@ function cycleTasty(reverse) {
   // 範囲外の音は pad に出ないが、 voicing 自体は変えない (うりなみさん 2026-05-20)。
   var rootPC = BuilderState.root;
   var rootMidi = 48 + rootPC;
-  var midiNotes = buildTastyVoicing(rootMidi, recipe.v);
+  var rawVoicingItems = buildTastyVoicingItems(rootMidi, recipe.v);
+  TastyState.rawMidiNotes = voicingItemsToMidi(rawVoicingItems);
+  TastyState.rawDegrees = voicingItemsToDegrees(rawVoicingItems);
+  var voicingItems = rawVoicingItems;
+  var midiNotes = voicingItemsToMidi(voicingItems);
+  var midiDegrees = voicingItemsToDegrees(voicingItems);
 
   fitTastyVoicingToPad(midiNotes);
 
   // Split by pad range
   var split = splitByPadRange(midiNotes);
   TastyState.midiNotes = midiNotes;
+  TastyState.midiDegrees = midiDegrees;
   TastyState.outOfRange = split.outOfRange;
-  TastyState.degreeMap = buildTastyDegreeMap(midiNotes, recipe.v);
+  TastyState.degreeMap = buildDegreeMapFromItems(voicingItems);
   TastyState.topNote = midiNotes.length > 0 ? Math.max.apply(null, midiNotes) : null;
   TastyState.padPositions = padFindCompactPositions(midiNotes, ROWS, COLS, baseMidi(), ROW_INTERVAL, TastyState.degreeMap);
 
@@ -375,12 +473,23 @@ function refreshTastyVoicing(delta) {
   if (!TastyState.enabled || TastyState.currentIndex < 0) return;
   var recipe = TastyState.currentMatches[TastyState.currentIndex];
   if (!recipe) return;
-  var midiNotes = TastyState.midiNotes.map(function(n) { return n + delta; });
+  var sourceDegrees = TastyState.midiDegrees && TastyState.midiDegrees.length === TastyState.midiNotes.length
+    ? TastyState.midiDegrees : recipe.v;
+  var rawVoicingItems = makeVoicingItemsFromMidiDegrees(
+    TastyState.midiNotes.map(function(n) { return n + delta; }),
+    sourceDegrees
+  );
+  TastyState.rawMidiNotes = voicingItemsToMidi(rawVoicingItems);
+  TastyState.rawDegrees = voicingItemsToDegrees(rawVoicingItems);
+  var voicingItems = rawVoicingItems;
+  var midiNotes = voicingItemsToMidi(voicingItems);
+  var midiDegrees = voicingItemsToDegrees(voicingItems);
   fitTastyVoicingToPad(midiNotes);
   var split = splitByPadRange(midiNotes);
   TastyState.midiNotes = midiNotes;
+  TastyState.midiDegrees = midiDegrees;
   TastyState.outOfRange = split.outOfRange;
-  TastyState.degreeMap = buildTastyDegreeMap(midiNotes, recipe.v);
+  TastyState.degreeMap = buildDegreeMapFromItems(voicingItems);
   TastyState.topNote = midiNotes.length > 0 ? Math.max.apply(null, midiNotes) : null;
   TastyState.padPositions = padFindCompactPositions(midiNotes, ROWS, COLS, baseMidi(), ROW_INTERVAL, TastyState.degreeMap);
   updateTastyUI();
@@ -402,7 +511,10 @@ function toggleTasty() {
     if (typeof disableGuitarEngine === 'function') disableGuitarEngine({ render: false });
     // Clear stale state before enable (defensive: prior chord's voicing must not leak)
     TastyState.currentIndex = -1;
+    TastyState.rawMidiNotes = [];
+    TastyState.rawDegrees = [];
     TastyState.midiNotes = [];
+    TastyState.midiDegrees = [];
     TastyState.outOfRange = [];
     TastyState.degreeMap = {};
     TastyState.topNote = null;
@@ -425,7 +537,10 @@ function disableTasty(silent) {
   if (!TastyState.enabled) return;
   TastyState.enabled = false;
   TastyState.currentIndex = -1;
+  TastyState.rawMidiNotes = [];
+  TastyState.rawDegrees = [];
   TastyState.midiNotes = [];
+  TastyState.midiDegrees = [];
   TastyState.outOfRange = [];
   TastyState.degreeMap = {};
   TastyState.topNote = null;
@@ -447,7 +562,10 @@ function setTastyTopFilter(top) {
     cycleTasty();
   } else {
     TastyState.currentIndex = -1;
+    TastyState.rawMidiNotes = [];
+    TastyState.rawDegrees = [];
     TastyState.midiNotes = [];
+    TastyState.midiDegrees = [];
     TastyState.outOfRange = [];
     TastyState.degreeMap = {};
     TastyState.topNote = null;
@@ -497,7 +615,9 @@ function getTastyDiffText() {
 
   // Voicing notes/degrees: bottom to top (the actual voicing structure)
   var displayContext = getBuilderVoicingDisplayContext();
-  var voicingStr = formatVoicingNoteDegreeText(TastyState.midiNotes, recipe.v, rootName, displayContext);
+  var displayDegrees = TastyState.midiDegrees && TastyState.midiDegrees.length === TastyState.midiNotes.length
+    ? TastyState.midiDegrees : recipe.v;
+  var voicingStr = formatVoicingNoteDegreeText(TastyState.midiNotes, displayDegrees, rootName, displayContext);
 
   // Top note info
   var topStr = '';
@@ -545,7 +665,9 @@ function getTastyActiveSummary() {
   if (!recipe) return null;
   var rootName = BuilderState.root !== null ? pcName(BuilderState.root) : '';
   var displayContext = getBuilderVoicingDisplayContext();
-  var parts = formatVoicingNoteDegreeParts(TastyState.midiNotes, recipe.v, rootName, displayContext);
+  var displayDegrees = TastyState.midiDegrees && TastyState.midiDegrees.length === TastyState.midiNotes.length
+    ? TastyState.midiDegrees : recipe.v;
+  var parts = formatVoicingNoteDegreeParts(TastyState.midiNotes, displayDegrees, rootName, displayContext);
   return {
     kind: 'Tasty',
     count: (TastyState.currentIndex + 1) + '/' + TastyState.currentMatches.length,
@@ -593,9 +715,11 @@ function renderTastyDegreeBadges() {
   var displayContext = getBuilderVoicingDisplayContext();
   var rootName = rootPC !== null ? pcName(rootPC) : '';
 
+  var displayDegrees = TastyState.midiDegrees && TastyState.midiDegrees.length === TastyState.midiNotes.length
+    ? TastyState.midiDegrees : recipe.v;
   var noteIdx = 0;
-  for (var i = 0; i < recipe.v.length; i++) {
-    var deg = recipe.v[i];
+  for (var i = 0; i < displayDegrees.length; i++) {
+    var deg = displayDegrees[i];
     if (TASTY_DEGREE_MAP[deg] === undefined) continue;
     var semitone = TASTY_DEGREE_MAP[deg];
     var cat = getTastyDegreeCategory(deg, displayContext);
@@ -889,22 +1013,25 @@ function cycleStock(reverse) {
   var rootPC = BuilderState.root;
   var lhRoot = 36 + rootPC;
   var rhRoot = 48 + rootPC;
-  StockState.lhMidi = entry.LH && entry.LH.length > 0 ? stockDegreesToMidi(lhRoot, entry.LH) : [];
-  StockState.rhMidi = entry.RH && entry.RH.length > 0 ? stockDegreesToMidi(rhRoot, entry.RH) : [];
+  var rawStockItems = [];
+  if (entry.LH && entry.LH.length > 0) rawStockItems = rawStockItems.concat(buildTastyVoicingItems(lhRoot, entry.LH, 'lh'));
+  if (entry.RH && entry.RH.length > 0) rawStockItems = rawStockItems.concat(buildTastyVoicingItems(rhRoot, entry.RH, 'rh'));
+  var rawLhItems = rawStockItems.filter(function(item) { return item.hand === 'lh'; });
+  var rawRhItems = rawStockItems.filter(function(item) { return item.hand === 'rh'; });
+  StockState.rawLhMidi = voicingItemsToMidi(rawLhItems);
+  StockState.rawRhMidi = voicingItemsToMidi(rawRhItems);
+  StockState.rawLhDegrees = voicingItemsToDegrees(rawLhItems);
+  StockState.rawRhDegrees = voicingItemsToDegrees(rawRhItems);
+  var stockItems = rawStockItems;
+  var lhItems = stockItems.filter(function(item) { return item.hand === 'lh'; });
+  var rhItems = stockItems.filter(function(item) { return item.hand === 'rh'; });
+  StockState.lhMidi = voicingItemsToMidi(lhItems);
+  StockState.rhMidi = voicingItemsToMidi(rhItems);
+  StockState.lhDegrees = voicingItemsToDegrees(lhItems);
+  StockState.rhDegrees = voicingItemsToDegrees(rhItems);
 
   // Build degree map for all notes
-  var degMap = {};
-  if (entry.LH) {
-    for (var i = 0; i < entry.LH.length && i < StockState.lhMidi.length; i++) {
-      degMap[StockState.lhMidi[i]] = entry.LH[i];
-    }
-  }
-  if (entry.RH) {
-    for (var j = 0; j < entry.RH.length && j < StockState.rhMidi.length; j++) {
-      degMap[StockState.rhMidi[j]] = entry.RH[j];
-    }
-  }
-  StockState.degreeMap = degMap;
+  StockState.degreeMap = buildDegreeMapFromItems(stockItems);
   var allNotes = StockState.lhMidi.concat(StockState.rhMidi);
   fitStockVoicingToPad(allNotes);
   StockState.padPositions = padFindCompactPositions(allNotes, ROWS, COLS, baseMidi(), ROW_INTERVAL, StockState.degreeMap);
@@ -921,20 +1048,30 @@ function refreshStockVoicing(delta) {
   if (!StockState.enabled || StockState.currentIndex < 0) return;
   var entry = StockState.currentMatches[StockState.currentIndex];
   if (!entry) return;
-  StockState.lhMidi = StockState.lhMidi.map(function(n) { return n + delta; });
-  StockState.rhMidi = StockState.rhMidi.map(function(n) { return n + delta; });
-  var degMap = {};
-  if (entry.LH) {
-    for (var i = 0; i < entry.LH.length && i < StockState.lhMidi.length; i++) {
-      degMap[StockState.lhMidi[i]] = entry.LH[i];
-    }
+  var stockItems = [];
+  var lhDegrees = StockState.lhDegrees && StockState.lhDegrees.length === StockState.lhMidi.length ? StockState.lhDegrees : (entry.LH || []);
+  var rhDegrees = StockState.rhDegrees && StockState.rhDegrees.length === StockState.rhMidi.length ? StockState.rhDegrees : (entry.RH || []);
+  for (var i = 0; i < StockState.lhMidi.length; i++) {
+    stockItems.push({ midi: StockState.lhMidi[i] + delta, degree: lhDegrees[i], hand: 'lh', originalIndex: i });
   }
-  if (entry.RH) {
-    for (var j = 0; j < entry.RH.length && j < StockState.rhMidi.length; j++) {
-      degMap[StockState.rhMidi[j]] = entry.RH[j];
-    }
+  for (var j = 0; j < StockState.rhMidi.length; j++) {
+    stockItems.push({ midi: StockState.rhMidi[j] + delta, degree: rhDegrees[j], hand: 'rh', originalIndex: StockState.lhMidi.length + j });
   }
-  StockState.degreeMap = degMap;
+  var rawStockItems = stockItems;
+  var rawLhItems = rawStockItems.filter(function(item) { return item.hand === 'lh'; });
+  var rawRhItems = rawStockItems.filter(function(item) { return item.hand === 'rh'; });
+  StockState.rawLhMidi = voicingItemsToMidi(rawLhItems);
+  StockState.rawRhMidi = voicingItemsToMidi(rawRhItems);
+  StockState.rawLhDegrees = voicingItemsToDegrees(rawLhItems);
+  StockState.rawRhDegrees = voicingItemsToDegrees(rawRhItems);
+  stockItems = rawStockItems;
+  var lhItems = stockItems.filter(function(item) { return item.hand === 'lh'; });
+  var rhItems = stockItems.filter(function(item) { return item.hand === 'rh'; });
+  StockState.lhMidi = voicingItemsToMidi(lhItems);
+  StockState.rhMidi = voicingItemsToMidi(rhItems);
+  StockState.lhDegrees = voicingItemsToDegrees(lhItems);
+  StockState.rhDegrees = voicingItemsToDegrees(rhItems);
+  StockState.degreeMap = buildDegreeMapFromItems(stockItems);
   var allNotes = StockState.lhMidi.concat(StockState.rhMidi);
   fitStockVoicingToPad(allNotes);
   StockState.padPositions = padFindCompactPositions(allNotes, ROWS, COLS, baseMidi(), ROW_INTERVAL, StockState.degreeMap);
@@ -962,8 +1099,14 @@ function toggleStock() {
     if (typeof disableGuitarEngine === 'function') disableGuitarEngine({ render: false });
     // Clear stale state before enable (defensive: prior chord's voicing must not leak)
     StockState.currentIndex = -1;
+    StockState.rawLhMidi = [];
+    StockState.rawRhMidi = [];
+    StockState.rawLhDegrees = [];
+    StockState.rawRhDegrees = [];
     StockState.lhMidi = [];
     StockState.rhMidi = [];
+    StockState.lhDegrees = [];
+    StockState.rhDegrees = [];
     StockState.degreeMap = {};
     StockState.padPositions = [];
     StockState.enabled = true;
@@ -981,8 +1124,14 @@ function disableStock() {
   if (!StockState.enabled) return;
   StockState.enabled = false;
   StockState.currentIndex = -1;
+  StockState.rawLhMidi = [];
+  StockState.rawRhMidi = [];
+  StockState.rawLhDegrees = [];
+  StockState.rawRhDegrees = [];
   StockState.lhMidi = [];
   StockState.rhMidi = [];
+  StockState.lhDegrees = [];
+  StockState.rhDegrees = [];
   StockState.degreeMap = {};
   StockState.padPositions = [];
   // Clean up Stock reflect
@@ -1228,7 +1377,7 @@ function getStockInfoText() {
   // Chord name from actual STOCK degrees + all degrees (bottom to top, LH then RH merged)
   var chord = getStockChordDisplayName();
   var rootName = BuilderState.root !== null ? pcName(BuilderState.root) : '';
-  var allDegrees = (entry.LH || []).concat(entry.RH || []);
+  var allDegrees = (StockState.lhDegrees || []).concat(StockState.rhDegrees || []);
   var allNotes = (StockState.lhMidi || []).concat(StockState.rhMidi || []);
   return allDegrees.length > 0 ? chord + ' ' + formatVoicingNoteDegreeText(allNotes, allDegrees, rootName, getBuilderVoicingDisplayContext()) : chord;
 }
@@ -1243,7 +1392,7 @@ function getStockActiveSummary() {
   if (!StockState.enabled || StockState.currentIndex < 0) return null;
   var entry = StockState.currentMatches[StockState.currentIndex];
   if (!entry) return null;
-  var allDegrees = (entry.LH || []).concat(entry.RH || []);
+  var allDegrees = (StockState.lhDegrees || []).concat(StockState.rhDegrees || []);
   var allNotes = (StockState.lhMidi || []).concat(StockState.rhMidi || []);
   var rootName = BuilderState.root !== null ? pcName(BuilderState.root) : '';
   var displayContext = getBuilderVoicingDisplayContext();
@@ -1298,7 +1447,9 @@ function updateStockUI() {
 if (typeof module !== 'undefined') module.exports = {
   // TASTY
   TASTY_DEGREE_MAP, QUALITY_BASE_DEGREES,
-  buildTastyVoicing, getTastyLabels, buildTastyDegreeMap,
+  buildTastyVoicing, buildTastyVoicingItems, applyLowIntervalLimitToItems,
+  voicingItemsToMidi, voicingItemsToDegrees, buildDegreeMapFromItems, makeVoicingItemsFromMidiDegrees,
+  getTastyLabels, buildTastyDegreeMap,
   formatVoicingNoteName, formatVoicingNoteDegreeText, formatVoicingNoteDegreeParts, formatVoicingTopText, formatActiveVoicingSummary,
   getPracticalVoicingAudioNotes, getTastyPlaybackNotes, getStockPlaybackNotes,
   splitByPadRange, getTastyFitOctaveShift, fitTastyVoicingToPad,

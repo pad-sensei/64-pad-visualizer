@@ -336,8 +336,8 @@ function selectVoicingBox(idx) {
     if (TastyState.enabled && box) {
       TastyState.midiNotes = box.midiNotes;
       TastyState.topNote = Math.max.apply(null, box.midiNotes);
-      TastyState.degreeMap = buildTastyDegreeMap(box.midiNotes,
-        TastyState.currentMatches[TastyState.currentIndex].v);
+      TastyState.midiDegrees = TastyState.currentMatches[TastyState.currentIndex].v.slice(0, box.midiNotes.length);
+      TastyState.degreeMap = buildDegreeMapFromItems(makeVoicingItemsFromMidiDegrees(box.midiNotes, TastyState.midiDegrees));
       updateTastyUI();
     }
     render();
@@ -356,8 +356,8 @@ function selectVoicingBox(idx) {
     if (TastyState.enabled) {
       TastyState.midiNotes = box.midiNotes;
       TastyState.topNote = Math.max.apply(null, box.midiNotes);
-      TastyState.degreeMap = buildTastyDegreeMap(box.midiNotes,
-        TastyState.currentMatches[TastyState.currentIndex].v);
+      TastyState.midiDegrees = TastyState.currentMatches[TastyState.currentIndex].v.slice(0, box.midiNotes.length);
+      TastyState.degreeMap = buildDegreeMapFromItems(makeVoicingItemsFromMidiDegrees(box.midiNotes, TastyState.midiDegrees));
       updateTastyUI();
     }
     render();
@@ -1044,6 +1044,8 @@ function detectedUstBaseQuality(chordName) {
   var isHalfDiminished = /^(m7\((?:b5|\u266D5)|m7b5|m7-5|\u00F87|\u00F8)/i.test(quality);
   var hasMajorSeventh = quality.indexOf('\u25B37') !== -1 || /maj7/i.test(quality);
   var hasExplicitSeventh = quality.indexOf('7') !== -1;
+  var isSuspended = /^sus/i.test(quality);
+  var isDiminishedOrAugmented = /^(?:dim|aug|\+|\u00F8|\u00B0)/i.test(quality);
   var isMajorSixFamily = /^(?:maj)?6(?:\/?9|\.9|\(|$)/i.test(quality);
   var isMinorSixFamily = /^m6(?:\/?9|\.9|\(|$)/i.test(quality);
   var impliesDominantSeventh = /^(9|11|13)(\(|$)/.test(quality);
@@ -1056,6 +1058,9 @@ function detectedUstBaseQuality(chordName) {
   if (isMinor && hasSeventhExtension) return 'm7';
   if (hasMajorSeventh) return '\u25B37';
   if (hasSeventhExtension) return '7';
+  if (isSuspended || isDiminishedOrAugmented) return '';
+  if (isMinor) return 'm';
+  if (quality === '' || /^add/i.test(quality) || /^\(/.test(quality)) return 'major';
   return '';
 }
 
@@ -1128,10 +1133,18 @@ var DETECTED_UST_RULES = {
   '\u25B37': [
     { offset: 2, quality: 'q' },      // Q2: 9, 5, R
     { offset: 4, quality: 'q' },      // Q3: 3, 13, 9
+    { offset: 9, quality: 'q' },      // Q6: 13, 9, 5
+    { offset: 11, quality: 'q' },     // Q7: 7, 3, 13
     { offset: 7, quality: 'major' },  // V: 5, 7, 9
     { offset: 4, quality: 'major' },  // III: 3, #5, 7
     { offset: 2, quality: 'major' },  // II: 9, #11, 13
     { offset: 11, quality: 'm' }      // VIIm: 7, 9, #11
+  ],
+  'major': [
+    { offset: 2, quality: 'q' },      // Q2: 9, 5, R
+    { offset: 4, quality: 'q' },      // Q3: 3, 13, 9
+    { offset: 9, quality: 'q' },      // Q6: 13, 9, 5
+    { offset: 11, quality: 'q' }      // Q7: 7, 3, 13
   ],
   'm7': [
     { offset: 0, quality: 'q' },      // Q1: R, 11, b7
@@ -1142,6 +1155,12 @@ var DETECTED_UST_RULES = {
     { offset: 10, quality: 'major' }, // bVII: b7, 9, 11
     { offset: 7, quality: 'm' },      // Vm: 5, b7, 9
     { offset: 5, quality: 'major' }   // IV: 11, 13, R
+  ],
+  'm': [
+    { offset: 2, quality: 'q' },      // Q2: 9, 5, R
+    { offset: 5, quality: 'q' },      // Q4: 11, b7, m3
+    { offset: 7, quality: 'q' },      // Q5: 5, R, 11
+    { offset: 10, quality: 'q' }      // Qb7: b7, m3, b13
   ],
   'm6': [
     { offset: 5, quality: 'major' },  // IV: 11, 13, R
@@ -1162,7 +1181,9 @@ var DETECTED_UST_RULES = {
 function detectedUstHasShellContext(intervals, baseQuality) {
   if (baseQuality === '7') return intervals.has(4) && intervals.has(10) && !intervals.has(11);
   if (baseQuality === '\u25B37') return intervals.has(4) && intervals.has(11) && !intervals.has(10);
+  if (baseQuality === 'major') return intervals.has(0) && intervals.has(4) && intervals.has(7);
   if (baseQuality === 'm7') return intervals.has(3) && intervals.has(10) && !intervals.has(11);
+  if (baseQuality === 'm') return intervals.has(0) && intervals.has(3) && intervals.has(7);
   if (baseQuality === 'm6') return intervals.has(3) && intervals.has(9);
   if (baseQuality === 'm7(b5)') return intervals.has(3) && intervals.has(6) && intervals.has(10) && !intervals.has(11);
   if (baseQuality === '6') return intervals.has(4) && intervals.has(9);
@@ -1198,7 +1219,7 @@ function detectedUstTensionLabels(offset, quality, baseQuality) {
     0: '1',
     1: 'b9',
     2: '9',
-    3: '#9',
+    3: baseQuality === 'm' || baseQuality === 'm7' || baseQuality === 'm6' || baseQuality === 'm7(b5)' ? 'm3' : '#9',
     4: '3',
     5: '11',
     6: '#11',
@@ -1225,6 +1246,12 @@ function detectedUstQuartalName(offset) {
   return names[((offset % 12) + 12) % 12] || 'Q';
 }
 
+function detectedUstBaseQualitySuffix(baseQuality) {
+  if (baseQuality === 'major') return '';
+  if (baseQuality === 'm') return 'm';
+  return baseQuality;
+}
+
 function formatDetectedUstUpperName(rootPC, chordName, candidate, baseQuality) {
   var offset = candidate.offset !== undefined ? candidate.offset : ((candidate.triadRoot - rootPC + 12) % 12);
   var name = candidate.quality.quartal
@@ -1242,7 +1269,7 @@ function formatDetectedUstText(notes, rootPC, chordName) {
   var intervals = new Set(notes.map(function(n) { return (((n % 12) - rootPC) + 12) % 12; }));
   var dictionary = detectedUstDictionaryCandidate(notes, pcs, rootPC, intervals, baseQuality);
   if (dictionary) {
-    var dictionaryBase = (chordRootDisplayName(chordName) || NOTE_NAMES_SHARP[rootPC]) + baseQuality;
+    var dictionaryBase = (chordRootDisplayName(chordName) || NOTE_NAMES_SHARP[rootPC]) + detectedUstBaseQualitySuffix(baseQuality);
     return 'UST: ' + formatDetectedUstUpperName(rootPC, chordName, dictionary, baseQuality) + ' / ' + dictionaryBase;
   }
   if (DETECTED_UST_RULES[baseQuality]) return '';

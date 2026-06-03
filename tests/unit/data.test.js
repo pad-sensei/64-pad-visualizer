@@ -112,6 +112,24 @@ describe('TASTY functional chord display', () => {
     expect(getStockPlaybackNotes([60, 67, 76, 83])).toEqual([60, 67, 76, 83]);
   });
 
+  it('preserves curated HPS voicing order; low-range safety is handled by whole-octave playback shifts', () => {
+    const items = buildTastyVoicingItems(36, ['1', '3', 'b7']);
+    expect(voicingItemsToMidi(items)).toEqual([36, 40, 46]);
+    expect(voicingItemsToDegrees(items)).toEqual(['1', '3', 'b7']);
+    expect(formatVoicingNoteDegreeText(
+      voicingItemsToMidi(items),
+      voicingItemsToDegrees(items),
+      'C'
+    )).toBe('Note: C E Bb  Degree: 1 3 b7');
+    expect(getTastyPlaybackNotes(voicingItemsToMidi(items))).toEqual([48, 52, 58]);
+  });
+
+  it('keeps the same curated close interval alone once it is already in playback range', () => {
+    const items = buildTastyVoicingItems(48, ['1', '3', 'b7']);
+    expect(voicingItemsToMidi(items)).toEqual([48, 52, 58]);
+    expect(voicingItemsToDegrees(items)).toEqual(['1', '3', 'b7']);
+  });
+
   it('shows the active HPS voicing index and description before notes', () => {
     expect(formatActiveVoicingSummary({
       kind: 'Stock',
@@ -187,6 +205,28 @@ describe('Double Stop HPS gate and state invariants', () => {
     expect(DoubleStopState.posIndex).toBe(1);
     doubleStopAvailableIntervalIndices();
     expect(DoubleStopState.posIndex).toBe(1);
+  });
+
+  it('maps guitar string pairs by double-stop interval', () => {
+    expect(doubleStopPreferredStringPairs('third', 6)).toEqual([[0,1], [1,2], [2,3], [3,4], [4,5]]);
+    expect(doubleStopPreferredStringPairs('fourth', 6)).toEqual([[0,1], [1,2], [2,3], [3,4], [4,5]]);
+    expect(doubleStopPreferredStringPairs('tritone', 6)).toEqual([[0,1], [1,2], [2,3], [3,4], [4,5]]);
+    expect(doubleStopPreferredStringPairs('sixth', 6)).toEqual([[0,2], [1,3], [2,4], [3,5]]);
+  });
+
+  it('prefers adjacent strings for 3rd/4th/tritone guitar double stops', () => {
+    const third = doubleStopGuitarForms([60, 64], { id: 'third' }, PAD_GUITAR_TUNING);
+    const tritone = doubleStopGuitarForms([60, 66], { id: 'tritone' }, PAD_GUITAR_TUNING);
+    expect(third.length).toBeGreaterThan(0);
+    expect(tritone.length).toBeGreaterThan(0);
+    expect(Math.abs(third[0].stringPair[0] - third[0].stringPair[1])).toBe(1);
+    expect(Math.abs(tritone[0].stringPair[0] - tritone[0].stringPair[1])).toBe(1);
+  });
+
+  it('prefers skipped-string pairs for 6th guitar double stops', () => {
+    const sixth = doubleStopGuitarForms([60, 69], { id: 'sixth' }, PAD_GUITAR_TUNING);
+    expect(sixth.length).toBeGreaterThan(0);
+    expect(Math.abs(sixth[0].stringPair[0] - sixth[0].stringPair[1])).toBe(2);
   });
 });
 

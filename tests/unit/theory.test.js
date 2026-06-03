@@ -115,8 +115,21 @@ describe('formatDetectedUstText', () => {
   it('shows quartal UST only when the actual stack is fourth-based', () => {
     expect(formatDetectedUstText([60, 64, 71, 74, 79, 84], 0, 'CMaj7(9)'))
       .toBe('UST: Q2 [9,5,1] / C△7');
+    expect(formatDetectedUstText([60, 69, 71, 74, 76, 79], 0, 'CMaj7(9,13)'))
+      .toBe('UST: Q6 [13,9,5] / C△7');
+    expect(formatDetectedUstText([60, 64, 71, 83, 88, 93], 0, 'CMaj7(13)'))
+      .toBe('UST: Q7 [7,3,13] / C△7');
     expect(formatDetectedUstText([60, 64, 67, 71, 74], 0, 'CMaj7(9)'))
       .toBe('UST: G△ [5,7,9] / C△7');
+  });
+
+  it('shows quartal UST over plain major and minor triads', () => {
+    expect(formatDetectedUstText([60, 67, 69, 74, 76, 79], 0, 'C'))
+      .toBe('UST: Q6 [13,9,5] / C');
+    expect(formatDetectedUstText([60, 65, 67, 70, 75], 0, 'Cm'))
+      .toBe('UST: Q4 [11,b7,m3] / Cm');
+    expect(formatDetectedUstText([60, 64, 67, 74], 0, 'Cadd9'))
+      .toBe('');
   });
 
   it('keeps minor seventh bases minor when they are UST targets', () => {

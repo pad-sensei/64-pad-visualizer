@@ -136,7 +136,10 @@ const TastyState = {
   currentIndex: -1,      // which voicing is active (-1 = none)
   originalQuality: null, // BuilderState.quality before TASTY
   originalTension: null, // BuilderState.tension before TASTY
+  rawMidiNotes: [],      // source recipe converted to MIDI before low-interval-limit adjustment
+  rawDegrees: [],        // degree strings aligned with rawMidiNotes
   midiNotes: [],         // current voicing MIDI notes
+  midiDegrees: [],       // degree strings aligned with midiNotes after range/LIL adjustment
   outOfRange: [],        // MIDI notes outside pad range
   degreeMap: {},         // {midiNote: degreeString} — recipe degree per note
   topNote: null,         // highest MIDI note in current voicing
@@ -153,8 +156,14 @@ const StockState = {
   currentSubtype: null,  // e.g. 'Maj7', 'Min7', 'Dom7'
   currentMatches: [],    // voicing entries matching current chord type
   currentIndex: -1,      // which voicing is active (-1 = none)
+  rawLhMidi: [],         // source LH MIDI before low-interval-limit adjustment
+  rawRhMidi: [],         // source RH MIDI before low-interval-limit adjustment
+  rawLhDegrees: [],      // source LH degrees before low-interval-limit adjustment
+  rawRhDegrees: [],      // source RH degrees before low-interval-limit adjustment
   lhMidi: [],            // left hand MIDI notes
   rhMidi: [],            // right hand MIDI notes
+  lhDegrees: [],         // degree strings aligned with lhMidi after range/LIL adjustment
+  rhDegrees: [],         // degree strings aligned with rhMidi after range/LIL adjustment
   degreeMap: {},         // {midiNote: degreeString}
   padPositions: [],      // compact pad positions from padFindCompactPositions
 };
@@ -170,7 +179,12 @@ function getActiveBank() {
 }
 
 function cloneVoicingMeta(meta) {
-  return meta ? Object.assign({}, meta) : null;
+  if (!meta) return null;
+  const cloned = {};
+  Object.keys(meta).forEach(function(key) {
+    cloned[key] = Array.isArray(meta[key]) ? meta[key].slice() : meta[key];
+  });
+  return cloned;
 }
 
 function makeMemorySlot(midiNotes, chordName, voicingMeta) {
@@ -244,7 +258,6 @@ function saveAppSettings() {
       pushMemorySlotColor: AppState.pushMemorySlotColor,
       pushPerformActiveColor: AppState.pushPerformActiveColor,
       pushLedColorSettingsVersion: AppState.pushLedColorSettingsVersion,
-      doubleStopEnabled: DoubleStopState.enabled,
       doubleStopScaleSetIndex: DoubleStopState.scaleSetIndex,
       doubleStopIntervalIndex: DoubleStopState.intervalIndex,
     };
@@ -290,7 +303,9 @@ function loadAppSettings() {
     if (s.showAllPositions !== undefined) AppState.showAllPositions = s.showAllPositions === true;
     else if (s.pushVoicingOverview === true) AppState.showAllPositions = true; // migrate retired pushVoicingOverview key
     if (s.performAllPositions !== undefined) AppState.performAllPositions = s.performAllPositions === true;
-    if (s.doubleStopEnabled !== undefined) DoubleStopState.enabled = s.doubleStopEnabled === true;
+    // Double Stop is an exploratory overlay, not a startup mode. Keep its set/interval
+    // preferences, but always start with the overlay off so Scale mode remains the default.
+    DoubleStopState.enabled = false;
     if (s.doubleStopScaleSetIndex !== undefined && s.doubleStopScaleSetIndex >= 0) DoubleStopState.scaleSetIndex = s.doubleStopScaleSetIndex;
     if (s.doubleStopIntervalIndex !== undefined && s.doubleStopIntervalIndex >= 0) DoubleStopState.intervalIndex = s.doubleStopIntervalIndex;
     if (s.pushLedColorSettingsVersion === AppState.pushLedColorSettingsVersion) {

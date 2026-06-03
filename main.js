@@ -294,6 +294,16 @@ function _64peLocalized(value) {
   return value || '';
 }
 
+function _64peEscapeHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, function(ch) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+  });
+}
+
+function _64peEscapeAttr(value) {
+  return _64peEscapeHtml(value).replace(/`/g, '&#96;');
+}
+
 function _64peBannerHashStr(s) {
   var h = 0;
   for (var i = 0; i < s.length; i++) {
@@ -316,6 +326,66 @@ function _64peShowUpdateNotice(contentHash, onClose) {
       if (typeof onClose === 'function') onClose();
     };
   }
+}
+
+function _64peRuntimeInfo() {
+  var currentText = (document.querySelector('.version-tag') || {}).textContent || '';
+  var isDesktop = /^Desktop\b/i.test(currentText) || !!window._desktopVersion || !!window.IS_DESKTOP_MODE;
+  return {
+    text: currentText,
+    isDesktop: isDesktop,
+    version: window._desktopVersion || currentText
+  };
+}
+
+function _64peNoticeTargetMatches(target, runtime) {
+  target = String(target || 'all').toLowerCase();
+  if (target === 'all') return true;
+  if (target === 'desktop') return runtime.isDesktop;
+  if (target === 'web') return !runtime.isDesktop;
+  return true;
+}
+
+function _64peRemoteNoticeShouldShow(notice, runtime) {
+  if (!notice || notice.enabled === false) return false;
+  if (!_64peNoticeTargetMatches(notice.target, runtime)) return false;
+
+  var latest = notice.latestVersion || notice.latestDesktopVersion || '';
+  if (latest && _64peCompareVersions(runtime.version, latest) >= 0) return false;
+
+  var minCurrent = notice.minCurrentVersion || '';
+  if (minCurrent && _64peCompareVersions(runtime.version, minCurrent) < 0) return false;
+
+  return true;
+}
+
+function _64peAppendRemoteNotice(notice, runtime) {
+  var bannerText = document.getElementById('update-notice-text');
+  if (!bannerText || !_64peRemoteNoticeShouldShow(notice, runtime)) return;
+
+  var latest = notice.latestVersion || notice.latestDesktopVersion || '';
+  var title = _64peLocalized(notice.title)
+    || (runtime.isDesktop && latest ? ('64Pad Explorer Desktop v' + latest) : '');
+  var message = _64peLocalized(notice.message) || '';
+  var url = notice.url || 'https://padsensei.gumroad.com/l/bklonh';
+  var cta = _64peLocalized(notice.cta) || (runtime.isDesktop ? 'Gumroad' : 'Open');
+  var icon = notice.icon || (runtime.isDesktop ? '\uD83D\uDCE6' : '\u2728');
+  var id = notice.id || [notice.target || 'all', latest, message, url].join(':');
+  var hash = _64peBannerHashStr('remote-notice:' + id + ':' + latest + ':' + message + ':' + url);
+
+  if (localStorage.getItem('64pad-notice-dismissed') === hash) return;
+
+  var html = _64peEscapeHtml(icon) + ' ';
+  if (title) html += '<b>' + _64peEscapeHtml(title) + '</b> ';
+  if (message) html += _64peEscapeHtml(message) + ' ';
+  if (url) {
+    html += '<a href="' + _64peEscapeAttr(url) + '" target="_blank" rel="noopener">' + _64peEscapeHtml(cta) + '</a>';
+  }
+  html += '&nbsp;&nbsp;';
+
+  bannerText.insertAdjacentHTML('afterbegin', html);
+  _versionNoticeShown = true;
+  _64peShowUpdateNotice(hash);
 }
 
 // ========================================
@@ -1151,21 +1221,21 @@ function toggleSection(name) {
   } catch(_) {}
 })();
 
-// Remote Desktop update notice. The app loads a tiny JS manifest from the blog:
+// Remote update notices. The app loads a tiny JS manifest from the blog:
 //   window.__64PE_UPDATE__ = {
-//     enabled: true,
-//     latestDesktopVersion: "1.5.1",
-//     title: { ja: "64Pad Explorer Desktop v1.5.1", en: "64Pad Explorer Desktop v1.5.1" },
-//     message: { ja: "更新版があります。", en: "A desktop update is available." },
-//     url: "https://padsensei.gumroad.com/l/bklonh",
-//     cta: { ja: "Gumroadでダウンロード", en: "Download on Gumroad" }
+//     schemaVersion: 2,
+//     notices: [{
+//       id: "desktop-1.6.0-rc1",
+//       target: "desktop", // desktop / web / all
+//       latestVersion: "1.6.0",
+//       title: { ja: "64Pad Explorer Desktop v1.6 RC", en: "64Pad Explorer Desktop v1.6 RC" },
+//       message: { ja: "RC版があります。", en: "A release candidate is available." },
+//       url: "https://padsensei.gumroad.com/l/bklonh",
+//       cta: { ja: "Gumroadで確認", en: "Open Gumroad" }
+//     }]
 //   };
 (function() {
   try {
-    var currentText = (document.querySelector('.version-tag') || {}).textContent || '';
-    var isDesktop = /^Desktop\b/i.test(currentText) || !!window._desktopVersion;
-    if (!isDesktop) return;
-
     window.__64PE_UPDATE__ = null;
     var script = document.createElement('script');
     script.src = 'https://murinaikurashi.com/apps/64-pad/64-pad-explorer-update.js?v=' + Date.now();
@@ -1174,24 +1244,25 @@ function toggleSection(name) {
       try {
         var data = window.__64PE_UPDATE__ || {};
         if (data.enabled === false) return;
-        var latest = data.latestDesktopVersion || data.latestVersion || '';
-        var current = window._desktopVersion || currentText;
-        if (!latest || _64peCompareVersions(current, latest) >= 0) return;
+        var runtime = _64peRuntimeInfo();
+        var notices = Array.isArray(data.notices) ? data.notices.slice() : [];
 
-        var title = _64peLocalized(data.title) || ('64Pad Explorer Desktop v' + latest);
-        var message = _64peLocalized(data.message) || '';
-        var url = data.url || 'https://padsensei.gumroad.com/l/bklonh';
-        var cta = _64peLocalized(data.cta) || 'Gumroad';
-        var html = '\uD83D\uDCE6 <b>' + title + '</b> ' + message +
-          ' <a href="' + url + '" target="_blank" rel="noopener">' + cta + '</a>&nbsp;&nbsp;';
+        // Backward compatible single-notice manifest.
+        if (!notices.length && (data.latestDesktopVersion || data.latestVersion || data.message || data.title)) {
+          notices.push({
+            id: data.id || 'desktop-update-' + (data.latestDesktopVersion || data.latestVersion || ''),
+            target: data.target || 'desktop',
+            latestVersion: data.latestDesktopVersion || data.latestVersion || '',
+            title: data.title,
+            message: data.message,
+            url: data.url,
+            cta: data.cta,
+            icon: data.icon,
+            enabled: data.enabled
+          });
+        }
 
-        var bannerText = document.getElementById('update-notice-text');
-        if (!bannerText) return;
-        var hash = _64peBannerHashStr('desktop-update:' + latest + ':' + message + ':' + url);
-        if (localStorage.getItem('64pad-notice-dismissed') === hash) return;
-        bannerText.innerHTML = html + bannerText.innerHTML;
-        _versionNoticeShown = true;
-        _64peShowUpdateNotice(hash);
+        notices.forEach(function(notice) { _64peAppendRemoteNotice(notice, runtime); });
       } catch(_) {}
     };
     document.head.appendChild(script);

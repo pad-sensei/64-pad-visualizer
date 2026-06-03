@@ -126,6 +126,23 @@ describe('detectChord', () => {
       expect(results[0].name).toBe('C7(9,#11,13)');
     });
 
+    it('C altered dominant colors are not represented as Caug', () => {
+      const results = detectChord([60, 61, 63, 64, 68, 70]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].name).toBe('C7(b9,#9,b13)');
+      expect(results[0].name).not.toBe('Caug');
+    });
+
+    it('does not force a chord name onto major seventh split-third colors', () => {
+      const results = detectChord([60, 63, 64, 69, 71]);
+      expect(results).toEqual([]);
+    });
+
+    it('does not force a chord name when flat seventh and major seventh coexist', () => {
+      const results = detectChord([60, 64, 67, 70, 71]);
+      expect(results).toEqual([]);
+    });
+
     it('C lydian 6(9) color detects as C6(9,#11), not a rootless shell chord', () => {
       const results = detectChord([60, 64, 69, 74, 78]);
       expect(results.length).toBeGreaterThan(0);

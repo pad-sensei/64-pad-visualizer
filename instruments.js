@@ -160,6 +160,23 @@ function renderGuitarDiagram(rootPC, pcsSet, bassPC, overlayPCS, overlayCharPCS,
       ghostForms = gGroup.forms.filter((_, fi) => fi !== GuitarPositionState.currentAltInGroup);
     }
   }
+  let selectedFrets = guitarSelectedFrets;
+  if (typeof doubleStopActive === 'function' && doubleStopActive()
+      && typeof doubleStopCurrentNotes === 'function'
+      && typeof doubleStopCurrentInterval === 'function'
+      && typeof doubleStopGuitarForms === 'function') {
+    const dsNotes = doubleStopCurrentNotes();
+    const dsInterval = doubleStopCurrentInterval();
+    const dsForms = doubleStopGuitarForms(dsNotes, dsInterval, PAD_GUITAR_TUNING, { maxFret: 21, maxSpan: 5 });
+    if (dsForms.length > 0) {
+      selectedFrets = dsForms[0].frets;
+      curFretSet = new Set();
+      for (let ds = 0; ds < selectedFrets.length; ds++) {
+        if (selectedFrets[ds] !== null) curFretSet.add(ds * 100 + selectedFrets[ds]);
+      }
+      ghostForms = dsForms.slice(1, 9);
+    }
+  }
 
   // Label function: maps global state to pure function call
   const labelFn = function(pc, iv) {
@@ -181,7 +198,7 @@ function renderGuitarDiagram(rootPC, pcsSet, bassPC, overlayPCS, overlayCharPCS,
     overlayCharPCS: overlayCharPCS,
     renderState: st,
     positionState: GuitarPositionState,
-    selectedFrets: guitarSelectedFrets,
+    selectedFrets: selectedFrets,
     labelFn: labelFn,
     chordMode: AppState.mode === 'chord',
     solo: showGuitar && !showPiano,
@@ -283,6 +300,12 @@ function renderPianoDisplay(stateOrRootPC, pcsSetOpt) {
     && VoicingState.lastBoxes[VoicingState.selectedBoxIdx];
   if (selectedVoicingBox && selectedVoicingBox.midiNotes) {
     activeMidiSet = new Set(selectedVoicingBox.midiNotes);
+  }
+  if (AppState.mode === 'scale'
+      && typeof doubleStopActive === 'function' && doubleStopActive()
+      && typeof doubleStopCurrentNotes === 'function') {
+    var dsPianoNotes = doubleStopCurrentNotes();
+    if (dsPianoNotes.length > 0) activeMidiSet = new Set(dsPianoNotes);
   }
   const pianoBaseMidi = baseMidi();
   const pianoMidiBase = stockPinned ? 36 : (Math.floor(pianoBaseMidi / 12) - 2 + 2) * 12;
