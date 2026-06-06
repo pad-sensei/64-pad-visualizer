@@ -78,6 +78,8 @@ describe('formatDetectedUstText', () => {
   it('distinguishes dominant seventh and major seventh bases', () => {
     expect(formatDetectedUstText([60, 62, 64, 66, 69, 71], 0, 'CMaj7(9,#11,13)'))
       .toBe('UST: D△ [9,#11,13] / C△7');
+    expect(formatDetectedUstText([60, 64, 67, 71, 74, 78, 81], 0, 'CMaj7(9,#11,13)'))
+      .toBe('UST: D△ [9,#11,13] / C△7');
     expect(formatDetectedUstText([60, 62, 64, 66, 69, 70], 0, 'C7(9,#11,13)'))
       .toBe('UST: D△ [9,#11,13] / C7');
   });
@@ -105,6 +107,13 @@ describe('formatDetectedUstText', () => {
   it('shows the standard V major UST on major seventh bases', () => {
     expect(formatDetectedUstText([60, 64, 67, 71, 74], 0, 'CMaj7(9)'))
       .toBe('UST: G△ [5,7,9] / C△7');
+  });
+
+  it('does not show UST for major seventh voicings that contain the natural 11 avoid note', () => {
+    expect(formatDetectedUstText([60, 64, 67, 71, 74, 77, 81], 0, 'CMaj7(9,13)'))
+      .toBe('');
+    expect(formatDetectedUstText([60, 64, 67, 71, 74, 77, 81], 0, 'CMaj7(9,11,13)'))
+      .toBe('');
   });
 
   it('shows the jazz major seventh sharp-five UST', () => {

@@ -120,6 +120,13 @@ describe('detectChord', () => {
       expect(hasMatch(results, 'CMaj7(9,#11,13)')).toBe(true);
     });
 
+    it('CMaj7 with natural 11 keeps the avoid note in the chord name', () => {
+      const results = detectChord([60, 64, 67, 71, 74, 77, 81]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].name).toBe('CMaj7(9,11,13)');
+      expect(results[0].name).not.toBe('CMaj7(9,13)');
+    });
+
     it('C7 shell + D upper structure triad → C7(9,#11,13)', () => {
       const results = detectChord([60, 64, 70, 74, 78, 81]);
       expect(results.length).toBeGreaterThan(0);

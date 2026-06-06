@@ -1192,8 +1192,10 @@ function detectedUstHasShellContext(intervals, baseQuality) {
 
 function detectedUstDictionaryCandidate(notes, pcs, rootPC, intervals, baseQuality) {
   if (!detectedUstHasShellContext(intervals, baseQuality)) return null;
+  if (baseQuality === '\u25B37' && intervals.has(5)) return null;
   var rules = DETECTED_UST_RULES[baseQuality];
   if (!rules) return null;
+  var best = null;
   for (var i = 0; i < rules.length; i++) {
     var rule = rules[i];
     if (rule.forbid && rule.forbid.some(function(iv) { return intervals.has(iv); })) continue;
@@ -1202,15 +1204,19 @@ function detectedUstDictionaryCandidate(notes, pcs, rootPC, intervals, baseQuali
       ? detectedUstQuartalAvailable(notes, rootPC, rule.offset)
       : detectedUstTriadAvailable(pcs, rootPC, rule.offset, rule.quality);
     if (available) {
-      if (detectedUstTensionLabels(rule.offset, quality, baseQuality).length < 1) continue;
-      return {
+      var labels = detectedUstTensionLabels(rule.offset, quality, baseQuality);
+      if (labels.length < 1) continue;
+      var score = detectedUstCandidateScore(labels);
+      var candidate = {
+        score: score,
         triadRoot: (rootPC + rule.offset) % 12,
         quality: quality,
         offset: rule.offset
       };
+      if (!best || candidate.score > best.score) best = candidate;
     }
   }
-  return null;
+  return best;
 }
 
 function detectedUstTensionLabels(offset, quality, baseQuality) {
@@ -1239,6 +1245,22 @@ function detectedUstTensionLabels(offset, quality, baseQuality) {
     }
   });
   return labels;
+}
+
+function detectedUstIsExtensionLabel(label) {
+  return label !== '1'
+    && label !== '3'
+    && label !== 'm3'
+    && label !== '5'
+    && label !== 'b5'
+    && label !== 'b7'
+    && label !== '7';
+}
+
+function detectedUstCandidateScore(labels) {
+  var extensionCount = labels.filter(detectedUstIsExtensionLabel).length;
+  var chordToneCount = labels.length - extensionCount;
+  return extensionCount * 100 - chordToneCount * 20;
 }
 
 function detectedUstQuartalName(offset) {
