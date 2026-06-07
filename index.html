@@ -93,7 +93,7 @@ document.addEventListener('click', function(e) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+1+Code:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=6.7.22">
+<link rel="stylesheet" href="style.css?v=6.7.25">
 <!-- WebAudioFont player (lazy: only needed if sampler loads) -->
 <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js" async></script>
 <!-- jRhodes3c sampler: loaded in background AFTER page is interactive.
@@ -245,7 +245,7 @@ document.addEventListener('click', function(e) {
       <li data-i18n="help.sc_shell"><kbd>s</kbd> — Shell循環（off → 1-3-7 → 1-7-3 → off）</li>
       <li data-i18n="help.sc_drop"><kbd>Shift</kbd>+<kbd>d</kbd> — Drop循環（off → Drop 2 → Drop 3 → off）</li>
       <li data-i18n="help.sc_clear"><kbd>x</kbd> — コードクリア（Chordモード）</li>
-      <li data-i18n="help.sc_voicing_reflect"><kbd>v</kbd> — Guitarエンジン ON/OFF（選択中のギターボイシングを64パッドに表示）</li>
+      <li data-i18n="help.sc_voicing_reflect"><kbd>Shift</kbd>+<kbd>g</kbd> / <kbd>v</kbd> — Guitarエンジン ON/OFF（選択中のギターボイシングを64パッドに表示）</li>
       <li data-i18n="help.sc_guitar_pos"><kbd>,</kbd> / <kbd>.</kbd> — ギターポジション送り（前 / 次）</li>
       <li data-i18n="help.sc_bass_pos"><kbd>&lt;</kbd> / <kbd>&gt;</kbd> — ベースポジション送り（前 / 次）</li>
       <li data-i18n="help.sc_tasty"><kbd>t</kbd> — TASTY ON/OFF</li>
@@ -274,8 +274,7 @@ document.addEventListener('click', function(e) {
       <li data-i18n="help.sc_space"><kbd>Space</kbd> — 現在のコード/スケールを再生</li>
       <li data-i18n="help.sc_space_all"><kbd>Shift</kbd>+<kbd>Space</kbd> — Play All（メモリースロット順次再生）</li>
       <li data-i18n="help.sc_capture_current"><kbd>Shift</kbd>+<kbd>C</kbd> — 現在のコード/ボイシングをMemory Slotに保存</li>
-      <li data-i18n="help.sc_memory"><kbd>m</kbd> — Memory / Perform 切替</li>
-      <li data-i18n="help.sc_perform"><kbd>p</kbd> — Perform / Memory 切替</li>
+      <li data-i18n="help.sc_perform"><kbd>p</kbd> — Perform 切替</li>
       <li data-i18n="help.sc_save"><kbd>Option</kbd>+<kbd>1234</kbd><kbd>qwer</kbd><kbd>asdf</kbd><kbd>zxcv</kbd> — メモリースロットに保存（16スロット対応）</li>
       <li data-i18n="help.sc_bank"><kbd>[</kbd> / <kbd>]</kbd> — バンク切替</li>
       <li data-i18n="help.sc_link"><kbd>⌘⌥</kbd>+<kbd>L</kbd> — Link モード（弾いた音を全楽器に同期）</li>
@@ -858,25 +857,25 @@ if (new URLSearchParams(window.location.search).has('hps')) {
 <!-- Sound Credits: hidden until new presets are added -->
 
 <!-- i18n (engine → language files) -->
-<script src="i18n.js?v=6.7.22"></script>
-<script src="lang-en.js?v=6.7.22"></script>
-<script src="lang-ja.js?v=6.7.22"></script>
-<script src="lang-zh.js?v=6.7.22"></script>
-<script src="lang-es.js?v=6.7.22"></script>
-<script src="lang-fr.js?v=6.7.22"></script>
-<script src="lang-pt.js?v=6.7.22"></script>
-<script src="lang-de.js?v=6.7.22"></script>
-<script src="lang-ko.js?v=6.7.22"></script>
-<script src="lang-it.js?v=6.7.22"></script>
+<script src="i18n.js?v=6.7.25"></script>
+<script src="lang-en.js?v=6.7.25"></script>
+<script src="lang-ja.js?v=6.7.25"></script>
+<script src="lang-zh.js?v=6.7.25"></script>
+<script src="lang-es.js?v=6.7.25"></script>
+<script src="lang-fr.js?v=6.7.25"></script>
+<script src="lang-pt.js?v=6.7.25"></script>
+<script src="lang-de.js?v=6.7.25"></script>
+<script src="lang-ko.js?v=6.7.25"></script>
+<script src="lang-it.js?v=6.7.25"></script>
 <!-- pad-core (SSOT: theory calculations, data constants, render) -->
-<script src="pad-core/data.js?v=6.7.22"></script>
-<script src="pad-core/theory.js?v=6.7.22"></script>
-<script src="pad-core/render.js?v=6.7.22"></script>
-<script src="pad-core/circle.js?v=6.7.22"></script>
-<script src="pad-core/builder-ui.js?v=6.7.22"></script>
-<script src="pad-core/incremental.js?v=6.7.22"></script>
+<script src="pad-core/data.js?v=6.7.25"></script>
+<script src="pad-core/theory.js?v=6.7.25"></script>
+<script src="pad-core/render.js?v=6.7.25"></script>
+<script src="pad-core/circle.js?v=6.7.25"></script>
+<script src="pad-core/builder-ui.js?v=6.7.25"></script>
+<script src="pad-core/incremental.js?v=6.7.25"></script>
 <!-- App JS -->
-<script src="data.js?v=6.7.22"></script>
+<script src="data.js?v=6.7.25"></script>
 <!-- Phase 3.1-A.c: audio-core + host-adapter + audio-ui-binding are loaded
      ONLY when AUDIO_ENABLED. In silent mode these are skipped entirely —
      pad-core / theory / MIDI / render still run, only sound is absent.
@@ -900,7 +899,7 @@ if (window.AUDIO_ENABLED) {
     'audio-ui-binding.js'
   ];
   _audioScripts.forEach(function(src) {
-    document.write('<script src="' + src + '?v=6.7.22"><\/script>');
+    document.write('<script src="' + src + '?v=6.7.25"><\/script>');
   });
 } else {
   // Silent mode: stub audio APIs that non-audio code calls, so pads/UI don't crash.
@@ -932,22 +931,22 @@ if (window.AUDIO_ENABLED) {
   window._updatePlateRouting = function() {};
 }
 </script>
-<script src="theory.js?v=6.7.22"></script>
-<script src="tasty-stock.js?v=6.7.22"></script>
-<script src="staff.js?v=6.7.22"></script>
-<script src="instruments.js?v=6.7.22"></script>
-<script src="circle-ui.js?v=6.7.22"></script>
-<script src="parent-scales-ui.js?v=6.7.22"></script>
-<script src="play-controls.js?v=6.7.22"></script>
-<script src="double-stop.js?v=6.7.22"></script>
-<script src="render.js?v=6.7.22"></script>
-<script src="plain.js?v=6.7.22"></script>
-<script src="perform.js?v=6.7.22"></script>
-<script src="builder.js?v=6.7.22"></script>
-<script src="midi.js?v=6.7.22"></script>
-<script src="main.js?v=6.7.22"></script>
-<script src="tutorial-data.js?v=6.7.22"></script>
-<script src="tutorial.js?v=6.7.22"></script>
+<script src="theory.js?v=6.7.25"></script>
+<script src="tasty-stock.js?v=6.7.25"></script>
+<script src="staff.js?v=6.7.25"></script>
+<script src="instruments.js?v=6.7.25"></script>
+<script src="circle-ui.js?v=6.7.25"></script>
+<script src="parent-scales-ui.js?v=6.7.25"></script>
+<script src="play-controls.js?v=6.7.25"></script>
+<script src="double-stop.js?v=6.7.25"></script>
+<script src="render.js?v=6.7.25"></script>
+<script src="plain.js?v=6.7.25"></script>
+<script src="perform.js?v=6.7.25"></script>
+<script src="builder.js?v=6.7.25"></script>
+<script src="midi.js?v=6.7.25"></script>
+<script src="main.js?v=6.7.25"></script>
+<script src="tutorial-data.js?v=6.7.25"></script>
+<script src="tutorial.js?v=6.7.25"></script>
 <script>
 // 2026-04-28: Desktop モード (?desktop=1) 後段 override。
 // 音は JUCE host (外部 VST/AU plugin) 側で再生されるため、Web 側 AudioContext を

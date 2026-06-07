@@ -488,37 +488,60 @@ function handleCmdOptionShortcutCode(cmdOptCode) {
 }
 window.__padHandleDesktopShortcut = handleCmdOptionShortcutCode;
 
+function isTextEntryTarget(target) {
+  const tag = target && target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (target && target.isContentEditable);
+}
+
+function shouldConsumeAppShortcutEvent(e) {
+  if (isTextEntryTarget(e.target)) return false;
+  if (e.key === 'Alt') return true;
+  if (e.metaKey || e.ctrlKey || e.altKey) return false;
+  if (e.key && e.key.length === 1) return true;
+  if (e.key && e.key.startsWith('Arrow')) return true;
+  return e.key === 'Tab' || e.key === 'Backspace' || e.key === 'Escape';
+}
+
 document.addEventListener('keydown', (e) => {
   // Ignore when typing in input fields
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  if (isTextEntryTarget(e.target)) return;
+
+  const consumeShortcut = () => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
 
   const key = e.key;
   const lk = key.toLowerCase(); // for letter key matching (case-insensitive)
 
+  // Desktop / DAW hosts can beep when a key is not consumed even if the WebView
+  // has no active action for the current state. Reserve app-owned keys up front.
+  if (shouldConsumeAppShortcutEvent(e)) consumeShortcut();
+
   // /: Focus text chord input (Chord mode)
   if (key === '/' && AppState.mode === 'chord') {
-    e.preventDefault();
+    consumeShortcut();
     var tchInput = document.getElementById('text-chord-input');
     if (tchInput) { tchInput.focus(); tchInput.select(); }
     return;
   }
 
   // [ / ]: Bank switch (全モード共通)
-  if (key === '[') { switchBank(-1); return; }
-  if (key === ']') { switchBank(1); return; }
+  if (key === '[') { consumeShortcut(); switchBank(-1); return; }
+  if (key === ']') { consumeShortcut(); switchBank(1); return; }
 
   // , / .: Guitar position cycle (Chord mode)
-  if (key === ',' && GuitarPositionState.enabled) { cycleGuitarPosition(-1); return; }
-  if (key === '.' && GuitarPositionState.enabled) { cycleGuitarPosition(1); return; }
+  if (key === ',' && GuitarPositionState.enabled) { consumeShortcut(); cycleGuitarPosition(-1); return; }
+  if (key === '.' && GuitarPositionState.enabled) { consumeShortcut(); cycleGuitarPosition(1); return; }
 
   // < / >: Bass position cycle (Chord mode)
-  if (key === '<' && BassPositionState.enabled) { cycleBassPosition(-1); return; }
-  if (key === '>' && BassPositionState.enabled) { cycleBassPosition(1); return; }
+  if (key === '<' && BassPositionState.enabled) { consumeShortcut(); cycleBassPosition(-1); return; }
+  if (key === '>' && BassPositionState.enabled) { consumeShortcut(); cycleBassPosition(1); return; }
 
   // Shift+C: Capture current chord/voicing to selected slot, or next empty slot.
   // Keep this before Perform key handling so Shift+C never triggers slot C.
   if (e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyC') {
-    e.preventDefault();
+    consumeShortcut();
     if (typeof captureCurrentToMemorySlot === 'function') captureCurrentToMemorySlot();
     return;
   }
@@ -532,7 +555,7 @@ document.addEventListener('keydown', (e) => {
     if (physKey && typeof PERFORM_KEY_MAP !== 'undefined') {
       const slotIdx = PERFORM_KEY_MAP[physKey];
       if (slotIdx !== undefined) {
-        e.preventDefault();
+        consumeShortcut();
         saveToPlainSlot(slotIdx);
         return;
       }
@@ -543,12 +566,13 @@ document.addEventListener('keydown', (e) => {
   // Cmd+Option (Mac) / Ctrl+Alt (Win): Display toggle shortcuts (Ableton-style)
   // Uses e.code because Option+key produces special chars on Mac
   if ((e.metaKey || e.ctrlKey) && e.altKey && !e.shiftKey && e.code) {
-    if (handleCmdOptionShortcutCode(e.code)) { e.preventDefault(); return; }
+    if (handleCmdOptionShortcutCode(e.code)) { consumeShortcut(); return; }
   }
 
   // Shift+D: Cycle Drop (voicing operation, not display toggle)
   if (e.shiftKey && !e.metaKey && !e.ctrlKey) {
     if (lk === 'd') {
+      consumeShortcut();
       if (AppState.mode === 'chord' && BuilderState.quality) {
         if (!VoicingState.drop) setDrop('drop2');
         else if (VoicingState.drop === 'drop2') setDrop('drop3');
@@ -559,8 +583,17 @@ document.addEventListener('keydown', (e) => {
     // Shift+F: toggle 全ポジション表示 (chord-mode display toggle). Plain 'f' is taken by the
     // A-I voicing-box selector, so we use Shift+F and return here before that handler runs.
     if (lk === 'f') {
+      consumeShortcut();
       if (AppState.mode === 'chord' && typeof toggleShowAllPositions === 'function') {
         toggleShowAllPositions(!AppState.showAllPositions);
+      }
+      return;
+    }
+    // Shift+G: Guitar builder engine. Plain G is reserved for the A-I voicing box selector.
+    if (lk === 'g') {
+      consumeShortcut();
+      if (AppState.mode === 'chord' && !TastyState.enabled && !StockState.enabled && typeof toggleVoicingReflect === 'function') {
+        toggleVoicingReflect();
       }
       return;
     }
@@ -568,7 +601,7 @@ document.addEventListener('keydown', (e) => {
 
   // Tab / Shift+Tab: Mode cycle (Scale → Chord → Input → Scale)
   if (key === 'Tab') {
-    e.preventDefault();
+    consumeShortcut();
     const modes = ['scale', 'chord', 'input'];
     const cur = modes.indexOf(AppState.mode);
     const next = e.shiftKey ? (cur - 1 + 3) % 3 : (cur + 1) % 3;
@@ -578,6 +611,7 @@ document.addEventListener('keydown', (e) => {
 
   // Backspace: Back (chord builder)
   if (key === 'Backspace') {
+    consumeShortcut();
     if (AppState.mode === 'chord') {
       builderBack();
     }
@@ -586,8 +620,11 @@ document.addEventListener('keydown', (e) => {
 
   // Perform view: keyboard pad triggering (highest priority for letter/number keys)
   if (memoryViewMode === 'perform') {
-    if (handlePerformKey(lk)) {
-      e.preventDefault();
+    const performSlotIdx = (typeof PERFORM_KEY_MAP !== 'undefined') ? PERFORM_KEY_MAP[lk] : undefined;
+    if (performSlotIdx !== undefined) {
+      consumeShortcut();
+      if (e.repeat) return;
+      handlePerformKey(lk);
       ensureAudioResumed();
       return;
     }
@@ -595,13 +632,13 @@ document.addEventListener('keydown', (e) => {
 
   // c: Capture current chord/voicing to Memory Slot (input mode only)
   if (lk === 'c' && AppState.mode === 'input') {
+    consumeShortcut();
     captureCurrentToMemorySlot(); return;
   }
 
   // Escape: Close help modal → exit Plain edit → deselect slot → deselect voicing box
   if (key === 'Escape') {
-    e.preventDefault();
-    e.stopPropagation();
+    consumeShortcut();
     const helpOverlay = document.getElementById('help-overlay');
     if (helpOverlay.classList.contains('active')) {
       helpOverlay.classList.remove('active');
@@ -633,14 +670,14 @@ document.addEventListener('keydown', (e) => {
 
   // Cmd+Z / Ctrl+Z: Undo memory slots
   if (lk === 'z' && (e.metaKey || e.ctrlKey)) {
-    e.preventDefault();
+    consumeShortcut();
     undoMemory();
     return;
   }
 
   // Shift+Space: Play All (memory slots sequential)
   if (key === ' ' && e.shiftKey) {
-    e.preventDefault();
+    consumeShortcut();
     ensureAudioResumed();
     playMemorySlots();
     return;
@@ -649,8 +686,8 @@ document.addEventListener('keydown', (e) => {
   // Space: Dismiss startup tip; in basic-form cycle to the next position (+play); else play.
   if (key === ' ') {
     var tipEl = document.getElementById('startup-tip');
-    if (tipEl) { e.preventDefault(); dismissStartupTip(); return; }
-    e.preventDefault();
+    if (tipEl) { consumeShortcut(); dismissStartupTip(); return; }
+    consumeShortcut();
     ensureAudioResumed();
     if (memoryViewMode === 'perform' && PerformState.activePad !== null
         && typeof cyclePerformOnePos === 'function' && cyclePerformOnePos()) {
@@ -692,14 +729,16 @@ document.addEventListener('keydown', (e) => {
 
   // ?: Toggle help modal
   if (key === '?') {
+    consumeShortcut();
     const helpOverlay = document.getElementById('help-overlay');
     helpOverlay.classList.toggle('active');
     return;
   }
 
-  // m / p: Toggle the single Perform switch (Memory/edit ↔ Perform/play-only).
-  // Both keys are kept for muscle memory; the UI is now one toggle button.
-  if (lk === 'm' || lk === 'p') {
+  // p: Toggle the single Perform switch.
+  // Memory is no longer a separate mode, so M is intentionally not a command.
+  if (lk === 'p') {
+    consumeShortcut();
     togglePerformMode();
     return;
   }
@@ -709,7 +748,7 @@ document.addEventListener('keydown', (e) => {
     if (!e.shiftKey && AppState.mode === 'scale'
         && typeof doubleStopActive === 'function' && doubleStopActive()
         && typeof cycleDoubleStopDegree === 'function') {
-      e.preventDefault();
+      consumeShortcut();
       cycleDoubleStopDegree(key === 'ArrowUp' ? 1 : -1);
       return;
     }
@@ -717,7 +756,7 @@ document.addEventListener('keydown', (e) => {
     // (Up/Down=inversion, Shift+Up/Down=octave, Left/Right=semitone) so the shape can be
     // moved entirely from the arrows without reaching for the ▼▲ buttons or A/B/C/D boxes.
     if (e.shiftKey && (AppState.mode === 'chord' || AppState.mode === 'scale')) {
-      e.preventDefault();
+      consumeShortcut();
       var _octDir = key === 'ArrowUp' ? 1 : -1;
       // Basic-form view: move the chord on the grid (extend range only when it would fall off).
       // Otherwise (scale mode / all-positions view): shift the whole grid octave range.
@@ -730,12 +769,12 @@ document.addEventListener('keydown', (e) => {
     // (Push WYSIWYG, うりなみさん 2026-05-31)。全体移調 (octaveShift) には一切触らない。
     // Must precede the rotation branch below, which does not check shiftKey.
     if (e.shiftKey && AppState.mode === 'input' && PlainState.activeNotes.size > 0) {
-      e.preventDefault();
+      consumeShortcut();
       performOctaveEdit(key === 'ArrowUp' ? 1 : -1);
       return;
     }
     if (AppState.mode === 'input' && PlainState.activeNotes.size >= 2) {
-      e.preventDefault();
+      consumeShortcut();
       const notes = [...PlainState.activeNotes].sort((a, b) => a - b);
       PlainState.activeNotes.clear();
       if (key === 'ArrowUp') {
@@ -750,7 +789,7 @@ document.addEventListener('keydown', (e) => {
       performReplayActive();
       autoSaveEditedSlot();
     } else if (AppState.mode === 'chord' && BuilderState.quality && !VoicingState.shell) {
-      e.preventDefault();
+      consumeShortcut();
       // Basic form: Up/Down = inversion UNCAPPED (climbs across octaves on the grid).
       // Other chord views (voicing box / all-positions / HPS): keep the bounded inversion cycle.
       if (typeof chordBasicFormActive === 'function' && chordBasicFormActive() &&
@@ -770,7 +809,7 @@ document.addEventListener('keydown', (e) => {
   // Arrow Left/Right: Chromatic transpose (Plain: all notes ±1, Chord: root ±1)
   if (key === 'ArrowLeft' || key === 'ArrowRight') {
     if (AppState.mode === 'input' && PlainState.activeNotes.size > 0) {
-      e.preventDefault();
+      consumeShortcut();
       const delta = key === 'ArrowRight' ? 1 : -1;
       const newNotes = new Set();
       PlainState.activeNotes.forEach(n => newNotes.add(n + delta));
@@ -779,7 +818,7 @@ document.addEventListener('keydown', (e) => {
       performReplayActive();
       autoSaveEditedSlot();
     } else if (AppState.mode === 'chord' && BuilderState.root !== null) {
-      e.preventDefault();
+      consumeShortcut();
       const delta = key === 'ArrowRight' ? 1 : 11;
       BuilderState.root = (BuilderState.root + delta) % 12;
       updateKeyButtons();
@@ -800,9 +839,10 @@ document.addEventListener('keydown', (e) => {
 
   // Plain mode shortcuts
   if (AppState.mode === 'input') {
-    if (lk === 'x') { clearPlainNotes(); return; }
+    if (lk === 'x') { consumeShortcut(); clearPlainNotes(); return; }
     // Number keys 1-9, 0: recall/edit slot (1-9→slot 0-8, 0→slot 9)
     if (key >= '0' && key <= '9' && e.location !== 3) {
+      consumeShortcut();
       const idx = key === '0' ? 9 : parseInt(key) - 1;
       if (idx < 16) recallPlainSlot(idx);
       return;
@@ -814,6 +854,7 @@ document.addEventListener('keydown', (e) => {
 
   // Number keys 1-7: Select diatonic chord (Scale/Chord mode)
   if (key >= '1' && key <= '7' && e.location !== 3) {
+    consumeShortcut();
     const num = parseInt(key);
     const scale = SCALES[AppState.scaleIdx];
     if (scale.pcs.length === 7) {
@@ -828,6 +869,7 @@ document.addEventListener('keydown', (e) => {
 
   // t: TASTY mode toggle (ON/OFF only)
   if (lk === 't') {
+    consumeShortcut();
     if (AppState.mode === 'chord' && TastyState.hpsUnlocked) {
       toggleTasty();
     }
@@ -836,6 +878,7 @@ document.addEventListener('keydown', (e) => {
 
   // k: STOCK voicing toggle (ON/OFF only)
   if (lk === 'k') {
+    consumeShortcut();
     if (AppState.mode === 'chord' && StockState.hpsUnlocked) {
       toggleStock();
     }
@@ -848,6 +891,7 @@ document.addEventListener('keydown', (e) => {
       var reverse = lk === 'z';
       if (TastyState.enabled || StockState.enabled ||
           (typeof isGuitarEngineActive === 'function' && isGuitarEngineActive())) {
+        consumeShortcut();
         cycleActiveVoicing(reverse);
         return;
       }
@@ -858,13 +902,15 @@ document.addEventListener('keydown', (e) => {
   if (lk.length === 1 && lk >= 'a' && lk <= 'i') {
     const idx = lk.charCodeAt(0) - 97; // a=0, b=1, ...
     if (idx < VoicingState.lastBoxes.length) {
+      consumeShortcut();
       selectVoicingBox(idx);
     }
     return;
   }
 
-  // v: Toggle Guitar builder engine (guitar voicing → pad layout)
+  // v: Toggle Guitar builder engine (legacy alias; Shift+G is the mnemonic shortcut)
   if (lk === 'v') {
+    consumeShortcut();
     if (AppState.mode === 'chord' && !TastyState.enabled && !StockState.enabled && typeof toggleVoicingReflect === 'function') {
       toggleVoicingReflect();
     }
@@ -873,6 +919,7 @@ document.addEventListener('keydown', (e) => {
 
   // o: Toggle Omit 5
   if (lk === 'o') {
+    consumeShortcut();
     if (AppState.mode === 'chord' && BuilderState.quality) {
       toggleOmit5();
     }
@@ -881,6 +928,7 @@ document.addEventListener('keydown', (e) => {
 
   // x: Clear (chord or plain)
   if (lk === 'x') {
+    consumeShortcut();
     if (AppState.mode === 'input') {
       clearPlainNotes();
     } else if (AppState.mode === 'chord') {
@@ -891,6 +939,7 @@ document.addEventListener('keydown', (e) => {
 
   // r: Toggle Rootless
   if (lk === 'r') {
+    consumeShortcut();
     if (AppState.mode === 'chord' && BuilderState.quality) {
       toggleRootless();
     }
@@ -899,6 +948,7 @@ document.addEventListener('keydown', (e) => {
 
   // s: Cycle Shell (off → 1-3-7 → 1-7-3 → off)
   if (lk === 's') {
+    consumeShortcut();
     if (AppState.mode === 'chord' && BuilderState.quality) {
       if (!VoicingState.shell) setShell('137');
       else if (VoicingState.shell === '137') setShell('173');
@@ -912,13 +962,24 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Option key hold: show save key labels on slots
+document.addEventListener('keyup', (e) => {
+  if (shouldConsumeAppShortcutEvent(e)) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}, true);
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Alt') {
+    e.preventDefault();
+    e.stopPropagation();
     document.getElementById('memory-slots')?.classList.add('opt-held');
   }
 });
 document.addEventListener('keyup', (e) => {
   if (e.key === 'Alt') {
+    e.preventDefault();
+    e.stopPropagation();
     document.getElementById('memory-slots')?.classList.remove('opt-held');
   }
 });

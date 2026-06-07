@@ -134,7 +134,8 @@ html.desktop-mode .desktop-hide { display: none !important; }
   min-width: 0;
   max-width: 100%;
   font-size: 0.65rem;
-  color: var(--text-muted);
+  color: var(--text);
+  opacity: 0.86;
   padding: 4px 8px;
   overflow: hidden;
   text-overflow: ellipsis;
