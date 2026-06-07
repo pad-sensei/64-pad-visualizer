@@ -3,16 +3,16 @@ window.__64PE_UPDATE__ = {
   schemaVersion: 2,
   notices: [
     {
-      id: "desktop-1.6.0-release",
+      id: "desktop-1.6.1-release",
       target: "desktop",
-      latestVersion: "1.6.0",
+      latestVersion: "1.6.1",
       title: {
-        ja: "64Pad Explorer Desktop v1.6.0",
-        en: "64Pad Explorer Desktop v1.6.0"
+        ja: "64Pad Explorer Desktop v1.6.1",
+        en: "64Pad Explorer Desktop v1.6.1"
       },
       message: {
-        ja: "Double StopとUST判定を強化した正式版を公開しました。",
-        en: "The official release with Double Stop and improved UST detection is now available."
+        ja: "Standaloneの表示ショートカットを修正した更新版を公開しました。",
+        en: "An update is available with fixed display shortcuts in Standalone."
       },
       url: "https://padsensei.gumroad.com/l/bklonh",
       cta: {
