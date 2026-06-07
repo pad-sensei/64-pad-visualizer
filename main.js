@@ -457,6 +457,37 @@ showStartupTip();
 // ========================================
 // KEYBOARD SHORTCUTS
 // ========================================
+function handleCmdOptionShortcutCode(cmdOptCode) {
+  if (!cmdOptCode) return false;
+
+  // Instruments
+  if (cmdOptCode === 'KeyG') { toggleInstrument('guitar'); return true; }
+  if (cmdOptCode === 'KeyB') { toggleInstrument('bass'); return true; }
+  if (cmdOptCode === 'KeyP') { toggleInstrument('piano'); return true; }
+  // Right panel
+  if (cmdOptCode === 'KeyF') { toggleTheoryView('circle'); return true; }
+  if (cmdOptCode === 'KeyS') { toggleTheoryView('staff'); return true; }
+  if (cmdOptCode === 'KeyA') { toggleInstrument('sound'); return true; }
+  if (cmdOptCode === 'KeyM') { toggleSection('memory'); return true; }
+  // Control panel sections
+  if (cmdOptCode === 'KeyT') { toggleSection('input'); return true; }
+  if (cmdOptCode === 'KeyQ') { toggleSection('quality'); return true; }
+  if (cmdOptCode === 'KeyV') { toggleSection('voicing'); return true; }
+  if (cmdOptCode === 'KeyL') { toggleLinkMode(); return true; }
+  if (cmdOptCode === 'KeyK') { toggleKeyDisplay(); return true; }
+  if (cmdOptCode === 'KeyH') { toggleHeader(); return true; }
+  // Shortcut key indicators
+  if (cmdOptCode === 'KeyI') { toggleBadges(); return true; }
+  // Diatonic extensions
+  if (cmdOptCode === 'KeyN') { toggleMinorVariants(); return true; }
+  if (cmdOptCode === 'KeyD') { toggleSecDom(); return true; }
+  if (cmdOptCode === 'KeyR') { toggleParallelKey(); return true; }
+  if (cmdOptCode === 'KeyJ') { toggleHarmonicFn(); return true; }
+
+  return false;
+}
+window.__padHandleDesktopShortcut = handleCmdOptionShortcutCode;
+
 document.addEventListener('keydown', (e) => {
   // Ignore when typing in input fields
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
@@ -512,30 +543,7 @@ document.addEventListener('keydown', (e) => {
   // Cmd+Option (Mac) / Ctrl+Alt (Win): Display toggle shortcuts (Ableton-style)
   // Uses e.code because Option+key produces special chars on Mac
   if ((e.metaKey || e.ctrlKey) && e.altKey && !e.shiftKey && e.code) {
-    var cmdOptCode = e.code;
-    // Instruments
-    if (cmdOptCode === 'KeyG') { e.preventDefault(); toggleInstrument('guitar'); return; }
-    if (cmdOptCode === 'KeyB') { e.preventDefault(); toggleInstrument('bass'); return; }
-    if (cmdOptCode === 'KeyP') { e.preventDefault(); toggleInstrument('piano'); return; }
-    // Right panel
-    if (cmdOptCode === 'KeyF') { e.preventDefault(); toggleTheoryView('circle'); return; }
-    if (cmdOptCode === 'KeyS') { e.preventDefault(); toggleTheoryView('staff'); return; }
-    if (cmdOptCode === 'KeyA') { e.preventDefault(); toggleInstrument('sound'); return; }
-    if (cmdOptCode === 'KeyM') { e.preventDefault(); toggleSection('memory'); return; }
-    // Control panel sections
-    if (cmdOptCode === 'KeyT') { e.preventDefault(); toggleSection('input'); return; }
-    if (cmdOptCode === 'KeyQ') { e.preventDefault(); toggleSection('quality'); return; }
-    if (cmdOptCode === 'KeyV') { e.preventDefault(); toggleSection('voicing'); return; }
-    if (cmdOptCode === 'KeyL') { e.preventDefault(); toggleLinkMode(); return; }
-    if (cmdOptCode === 'KeyK') { e.preventDefault(); toggleKeyDisplay(); return; }
-    if (cmdOptCode === 'KeyH') { e.preventDefault(); toggleHeader(); return; }
-    // Shortcut key indicators
-    if (cmdOptCode === 'KeyI') { e.preventDefault(); toggleBadges(); return; }
-    // Diatonic extensions
-    if (cmdOptCode === 'KeyN') { e.preventDefault(); toggleMinorVariants(); return; }
-    if (cmdOptCode === 'KeyD') { e.preventDefault(); toggleSecDom(); return; }
-    if (cmdOptCode === 'KeyR') { e.preventDefault(); toggleParallelKey(); return; }
-    if (cmdOptCode === 'KeyF') { e.preventDefault(); toggleHarmonicFn(); return; }
+    if (handleCmdOptionShortcutCode(e.code)) { e.preventDefault(); return; }
   }
 
   // Shift+D: Cycle Drop (voicing operation, not display toggle)

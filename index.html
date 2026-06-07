@@ -93,7 +93,7 @@ document.addEventListener('click', function(e) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+1+Code:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=6.7.20">
+<link rel="stylesheet" href="style.css?v=6.7.21">
 <!-- WebAudioFont player (lazy: only needed if sampler loads) -->
 <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js" async></script>
 <!-- jRhodes3c sampler: loaded in background AFTER page is interactive.
@@ -304,6 +304,7 @@ document.addEventListener('click', function(e) {
       <li data-i18n="help.sc_cmd_minor"><kbd>⌘</kbd><kbd>⌥</kbd>+<kbd>N</kbd> — Harm/Mel (mi<b>N</b>or variants)</li>
       <li data-i18n="help.sc_cmd_secdom"><kbd>⌘</kbd><kbd>⌥</kbd>+<kbd>D</kbd> — Secondary <b>D</b>ominant</li>
       <li data-i18n="help.sc_cmd_parallel"><kbd>⌘</kbd><kbd>⌥</kbd>+<kbd>R</kbd> — Pa<b>R</b>allel Key</li>
+      <li data-i18n="help.sc_cmd_harmonic"><kbd>⌘</kbd><kbd>⌥</kbd>+<kbd>J</kbd> — T/SD/D</li>
     </ul>
 
     <p style="font-size:0.7rem;color:var(--text-muted);margin-top:8px;text-align:center;" data-i18n="help.footer">
@@ -510,7 +511,7 @@ document.addEventListener('click', function(e) {
       <button class="diatonic-ext-toggle" id="ext-minor-btn" onclick="toggleMinorVariants()" title="⌘⌥N" data-info="info.harm_mel">Harm/Mel</button>
       <button class="diatonic-ext-toggle" id="ext-parallel-btn" onclick="toggleParallelKey()" title="⌘⌥R" data-i18n="diatonic.parallel" data-info="info.parallel_key">Parallel Key</button>
       <button class="diatonic-ext-toggle" id="ext-secdom-btn" onclick="toggleSecDom()" title="⌘⌥D" data-i18n="diatonic.secdom" data-info="info.secdom">Secondary Dominant</button>
-      <button class="diatonic-ext-toggle" id="ext-fn-btn" onclick="toggleHarmonicFn()" title="⌘⌥F" data-i18n="diatonic.harmonic_fn" data-info="info.harmonic_fn">T/SD/D</button>
+      <button class="diatonic-ext-toggle" id="ext-fn-btn" onclick="toggleHarmonicFn()" title="⌘⌥J" data-i18n="diatonic.harmonic_fn" data-info="info.harmonic_fn">T/SD/D</button>
     </div>
     <div id="diatonic-ext"></div>
 
@@ -857,25 +858,25 @@ if (new URLSearchParams(window.location.search).has('hps')) {
 <!-- Sound Credits: hidden until new presets are added -->
 
 <!-- i18n (engine → language files) -->
-<script src="i18n.js?v=6.7.20"></script>
-<script src="lang-en.js?v=6.7.20"></script>
-<script src="lang-ja.js?v=6.7.20"></script>
-<script src="lang-zh.js?v=6.7.20"></script>
-<script src="lang-es.js?v=6.7.20"></script>
-<script src="lang-fr.js?v=6.7.20"></script>
-<script src="lang-pt.js?v=6.7.20"></script>
-<script src="lang-de.js?v=6.7.20"></script>
-<script src="lang-ko.js?v=6.7.20"></script>
-<script src="lang-it.js?v=6.7.20"></script>
+<script src="i18n.js?v=6.7.21"></script>
+<script src="lang-en.js?v=6.7.21"></script>
+<script src="lang-ja.js?v=6.7.21"></script>
+<script src="lang-zh.js?v=6.7.21"></script>
+<script src="lang-es.js?v=6.7.21"></script>
+<script src="lang-fr.js?v=6.7.21"></script>
+<script src="lang-pt.js?v=6.7.21"></script>
+<script src="lang-de.js?v=6.7.21"></script>
+<script src="lang-ko.js?v=6.7.21"></script>
+<script src="lang-it.js?v=6.7.21"></script>
 <!-- pad-core (SSOT: theory calculations, data constants, render) -->
-<script src="pad-core/data.js?v=6.7.20"></script>
-<script src="pad-core/theory.js?v=6.7.20"></script>
-<script src="pad-core/render.js?v=6.7.20"></script>
-<script src="pad-core/circle.js?v=6.7.20"></script>
-<script src="pad-core/builder-ui.js?v=6.7.20"></script>
-<script src="pad-core/incremental.js?v=6.7.20"></script>
+<script src="pad-core/data.js?v=6.7.21"></script>
+<script src="pad-core/theory.js?v=6.7.21"></script>
+<script src="pad-core/render.js?v=6.7.21"></script>
+<script src="pad-core/circle.js?v=6.7.21"></script>
+<script src="pad-core/builder-ui.js?v=6.7.21"></script>
+<script src="pad-core/incremental.js?v=6.7.21"></script>
 <!-- App JS -->
-<script src="data.js?v=6.7.20"></script>
+<script src="data.js?v=6.7.21"></script>
 <!-- Phase 3.1-A.c: audio-core + host-adapter + audio-ui-binding are loaded
      ONLY when AUDIO_ENABLED. In silent mode these are skipped entirely —
      pad-core / theory / MIDI / render still run, only sound is absent.
@@ -899,7 +900,7 @@ if (window.AUDIO_ENABLED) {
     'audio-ui-binding.js'
   ];
   _audioScripts.forEach(function(src) {
-    document.write('<script src="' + src + '?v=6.7.20"><\/script>');
+    document.write('<script src="' + src + '?v=6.7.21"><\/script>');
   });
 } else {
   // Silent mode: stub audio APIs that non-audio code calls, so pads/UI don't crash.
@@ -931,22 +932,22 @@ if (window.AUDIO_ENABLED) {
   window._updatePlateRouting = function() {};
 }
 </script>
-<script src="theory.js?v=6.7.20"></script>
-<script src="tasty-stock.js?v=6.7.20"></script>
-<script src="staff.js?v=6.7.20"></script>
-<script src="instruments.js?v=6.7.20"></script>
-<script src="circle-ui.js?v=6.7.20"></script>
-<script src="parent-scales-ui.js?v=6.7.20"></script>
-<script src="play-controls.js?v=6.7.20"></script>
-<script src="double-stop.js?v=6.7.20"></script>
-<script src="render.js?v=6.7.20"></script>
-<script src="plain.js?v=6.7.20"></script>
-<script src="perform.js?v=6.7.20"></script>
-<script src="builder.js?v=6.7.20"></script>
-<script src="midi.js?v=6.7.20"></script>
-<script src="main.js?v=6.7.20"></script>
-<script src="tutorial-data.js?v=6.7.20"></script>
-<script src="tutorial.js?v=6.7.20"></script>
+<script src="theory.js?v=6.7.21"></script>
+<script src="tasty-stock.js?v=6.7.21"></script>
+<script src="staff.js?v=6.7.21"></script>
+<script src="instruments.js?v=6.7.21"></script>
+<script src="circle-ui.js?v=6.7.21"></script>
+<script src="parent-scales-ui.js?v=6.7.21"></script>
+<script src="play-controls.js?v=6.7.21"></script>
+<script src="double-stop.js?v=6.7.21"></script>
+<script src="render.js?v=6.7.21"></script>
+<script src="plain.js?v=6.7.21"></script>
+<script src="perform.js?v=6.7.21"></script>
+<script src="builder.js?v=6.7.21"></script>
+<script src="midi.js?v=6.7.21"></script>
+<script src="main.js?v=6.7.21"></script>
+<script src="tutorial-data.js?v=6.7.21"></script>
+<script src="tutorial.js?v=6.7.21"></script>
 <script>
 // 2026-04-28: Desktop モード (?desktop=1) 後段 override。
 // 音は JUCE host (外部 VST/AU plugin) 側で再生されるため、Web 側 AudioContext を
