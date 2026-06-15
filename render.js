@@ -149,6 +149,8 @@ function renderPads(svg, state, grid) {
   var padGap = grid ? grid.PAD_GAP : PAD_GAP;
   var margin = grid ? grid.MARGIN : MARGIN;
   const { activePCS, activeIvPCS, rootPC, bassPC, charPCS, omittedPCS, guide3PCS, guide7PCS, tensionPCS, qualityPCS, avoidPCS, overlayPCS, overlayCharPCS, tastyMidiSet, tastyDegreeMap, tastyTopMidi, tastyPadPositions } = state;
+  var scaleBgRootPC = typeof state.scaleBgRootPC === 'number' ? state.scaleBgRootPC : AppState.key;
+  var overlayDegreeRootPC = typeof state.overlayDegreeRootPC === 'number' ? state.overlayDegreeRootPC : rootPC;
   // Build compact position set for TASTY/Stock pad positioning
   var tastyPadPosSet = null;
   if (tastyPadPositions && tastyPadPositions.length > 0) {
@@ -305,7 +307,7 @@ function renderPads(svg, state, grid) {
       // only paint the non-voicing pads: opaque blue scale, ORANGE tonic (scale root), off otherwise.
       if ((basicPadSet || allPosScaleBg) && _isScaleBgSlot) {
         if (state.scaleBgPCS && state.scaleBgPCS.has(pc)) {
-          if (pc === AppState.key) { fill = 'var(--pad-root)'; textColor = '#000'; }
+          if (pc === scaleBgRootPC) { fill = 'var(--pad-root)'; textColor = '#000'; }
           else { fill = 'var(--pad-basic-scale)'; textColor = '#fff'; }
         } else {
           fill = 'var(--pad-off)'; textColor = 'var(--text-muted)';
@@ -324,7 +326,7 @@ function renderPads(svg, state, grid) {
           fill = 'var(--pad-basic-chord)';
           textColor = '#000';
         } else if (state.scaleBgPCS.has(pc)) {
-          if (pc === AppState.key) { fill = 'var(--pad-root)'; textColor = '#000'; }
+          if (pc === scaleBgRootPC) { fill = 'var(--pad-root)'; textColor = '#000'; }
           else { fill = 'var(--pad-basic-scale)'; textColor = '#fff'; }
         } else {
           fill = 'var(--pad-off)';
@@ -457,7 +459,9 @@ function renderPads(svg, state, grid) {
         // Engine educational scale background: key-rooted scale degree (R, 2, 3, …) — same basis
         // as basic form, independent of any chord-rooted overlay selection.
         if (isEngineScaleBg) {
-          var _sbRoot = (AppState.padCFixed === true) ? 0 : AppState.key;
+          var _sbRoot = typeof state.scaleBgRootPC === 'number'
+            ? state.scaleBgRootPC
+            : ((AppState.padCFixed === true) ? 0 : AppState.key);
           degName = SCALE_DEGREE_NAMES[((pc - _sbRoot) + 12) % 12];
         } else if (_performVoicingLabel) {
           // Always use chord-degree names for the playing voicing so a 9/11/13 reads as a
@@ -469,7 +473,7 @@ function renderPads(svg, state, grid) {
           degName = displayDegreeLabel(voicingDegreeRaw, { qualityPCS: qualityPCS });
         } else if (isOverlay) {
           // Overlay notes use scale degree names (not chord degree names)
-          degName = SCALE_DEGREE_NAMES[interval];
+          degName = SCALE_DEGREE_NAMES[((pc - overlayDegreeRootPC) + 12) % 12];
         } else if (AppState.mode === 'scale') {
           degName = SCALE_DEGREE_NAMES[interval];
         } else {
@@ -1001,6 +1005,7 @@ function render() {
         var _sc = SCALES[_bfCFixed ? 0 : AppState.scaleIdx];
         var _bfKey = _bfCFixed ? 0 : AppState.key;
         padState.scaleBgPCS = new Set(_sc.pcs.map(function(iv){ return (iv + _bfKey) % 12; }));
+        padState.scaleBgRootPC = _bfKey;
         // "1/3" badge data (replaces the blink): same-register arrangement count + current index.
         padState.basicFormShapePositions = _chosen.positions;
         padState.basicFormArrCount = _arr.length;
@@ -1015,6 +1020,7 @@ function render() {
       && !(_voicingReflectMode && _guitarSyncSource === 'position') && !_stockReflectMode) {
     var _scAllPos = SCALES[AppState.scaleIdx];
     padState.scaleBgPCS = new Set(_scAllPos.pcs.map(function(iv){ return (iv + AppState.key) % 12; }));
+    padState.scaleBgRootPC = AppState.key;
     padState.allPosScaleBg = true;
   }
   // Engine modes (TASTY / STOCK / Guitar): paint the scale as the educational background behind
@@ -1029,6 +1035,7 @@ function render() {
     var _scEng = SCALES[_eCFixed ? 0 : AppState.scaleIdx];
     var _eKey = _eCFixed ? 0 : AppState.key;
     padState.scaleBgPCS = new Set(_scEng.pcs.map(function(iv){ return (iv + _eKey) % 12; }));
+    padState.scaleBgRootPC = _eKey;
     padState.allPosScaleBg = true;
     padState.engineScaleBg = true;
   }
@@ -1047,6 +1054,7 @@ function render() {
     var _scIn = SCALES[_inCFixed ? 0 : AppState.scaleIdx];
     var _inKey = _inCFixed ? 0 : AppState.key;
     padState.scaleBgPCS = new Set(_scIn.pcs.map(function(iv){ return (iv + _inKey) % 12; }));
+    padState.scaleBgRootPC = _inKey;
     padState.allPosScaleBg = true;
   }
   // Perform view: the scale surface is always visible, even before a slot is triggered.
@@ -1057,6 +1065,7 @@ function render() {
     var _pfScale = SCALES[_pfScaleCFixed ? 0 : AppState.scaleIdx];
     var _pfScaleKey = _pfScaleCFixed ? 0 : AppState.key;
     padState.scaleBgPCS = new Set(_pfScale.pcs.map(function(iv){ return (iv + _pfScaleKey) % 12; }));
+    padState.scaleBgRootPC = _pfScaleKey;
     padState.allPosScaleBg = true;
   }
   // Perform view DISPLAY (audio is never touched — perform.js plays slot.midiNotes verbatim):
@@ -1084,6 +1093,7 @@ function render() {
       var _pfScOne = SCALES[_pfCF ? 0 : AppState.scaleIdx];
       var _pfKeyOne = _pfCF ? 0 : AppState.key;
       padState.scaleBgPCS = new Set(_pfScOne.pcs.map(function(iv){ return (iv + _pfKeyOne) % 12; }));
+      padState.scaleBgRootPC = _pfKeyOne;
       padState.basicFormShapePositions = _pfChosen.positions;
       padState.basicFormArrCount = _pfArr.length;
       padState.basicFormPosIdx = _pfIdx;
@@ -1093,6 +1103,14 @@ function render() {
     var _scPf = SCALES[_pfCFixed ? 0 : AppState.scaleIdx];
     var _pfKey = _pfCFixed ? 0 : AppState.key;
     padState.scaleBgPCS = new Set(_scPf.pcs.map(function(iv){ return (iv + _pfKey) % 12; }));
+    padState.scaleBgRootPC = _pfKey;
+    padState.allPosScaleBg = true;
+  }
+  // Available Scale selection: show the chosen chord-scale surface and label its degrees from
+  // the chord root. This keeps the view aligned with chord-scale theory (e.g. E Locrian = E:R).
+  if (AppState.mode === 'chord' && AppState.showParentScales && _selectedPS && padState.overlayPCS) {
+    padState.scaleBgPCS = new Set(padState.overlayPCS);
+    padState.scaleBgRootPC = BuilderState.root;
     padState.allPosScaleBg = true;
   }
   if (AppState.mode === 'scale' && typeof doubleStopActive === 'function' && doubleStopActive()) {

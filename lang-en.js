@@ -490,6 +490,7 @@ I18N.addLang('en', {
   whats_new_660: 'V6.6.0 is live: a stronger chord-detection engine, expanded TASTY voicings (including quartal / So What), and sus chords added to the Chord Builder.',
   whats_new_670: 'V6.7.0 is live: a redesigned Chord mode. Selecting a chord now shows one easy basic form first, with a "Show all positions" button (lower left) to see every voicing. Pads are single-colour by default — switch to degree colours in Display settings. Right-click a pad for Capture / All positions / Clear.',
   whats_new_6716: 'V6.7.16 is live: HPS member access and the Desktop version now include Double Stop display in Scale mode for 3rd / 4th / 6th two-note harmonies. UST detection is clearer, with degree labels for the notes inside the upper structure. A Double Stop tutorial video is now available from Tutorials.',
+  whats_new_6717: 'V6.7.17 is live: Available Scale notation is clearer for pivot-chord reading, and cases where the Available Scale display did not update correctly have been fixed.',
 
   // Legacy tutorial keys (backward compat for old lang files)
   tutorial: {

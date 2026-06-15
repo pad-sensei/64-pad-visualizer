@@ -46,6 +46,19 @@ const DIATONIC_AUTO_PREF = {
   7: [6, 19],   // viiø7 → Locrian (basic 11/b13), Locrian ♮2 (9 secondary)
 };
 
+function parentScaleDegreeFormula(scaleIdx) {
+  const scale = SCALES[scaleIdx];
+  if (!scale || !scale.pcs) return '';
+  return scale.pcs.map(function(iv) {
+    return SCALE_DEGREE_NAMES[iv % 12] || '';
+  }).filter(Boolean).join(' ');
+}
+
+function parentScaleModeLabel(result) {
+  if (!result || !result.degree || !result.parentKeyName) return '';
+  return result.degree + ' / ' + result.parentKeyName + ' ' + result.systemLabel;
+}
+
 function isSecondaryDominant(qualityIntervals, results) {
   var isDom7 = qualityIntervals.has(4) && qualityIntervals.has(10) && !qualityIntervals.has(11);
   if (!isDom7) return false;
@@ -392,15 +405,19 @@ function renderParentScales() {
       }
     }
 
+    const modeLabel = NOTE_NAMES_SHARP[psRoot] + ' ' + r.scaleName;
+    const degreeFormula = parentScaleDegreeFormula(r.scaleIdx);
+    const parentLabel = parentScaleModeLabel(r);
+
     html += '<div class="ps-row' + (isSelected ? ' ps-selected' : '') +
       (!r.exactMatch ? ' ps-partial' : '') +
       (!hasTension && r.omit5Match ? ' ps-omit5' : '') +
       (hasAvoidConflict ? ' ps-avoid' : '') +
       '" onclick="onPSSelect(' + globalIdx + ')">' +
       '<span class="ps-cat ' + (r.system === '○' ? 'ps-cat-dia' : r.system === '■' ? 'ps-cat-hm' : r.system === '◆' ? 'ps-cat-mm' : '') + '">' + r.system + '</span>' +
-      '<span class="ps-scale">' + NOTE_NAMES_SHARP[psRoot] + ' ' + r.scaleName + '</span>' +
-      '<span class="ps-degree">' + r.degree + '</span>' +
-      (r.parentKeyName ? '<span class="ps-parent-info">← ' + r.parentKeyName + ' ' + r.systemLabel + '</span>' : '');
+      '<span class="ps-scale">' + modeLabel + '</span>' +
+      '<span class="ps-formula">' + degreeFormula + '</span>' +
+      (parentLabel ? '<span class="ps-parent">' + parentLabel + '</span>' : '');
 
     // Available tensions
     if (sat) {

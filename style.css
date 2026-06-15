@@ -1686,7 +1686,7 @@ body.pane-view-single #staff-ep-panel {
 }
 .ps-row:hover { background: rgba(160,160,160,0.1); }
 .ps-row.ps-selected { background: rgba(160,160,160,0.3); border-left: 3px solid var(--accent); padding-left: 3px; }
-.ps-row.ps-selected .ps-scale { color: var(--accent); font-weight: 700; }
+.ps-row.ps-selected .ps-scale { color: var(--accent); font-weight: 800; }
 .ps-row.ps-selected .ps-avail { opacity: 1; font-weight: 700; }
 .ps-row.ps-partial { opacity: 0.65; font-style: italic; }
 .ps-row.ps-partial .ps-scale::after { content: ' ~'; font-size: 0.7rem; color: var(--text-muted); font-style: normal; }
@@ -1697,9 +1697,9 @@ body.pane-view-single #staff-ep-panel {
 .ps-cat-dia { color: var(--accent); }
 .ps-cat-hm { color: #ff7043; }
 .ps-cat-mm { color: #66bb6a; }
-.ps-scale { flex: 1; font-weight: 600; font-size: 0.8rem; }
-.ps-degree { font-size: 0.7rem; color: var(--text-muted); opacity: 0.9; white-space: nowrap; font-weight: 600; }
-.ps-parent-info { font-size: 0.65rem; color: var(--text-muted); opacity: 0.85; white-space: nowrap; }
+.ps-scale { flex: 0 0 132px; font-weight: 700; font-size: 0.78rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ps-formula { flex: 1 1 118px; font-size: 0.7rem; color: var(--text-muted); opacity: 0.95; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ps-parent { flex: 0 0 104px; font-size: 0.66rem; color: var(--accent); opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ps-avail { font-size: 0.7rem; color: var(--accent); opacity: 0.9; white-space: nowrap; letter-spacing: 1px; }
 .ps-goto { font-size: 0.85rem; opacity: 0.5; padding: 0 2px; cursor: pointer; }
 .ps-goto:hover { opacity: 1; color: var(--accent); }
