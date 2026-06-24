@@ -190,8 +190,10 @@ function getCurrentChordMidiNotes() {
     if (VoicingState.selectedBoxIdx !== null && VoicingState.lastBoxes[VoicingState.selectedBoxIdx]) {
       let midiNotes = [...VoicingState.lastBoxes[VoicingState.selectedBoxIdx].midiNotes];
       if (BuilderState.bass !== null) {
-        const hasBass = midiNotes.some(m => m % 12 === BuilderState.bass);
-        if (!hasBass) {
+        const sorted = midiNotes.slice().sort((a, b) => a - b);
+        const lowestNote = sorted.length ? sorted[0] : null;
+        const hasExplicitBass = lowestNote !== null && lowestNote % 12 === BuilderState.bass;
+        if (!hasExplicitBass) {
           const lowest = Math.min(...midiNotes);
           let bassMidi = 36 + BuilderState.bass + AppState.octaveShift * 12;
           while (bassMidi >= lowest) bassMidi -= 12;
@@ -724,8 +726,6 @@ function playMemorySlots() {
       PerformState.activePad = slot.index;
       PerformState.onePosIdx = 0;
       PlainState.activeNotes = new Set(slot.notes);
-      BuilderState._fromDiatonic = true;
-      applyNotesToBuilder(slot.notes);
       updatePlainDisplay();
       render();
     } else {

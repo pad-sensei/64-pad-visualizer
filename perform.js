@@ -25,9 +25,6 @@ function performPadTap(idx) {
   PlainState.activeNotes = new Set(slot.midiNotes);
   // New slot → show its compact (basic-form) arrangement first in one-position view.
   PerformState.onePosIdx = 0;
-  // Sync BuilderState so guitar diagram, chord name, degree labels update
-  BuilderState._fromDiatonic = true;
-  applyNotesToBuilder(slot.midiNotes);
   updatePlainDisplay();
   render();
   updateMemorySlotUI();
