@@ -32,7 +32,7 @@ I18N.addLang('ja', {
     display_oct: '<strong>Octave \u25B2\u25BC</strong> \u2014 パッドの音域をオクターブシフト',
     sound: 'Sound',
     sound_onoff: '<strong>\uD83D\uDD0A ON/OFF</strong> \u2014 スピーカーアイコンで音のON/OFFを切り替え',
-    sound_select: '<strong>Pad Sensei MK1</strong> \u2014 うりなみさんの理想のエレピ。HPS会員はAMPプリセット（アンプチェーン物理モデリング）を選択可。\u25BCで詳細パネル',
+    sound_select: '<strong>Pad Sensei MK1</strong> \u2014 理想のエレピ。HPS会員はAMPプリセット（アンプチェーン物理モデリング）を選択可。\u25BCで詳細パネル',
     sound_tremolo: '<strong>Tremolo</strong> \u2014 opto-style物理モデリング（ステレオ）。TREM/T.SPDで深さと速度を調整',
     sound_organ: '<strong>ORGAN</strong> \u2014 4プリセット（Jazz, Perc, Full, Gospel）',
     sound_ep: '<strong>E.PIANO</strong> \u2014 Pad Sensei MK1（物理モデリング）+ サンプラー',

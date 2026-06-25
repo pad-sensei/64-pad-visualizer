@@ -32,7 +32,7 @@ I18N.addLang('en', {
     display_oct: '<strong>Octave \u25B2\u25BC</strong> \u2014 Shift pad range by octave',
     sound: 'Sound',
     sound_onoff: '<strong>\uD83D\uDD0A ON/OFF</strong> \u2014 Toggle sound on/off with the speaker icon',
-    sound_select: '<strong>Pad Sensei MK1</strong> \u2014 Urinami ideal EP physical modeling. HPS members can select the AMP preset (physically modeled amp chain). \u25BC opens the detail panel',
+    sound_select: '<strong>Pad Sensei MK1</strong> \u2014 ideal EP physical modeling. HPS members can select the AMP preset (physically modeled amp chain). \u25BC opens the detail panel',
     sound_tremolo: '<strong>Tremolo</strong> \u2014 opto-style physical modeling (stereo). Use TREM/T.SPD for depth and rate',
     sound_organ: '<strong>ORGAN</strong> \u2014 4 presets (Jazz, Perc, Full, Gospel)',
     sound_ep: '<strong>E.PIANO</strong> \u2014 Pad Sensei MK1 (Physical Modeling) + Sampler',
