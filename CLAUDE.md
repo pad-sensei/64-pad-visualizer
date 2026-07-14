@@ -98,6 +98,7 @@ npm run test:prod
 - Current product baseline: `b963348e542c7d2a5d8f44e87f3103a01ff15cbf` (`banner: auto-refresh RSS feeds`).
 - This repository-hygiene change is documentation-only. It does not change product code, submodule pointers, cache versions, or audio behavior.
 - The automated banner updater commits and pushes `origin main`; keeping `origin` pointed at the organization repository prevents future split synchronization.
+- The organization repository has the deployment and Desktop-dispatch secrets installed. Its first organization-side workflow run still requires verification before the pipeline is treated as operational.
 - Historical internal material removed from this file is archived outside the public repository.
 - Remaining hygiene findings in other legacy documents and Git history are tracked separately. Do not rewrite public history or edit unrelated documents as part of routine development.
 - Next start: run `git fetch origin && git status -sb`, read this file, then open the design document for the subsystem being changed.
