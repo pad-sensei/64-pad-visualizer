@@ -6,12 +6,29 @@ Sends the bar chart image to Gemini and asks it to estimate per-key tine lengths
 by measuring relative bar widths.
 """
 
-import json
+import argparse
+import os
+from pathlib import Path
+
 from google import genai
 
-IMG_PATH = "/Users/nozakidaikai/Obsidian/デジタル百姓総本部/プロジェクト/PAD DAW/reference_code/rhodes_service_manual/ch6_fig6-2_tine_cutting_measurement_chart.gif"
 
-client = genai.Client()
+def image_path_from_args() -> Path:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "image",
+        nargs="?",
+        default=os.environ.get("TINE_CHART_IMAGE"),
+        help="path to Figure 6-2 (or set TINE_CHART_IMAGE)",
+    )
+    args = parser.parse_args()
+    if not args.image:
+        parser.error("image path is required (argument or TINE_CHART_IMAGE)")
+
+    image_path = Path(args.image).expanduser()
+    if not image_path.is_file():
+        parser.error(f"image file does not exist: {image_path}")
+    return image_path
 
 prompt = """This is Figure 6-2 "Tine Cutting Measurement Chart" from the Rhodes Electric Piano Service Manual.
 
@@ -38,22 +55,28 @@ Output as a JSON object: {"key_1": 157.0, "key_2": ..., ..., "key_88": 18.0}
 Be as precise as possible based on the visual bar proportions. Keys 1-7 should all have the same length (the longest bar).
 """
 
-with open(IMG_PATH, "rb") as f:
-    img_data = f.read()
 
-response = client.models.generate_content(
-    model="gemini-3-flash-preview",
-    contents=[
-        {
-            "role": "user",
-            "parts": [
-                {"inline_data": {"mime_type": "image/gif", "data": img_data}},
-                {"text": prompt}
-            ]
-        }
-    ],
-    config={"temperature": 0.1}
-)
+def main() -> None:
+    image_path = image_path_from_args()
+    with image_path.open("rb") as image_file:
+        img_data = image_file.read()
 
-text = response.text
-print(text)
+    client = genai.Client()
+    response = client.models.generate_content(
+        model="gemini-3-flash-preview",
+        contents=[
+            {
+                "role": "user",
+                "parts": [
+                    {"inline_data": {"mime_type": "image/gif", "data": img_data}},
+                    {"text": prompt}
+                ]
+            }
+        ],
+        config={"temperature": 0.1}
+    )
+    print(response.text)
+
+
+if __name__ == "__main__":
+    main()

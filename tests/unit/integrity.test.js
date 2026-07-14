@@ -62,3 +62,36 @@ describe('Sound engine integrity', () => {
     }
   });
 });
+
+describe('Repository portability', () => {
+  const portableFiles = [
+    '.claude/launch.json',
+    'tools/gemini_tine_chart.py',
+    'tools/extract_tine_lengths.py',
+    'tools/auto_update_banner.sh',
+    'experimental/wurlitzer-preset.md',
+    'experimental/twin-amp-preset.md',
+  ];
+  const maintainerHome = ['', 'Users', 'nozakidaikai'].join('/');
+
+  it('does not publish maintainer-specific absolute paths', () => {
+    for (const file of portableFiles) {
+      const content = readFileSync(resolve(ROOT, file), 'utf-8');
+      expect(content, file).not.toContain(maintainerHome);
+    }
+  });
+
+  it('does not publish obsolete internal handoffs', () => {
+    expect(existsSync(resolve(ROOT, 'HANDOVER.md'))).toBe(false);
+    expect(existsSync(resolve(ROOT, 'TUTORIAL_HANDOFF.md'))).toBe(false);
+  });
+
+  it('keeps local tool inputs configurable', () => {
+    for (const file of ['tools/gemini_tine_chart.py', 'tools/extract_tine_lengths.py']) {
+      expect(readFileSync(resolve(ROOT, file), 'utf-8'), file).toContain('TINE_CHART_IMAGE');
+    }
+    const bannerScript = readFileSync(resolve(ROOT, 'tools/auto_update_banner.sh'), 'utf-8');
+    expect(bannerScript).toContain('REPO="${REPO:-');
+    expect(bannerScript).toContain('LOG_DIR="${LOG_DIR:-');
+  });
+});

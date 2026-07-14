@@ -54,4 +54,5 @@ entry to `audio-engines.js` `ENGINES.epiano.presets`.
 ## References
 
 - Phase 0.3c commit (this commit) — froze the preset alongside the Twin DSP
-- Roadmap: `/Users/nozakidaikai/.claude/plans/humming-wibbling-tarjan.md`
+- The original private roadmap was intentionally not published; use the commit
+  reference and restore procedure above as the shared record.

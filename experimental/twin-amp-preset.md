@@ -63,4 +63,5 @@ that block; until then the DSP is kept in place for reversibility.
 - Phase 0.3a commit `162b5e7` — removed AMP CHAIN (dev) UI and `?amp=...` URL
 - Phase 0.3b commit (this commit) — moved preset definition here
 - Phase 0.3c (future) — physical removal of the DSP block
-- Roadmap: `/Users/nozakidaikai/.claude/plans/humming-wibbling-tarjan.md`
+- The original private roadmap was intentionally not published; use the commit
+  references and restore procedure above as the shared record.

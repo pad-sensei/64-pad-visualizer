@@ -18,11 +18,17 @@
 
 set -eo pipefail
 
-REPO="/Users/nozakidaikai/64-pad-visualizer"
-LOG_DIR="/Users/nozakidaikai/Library/Logs/urinami"
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPO="${REPO:-$(dirname "$SCRIPT_DIR")}"
+LOG_DIR="${LOG_DIR:-${HOME:?HOME must be set}/Library/Logs/urinami}"
 LOG="$LOG_DIR/64pe-banner-refresh.log"
 
 mkdir -p "$LOG_DIR"
+
+if [ ! -f "$REPO/tools/update_note_banner.py" ] || ! git -C "$REPO" rev-parse --show-toplevel >/dev/null 2>&1; then
+    echo "Invalid 64Pad Explorer repository: $REPO" >&2
+    exit 1
+fi
 
 cd "$REPO"
 

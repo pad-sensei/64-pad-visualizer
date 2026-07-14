@@ -19,19 +19,39 @@ The chart layout:
 - Labels format: "index-key_number"
 """
 
-from PIL import Image
-import numpy as np
+import argparse
+import os
+from pathlib import Path
 
-IMG_PATH = "プロジェクト/PAD DAW/reference_code/rhodes_service_manual/ch6_fig6-2_tine_cutting_measurement_chart.gif"
-OBSIDIAN = "/Users/nozakidaikai/Obsidian/デジタル百姓総本部"
+import numpy as np
+from PIL import Image
+
 
 # Known endpoints (Shear 2011 measurements)
 L_KEY1 = 157.0   # mm, lowest key (A0)
 L_KEY88 = 18.0   # mm, highest key (C8)
 
 
-def analyze_chart():
-    img = Image.open(f"{OBSIDIAN}/{IMG_PATH}").convert('L')  # grayscale
+def image_path_from_args() -> Path:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "image",
+        nargs="?",
+        default=os.environ.get("TINE_CHART_IMAGE"),
+        help="path to Figure 6-2 (or set TINE_CHART_IMAGE)",
+    )
+    args = parser.parse_args()
+    if not args.image:
+        parser.error("image path is required (argument or TINE_CHART_IMAGE)")
+
+    image_path = Path(args.image).expanduser()
+    if not image_path.is_file():
+        parser.error(f"image file does not exist: {image_path}")
+    return image_path
+
+
+def analyze_chart(image_path: Path):
+    img = Image.open(image_path).convert('L')  # grayscale
     pixels = np.array(img)
     h, w = pixels.shape
     print(f"Image: {w}×{h} pixels")
@@ -191,4 +211,4 @@ def analyze_chart():
 
 
 if __name__ == '__main__':
-    analyze_chart()
+    analyze_chart(image_path_from_args())
