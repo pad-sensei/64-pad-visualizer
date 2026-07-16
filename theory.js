@@ -1122,7 +1122,9 @@ var DETECTED_UST_RULES = {
     { offset: 8, quality: 'q' },      // Qb6: b13, b9, #11
     { offset: 9, quality: 'q' },      // Q6: 13, 9, 5
     { offset: 2, quality: 'major' },  // II: 9, #11, 13
+    { offset: 3, quality: 'm' },      // bIIIm: #9, #11, b7
     { offset: 3, quality: 'major' },  // bIII: #9, 5, b7
+    { offset: 6, quality: 'm' },      // bVm: #11, 13, b9
     { offset: 6, quality: 'major' },  // bV: #11, b7, b9
     { offset: 8, quality: 'major' },  // bVI: b13, R, #9
     { offset: 9, quality: 'major' },  // VI: 13, b9, 3

@@ -99,9 +99,19 @@ describe('formatDetectedUstText', () => {
       .toBe('UST: Am [9,11,13] / G7');
   });
 
-  it('uses the standard bV major UST for dominant b9 #11 colors', () => {
+  it('shows the bIII minor UST for dominant #9 #11 colors', () => {
+    expect(formatDetectedUstText([60, 64, 70, 75, 78], 0, 'C7(#9,#11)'))
+      .toBe('UST: Ebm [#9,#11,b7] / C7');
+  });
+
+  it('prefers the bV minor UST over the available bV major reading', () => {
+    expect(formatDetectedUstText([60, 64, 70, 73, 78, 81], 0, 'C7(b9,#11,13)'))
+      .toBe('UST: Gbm [#11,13,b9] / C7');
+  });
+
+  it('keeps the bV minor priority when the same dominant color is transposed', () => {
     expect(formatDetectedUstText([67, 71, 77, 80, 85, 88, 91], 7, 'G7(b9,#11,13)'))
-      .toBe('UST: Db△ [#11,b7,b9] / G7');
+      .toBe('UST: Dbm [#11,13,b9] / G7');
   });
 
   it('shows the standard V major UST on major seventh bases', () => {
