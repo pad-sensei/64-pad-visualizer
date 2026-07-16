@@ -3,16 +3,16 @@ window.__64PE_UPDATE__ = {
   schemaVersion: 2,
   notices: [
     {
-      id: "desktop-1.6.9-release",
+      id: "desktop-1.6.10-release",
       target: "desktop",
-      latestVersion: "1.6.9",
+      latestVersion: "1.6.10",
       title: {
-        ja: "64Pad Explorer Desktop v1.6.9",
-        en: "64Pad Explorer Desktop v1.6.9"
+        ja: "64Pad Explorer Desktop v1.6.10",
+        en: "64Pad Explorer Desktop v1.6.10"
       },
       message: {
-        ja: "一部のMIDI機器で入力できない場合を修正しました。",
-        en: "Fixed an issue that could prevent MIDI input from some devices."
+        ja: "UST判定エンジンを強化しました。",
+        en: "Improved the UST detection engine."
       },
       url: "https://padsensei.gumroad.com/l/bklonh",
       cta: {
