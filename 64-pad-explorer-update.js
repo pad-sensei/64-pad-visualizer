@@ -20,6 +20,24 @@ window.__64PE_UPDATE__ = {
         en: "Open Gumroad"
       },
       icon: "📦"
+    },
+    {
+      id: "pad-sensei-mk1-on-sale",
+      target: "web",
+      title: {
+        ja: "Pad Sensei MK1",
+        en: "Pad Sensei MK1"
+      },
+      message: {
+        ja: "発売しました。",
+        en: "Now available."
+      },
+      url: "https://buy.stripe.com/14AcN788zdAN2h04zJ0Ny00",
+      cta: {
+        ja: "購入する",
+        en: "Buy now"
+      },
+      icon: "•"
     }
   ]
 };
