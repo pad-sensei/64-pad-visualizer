@@ -23,7 +23,7 @@ window.__64PE_UPDATE__ = {
     },
     {
       id: "pad-sensei-mk1-on-sale",
-      target: "web",
+      target: "all",
       title: {
         ja: "Pad Sensei MK1",
         en: "Pad Sensei MK1"

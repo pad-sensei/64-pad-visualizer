@@ -375,10 +375,21 @@ function _64peAppendRemoteNotice(notice, runtime) {
 
   if (localStorage.getItem('64pad-notice-dismissed') === hash) return;
 
+  // タイトル+メッセージそのものをリンクにする (RSSバナー3項目と同じ「タイトルがリンク」
+  // パターンに揃える。うりなみさん 2026-07-21「pad Sensei MK1 発売しましたをそのまま
+  // リンクにして」= 別出しのCTAボタンではなく本文自体をクリック可能にする指示)。
+  var textHtml = '';
+  if (title) textHtml += '<b>' + _64peEscapeHtml(title) + '</b> ';
+  if (message) textHtml += _64peEscapeHtml(message);
+  textHtml = textHtml.trim();
+
   var html = _64peEscapeHtml(icon) + ' ';
-  if (title) html += '<b>' + _64peEscapeHtml(title) + '</b> ';
-  if (message) html += _64peEscapeHtml(message) + ' ';
-  if (url) {
+  if (url && textHtml) {
+    html += '<a href="' + _64peEscapeAttr(url) + '" target="_blank" rel="noopener" '
+      + 'style="color:var(--accent);text-decoration:underline;">' + textHtml + '</a>';
+  } else if (textHtml) {
+    html += textHtml;
+  } else if (url) {
     html += '<a href="' + _64peEscapeAttr(url) + '" target="_blank" rel="noopener">' + _64peEscapeHtml(cta) + '</a>';
   }
   html += '&nbsp;&nbsp;';
