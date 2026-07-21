@@ -24,6 +24,17 @@ function setMode(mode) {
     if (instrumentInputActive) clearInstrumentInput();
     updatePlainDisplay();
   }
+  // Chord → 他モード: STOCK/TASTY は Chord mode 専用のエンジンなので、他モードへ
+  // 抜ける時は必ず無効化する。有効なまま放置すると、mode 判定を経由しない Push
+  // display 連携 (_pushSpecialVoicingActive, PluginEditor.cpp 注入 JS) がボタンの
+  // DOM active クラスだけを見て誤判定し続ける
+  // (うりなみさん 2026-07-21 実機報告: Scale mode で Chord builder 表示が混入)。
+  // disableTasty(true) は silent 指定でモード切替中の再発音 (playCurrentChord)
+  // を抑止する。disableStock() はもともと再発音しないため引数不要。
+  if (mode !== 'chord') {
+    if (TastyState.enabled) disableTasty(true);
+    if (StockState.enabled) disableStock();
+  }
   AppState.mode = mode;
   document.getElementById('mode-scale').classList.toggle('active', mode === 'scale');
   document.getElementById('mode-chord').classList.toggle('active', mode === 'chord');
