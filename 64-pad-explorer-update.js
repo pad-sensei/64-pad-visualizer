@@ -3,16 +3,16 @@ window.__64PE_UPDATE__ = {
   schemaVersion: 2,
   notices: [
     {
-      id: "desktop-1.6.10-release",
+      id: "desktop-1.6.11-release",
       target: "desktop",
-      latestVersion: "1.6.10",
+      latestVersion: "1.6.11",
       title: {
-        ja: "64Pad Explorer Desktop v1.6.10",
-        en: "64Pad Explorer Desktop v1.6.10"
+        ja: "64Pad Explorer Desktop v1.6.11",
+        en: "64Pad Explorer Desktop v1.6.11"
       },
       message: {
-        ja: "UST判定エンジンを強化しました。",
-        en: "Improved the UST detection engine."
+        ja: "Push 3の表示と応答速度を改善しました。",
+        en: "Improved Push 3 display and responsiveness."
       },
       url: "https://padsensei.gumroad.com/l/bklonh",
       cta: {
