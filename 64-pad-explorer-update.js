@@ -22,6 +22,24 @@ window.__64PE_UPDATE__ = {
       icon: "📦"
     },
     {
+      id: "web-scale-chord-display-fix-1.6.11",
+      target: "web",
+      title: {
+        ja: "64Pad Explorer",
+        en: "64Pad Explorer"
+      },
+      message: {
+        ja: "Scale モードでコード表示が混ざる場合がある表示バグを修正しました。",
+        en: "Fixed a display bug where Chord-mode content could appear in Scale mode."
+      },
+      url: "https://murinaikurashi.com/64-pad-explorer-manual/update-history/",
+      cta: {
+        ja: "詳細を見る",
+        en: "See details"
+      },
+      icon: "🛠"
+    },
+    {
       id: "pad-sensei-mk1-on-sale",
       target: "all",
       title: {
