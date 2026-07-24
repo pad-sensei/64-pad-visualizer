@@ -3,16 +3,16 @@ window.__64PE_UPDATE__ = {
   schemaVersion: 2,
   notices: [
     {
-      id: "desktop-1.6.12-release",
+      id: "desktop-1.6.11-release",
       target: "desktop",
-      latestVersion: "1.6.12",
+      latestVersion: "1.6.11",
       title: {
-        ja: "64Pad Explorer Desktop v1.6.12",
-        en: "64Pad Explorer Desktop v1.6.12"
+        ja: "64Pad Explorer Desktop v1.6.11",
+        en: "64Pad Explorer Desktop v1.6.11"
       },
       message: {
-        ja: "UST表示にルートからの相対度数を追加し、Push 3でも同じ表記を表示します。",
-        en: "UST labels now include the relative degree from the root, with the same notation on Push 3."
+        ja: "Push 3の表示と応答速度を改善しました。",
+        en: "Improved Push 3 display and responsiveness."
       },
       url: "https://padsensei.gumroad.com/l/bklonh",
       cta: {
