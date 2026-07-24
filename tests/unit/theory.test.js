@@ -77,11 +77,11 @@ describe('formatDetectedUstText', () => {
 
   it('distinguishes dominant seventh and major seventh bases', () => {
     expect(formatDetectedUstText([60, 62, 64, 66, 69, 71], 0, 'CMaj7(9,#11,13)'))
-      .toBe('UST: D△ [9,#11,13] / C△7');
+      .toBe('UST: D△ (II) [9,#11,13] / C△7');
     expect(formatDetectedUstText([60, 64, 67, 71, 74, 78, 81], 0, 'CMaj7(9,#11,13)'))
-      .toBe('UST: D△ [9,#11,13] / C△7');
+      .toBe('UST: D△ (II) [9,#11,13] / C△7');
     expect(formatDetectedUstText([60, 62, 64, 66, 69, 70], 0, 'C7(9,#11,13)'))
-      .toBe('UST: D△ [9,#11,13] / C7');
+      .toBe('UST: D△ (II) [9,#11,13] / C7');
   });
 
   it('does not infer non-standard bVII major UST on dominant bases', () => {
@@ -91,32 +91,32 @@ describe('formatDetectedUstText', () => {
 
   it('keeps UST spelling aligned with flat-key chord roots', () => {
     expect(formatDetectedUstText([61, 65, 71, 75, 79, 82], 1, 'Db7(9,#11,13)'))
-      .toBe('UST: Eb△ [9,#11,13] / Db7');
+      .toBe('UST: Eb△ (II) [9,#11,13] / Db7');
   });
 
   it('prefers upper triads with more tensions over lower-structure slash readings', () => {
     expect(formatDetectedUstText([55, 59, 65, 69, 72, 76], 7, 'G7(9,11,13)'))
-      .toBe('UST: Am [9,11,13] / G7');
+      .toBe('UST: Am (II) [9,11,13] / G7');
   });
 
   it('shows the bIII minor UST for dominant #9 #11 colors', () => {
     expect(formatDetectedUstText([60, 64, 70, 75, 78], 0, 'C7(#9,#11)'))
-      .toBe('UST: Ebm [#9,#11,b7] / C7');
+      .toBe('UST: Ebm (bIII) [#9,#11,b7] / C7');
   });
 
   it('prefers the bV minor UST over the available bV major reading', () => {
     expect(formatDetectedUstText([60, 64, 70, 73, 78, 81], 0, 'C7(b9,#11,13)'))
-      .toBe('UST: Gbm [#11,13,b9] / C7');
+      .toBe('UST: Gbm (bV) [#11,13,b9] / C7');
   });
 
   it('keeps the bV minor priority when the same dominant color is transposed', () => {
     expect(formatDetectedUstText([67, 71, 77, 80, 85, 88, 91], 7, 'G7(b9,#11,13)'))
-      .toBe('UST: Dbm [#11,13,b9] / G7');
+      .toBe('UST: Dbm (bV) [#11,13,b9] / G7');
   });
 
   it('shows the standard V major UST on major seventh bases', () => {
     expect(formatDetectedUstText([60, 64, 67, 71, 74], 0, 'CMaj7(9)'))
-      .toBe('UST: G△ [5,7,9] / C△7');
+      .toBe('UST: G△ (V) [5,7,9] / C△7');
   });
 
   it('does not show UST for major seventh voicings that contain the natural 11 avoid note', () => {
@@ -128,7 +128,7 @@ describe('formatDetectedUstText', () => {
 
   it('shows the jazz major seventh sharp-five UST', () => {
     expect(formatDetectedUstText([60, 64, 71, 76, 80, 83], 0, 'CMaj7(#5)'))
-      .toBe('UST: E△ [3,#5,7] / C△7');
+      .toBe('UST: E△ (III) [3,#5,7] / C△7');
   });
 
   it('shows quartal UST only when the actual stack is fourth-based', () => {
@@ -139,7 +139,7 @@ describe('formatDetectedUstText', () => {
     expect(formatDetectedUstText([60, 64, 71, 83, 88, 93], 0, 'CMaj7(13)'))
       .toBe('UST: Q7 [7,3,13] / C△7');
     expect(formatDetectedUstText([60, 64, 67, 71, 74], 0, 'CMaj7(9)'))
-      .toBe('UST: G△ [5,7,9] / C△7');
+      .toBe('UST: G△ (V) [5,7,9] / C△7');
   });
 
   it('shows quartal UST over plain major and minor triads', () => {
@@ -153,12 +153,12 @@ describe('formatDetectedUstText', () => {
 
   it('keeps minor seventh bases minor when they are UST targets', () => {
     expect(formatDetectedUstText([50, 53, 60, 64, 67], 2, 'Dm7(9,11)'))
-      .toBe('UST: C△ [b7,9,11] / Dm7');
+      .toBe('UST: C△ (bVII) [b7,9,11] / Dm7');
   });
 
   it('prefers the bVII major triad over the Vm reading on minor 7(9,11)', () => {
     expect(formatDetectedUstText([60, 63, 67, 70, 74, 77], 0, 'Cm7(9,11)'))
-      .toBe('UST: Bb△ [b7,9,11] / Cm7');
+      .toBe('UST: Bb△ (bVII) [b7,9,11] / Cm7');
   });
 
   it('shows quartal UST on minor seventh and half-diminished bases', () => {

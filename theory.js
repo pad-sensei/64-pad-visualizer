@@ -1270,6 +1270,11 @@ function detectedUstQuartalName(offset) {
   return names[((offset % 12) + 12) % 12] || 'Q';
 }
 
+function detectedUstRelativeDegreeName(offset) {
+  var names = ['I', 'bII', 'II', 'bIII', 'III', 'IV', 'bV', 'V', 'bVI', 'VI', 'bVII', 'VII'];
+  return names[((offset % 12) + 12) % 12] || 'I';
+}
+
 function detectedUstBaseQualitySuffix(baseQuality) {
   if (baseQuality === 'major') return '';
   if (baseQuality === 'm') return 'm';
@@ -1280,7 +1285,8 @@ function formatDetectedUstUpperName(rootPC, chordName, candidate, baseQuality) {
   var offset = candidate.offset !== undefined ? candidate.offset : ((candidate.triadRoot - rootPC + 12) % 12);
   var name = candidate.quality.quartal
     ? detectedUstQuartalName(offset)
-    : detectedUstTriadRootName(rootPC, candidate.triadRoot, chordName) + candidate.quality.suffix;
+    : detectedUstTriadRootName(rootPC, candidate.triadRoot, chordName) + candidate.quality.suffix
+      + ' (' + detectedUstRelativeDegreeName(offset) + ')';
   var labels = detectedUstTensionLabels(offset, candidate.quality, baseQuality);
   return labels.length ? name + ' [' + labels.join(',') + ']' : name;
 }
