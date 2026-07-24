@@ -3,16 +3,16 @@ window.__64PE_UPDATE__ = {
   schemaVersion: 2,
   notices: [
     {
-      id: "desktop-1.6.11-release",
+      id: "desktop-1.6.12-release",
       target: "desktop",
-      latestVersion: "1.6.11",
+      latestVersion: "1.6.12",
       title: {
-        ja: "64Pad Explorer Desktop v1.6.11",
-        en: "64Pad Explorer Desktop v1.6.11"
+        ja: "64Pad Explorer Desktop v1.6.12",
+        en: "64Pad Explorer Desktop v1.6.12"
       },
       message: {
-        ja: "Push 3の表示と応答速度を改善しました。",
-        en: "Improved Push 3 display and responsiveness."
+        ja: "UST表示にルートからの相対度数を追加し、Push 3でも同じ表記を表示します。",
+        en: "UST labels now include the relative degree from the root, with the same notation on Push 3."
       },
       url: "https://padsensei.gumroad.com/l/bklonh",
       cta: {
@@ -22,15 +22,15 @@ window.__64PE_UPDATE__ = {
       icon: "📦"
     },
     {
-      id: "web-scale-chord-display-fix-1.6.11",
+      id: "web-ust-relative-degree-1.6.12",
       target: "web",
       title: {
         ja: "64Pad Explorer",
         en: "64Pad Explorer"
       },
       message: {
-        ja: "Scale モードでコード表示が混ざる場合がある表示バグを修正しました。",
-        en: "Fixed a display bug where Chord-mode content could appear in Scale mode."
+        ja: "UST表示にルートからの相対度数を追加しました。",
+        en: "UST labels now include the relative degree from the root."
       },
       url: "https://murinaikurashi.com/64-pad-explorer-manual/update-history/",
       cta: {
