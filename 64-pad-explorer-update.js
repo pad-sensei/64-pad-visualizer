@@ -14,10 +14,10 @@ window.__64PE_UPDATE__ = {
         ja: "UST表示にルートからの相対度数を追加し、Push 3でも同じ表記を表示します。",
         en: "UST labels now include the relative degree from the root, with the same notation on Push 3."
       },
-      url: "https://padsensei.gumroad.com/l/bklonh",
+      url: "https://murinaikurashi.com/pad-sensei-products/?utm_source=64pad&utm_medium=update-notice&utm_campaign=desktop-products",
       cta: {
-        ja: "Gumroadで確認",
-        en: "Open Gumroad"
+        ja: "製品ページで確認",
+        en: "View product page"
       },
       icon: "📦"
     },
