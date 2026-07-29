@@ -77,7 +77,8 @@ document.addEventListener('click', function(e) {
   if (!link) return;
   var url = link.href;
   var dest = null;
-  if (url.indexOf('note.com') !== -1) dest = 'note';
+  if (url.indexOf('/pad-sensei-products/') !== -1) dest = '64pe-products-page';
+  else if (url.indexOf('note.com') !== -1) dest = 'note';
   else if (url.indexOf('/apps/hps-glossary') !== -1) dest = 'hps-portal';
   else if (url.indexOf('murinaikurashi.com') !== -1 && url.indexOf('/apps/64-pad') === -1) dest = 'blog';
   else if (url.indexOf('amazon') !== -1) dest = 'amazon';
