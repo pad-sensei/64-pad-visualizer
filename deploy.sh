@@ -31,7 +31,7 @@ if [[ "${CURRENT_BRANCH}" != "main" ]]; then
     exit 1
 fi
 
-if ! git -C "${SCRIPT_DIR}" diff --quiet || ! git -C "${SCRIPT_DIR}" diff --cached --quiet; then
+if [[ -n "$(git -C "${SCRIPT_DIR}" status --porcelain --untracked-files=all)" ]]; then
     echo -e "${RED}❌ エラー: dirty worktree からのデプロイは禁止です${NC}"
     exit 1
 fi
