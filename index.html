@@ -134,19 +134,11 @@ document.addEventListener('click', function(e) {
 <div id="info-bar" class="info-bar" data-i18n="info.default"></div>
 </div>
 
-<!-- Update Notice Banner (shown on version update, hidden by default) -->
+<!-- Update Notice Banner (common notification feed, hidden by default) -->
 <div id="update-notice" style="display:none;">
   <div class="update-notice-content">
-    <span id="update-notice-text">📝 ブログ更新「<a href="https://murinaikurashi.com/split-keyboard-for-hand-strain/?utm_source=rss&utm_medium=rss&utm_campaign=split-keyboard-for-hand-strain" target="_blank" style="color:var(--accent);text-decoration:underline;">分割キーボードは日々が辛いおじさんの強い味方</a>」&nbsp;&nbsp;🎹 HPS更新「<a href="https://note.com/urinami/n/n5d75ebbdbf0c" target="_blank" style="color:var(--accent);text-decoration:underline;">DOJO α版完成しました</a>」&nbsp;&nbsp;📰 Pad Sensei「<a href="https://urinami.substack.com/p/gw" target="_blank" style="color:var(--accent);text-decoration:underline;">GWパッド講習</a>」</span>
+    <span id="update-notice-text"></span>
     <button id="update-notice-close" aria-label="閉じる" data-i18n="ui.close" data-i18n-attr="aria-label">&times;</button>
-  </div>
-</div>
-
-<!-- Sales Banner (毎回表示、session 中のみ close 可) -->
-<div id="sales-banner">
-  <div class="sales-banner-content">
-    <span id="sales-banner-text">📦 64Pad Explorer Desktop v1.6.5 公開: Push 3入力・To DAW・Mac版インストーラーを改善 → <a href="https://murinaikurashi.com/pad-sensei-products/?utm_source=64pad&utm_medium=tool-link&utm_campaign=product-hub&utm_content=sales-banner" target="_blank">Pad Sensei Products</a></span>
-    <button id="sales-banner-close" aria-label="閉じる">&times;</button>
   </div>
 </div>
 
@@ -985,18 +977,6 @@ if ('serviceWorker' in navigator) {
     });
   });
 }
-</script>
-<script>
-// Sales banner close (session only, no localStorage)
-(function() {
-  var btn = document.getElementById('sales-banner-close');
-  if (btn) {
-    btn.addEventListener('click', function() {
-      var banner = document.getElementById('sales-banner');
-      if (banner) banner.style.display = 'none';
-    });
-  }
-})();
 </script>
 </body>
 </html>

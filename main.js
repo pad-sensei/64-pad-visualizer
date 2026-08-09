@@ -338,67 +338,6 @@ function _64peRuntimeInfo() {
   };
 }
 
-function _64peNoticeTargetMatches(target, runtime) {
-  target = String(target || 'all').toLowerCase();
-  if (target === 'all') return true;
-  if (target === 'desktop') return runtime.isDesktop;
-  if (target === 'web') return !runtime.isDesktop;
-  return true;
-}
-
-function _64peRemoteNoticeShouldShow(notice, runtime) {
-  if (!notice || notice.enabled === false) return false;
-  if (!_64peNoticeTargetMatches(notice.target, runtime)) return false;
-
-  var latest = notice.latestVersion || notice.latestDesktopVersion || '';
-  if (latest && _64peCompareVersions(runtime.version, latest) >= 0) return false;
-
-  var minCurrent = notice.minCurrentVersion || '';
-  if (minCurrent && _64peCompareVersions(runtime.version, minCurrent) < 0) return false;
-
-  return true;
-}
-
-function _64peAppendRemoteNotice(notice, runtime) {
-  var bannerText = document.getElementById('update-notice-text');
-  if (!bannerText || !_64peRemoteNoticeShouldShow(notice, runtime)) return;
-
-  var latest = notice.latestVersion || notice.latestDesktopVersion || '';
-  var title = _64peLocalized(notice.title)
-    || (runtime.isDesktop && latest ? ('64Pad Explorer Desktop v' + latest) : '');
-  var message = _64peLocalized(notice.message) || '';
-  var url = notice.url || 'https://padsensei.gumroad.com/l/bklonh';
-  var cta = _64peLocalized(notice.cta) || (runtime.isDesktop ? 'Gumroad' : 'Open');
-  var icon = notice.icon || (runtime.isDesktop ? '\uD83D\uDCE6' : '\u2728');
-  var id = notice.id || [notice.target || 'all', latest, message, url].join(':');
-  var hash = _64peBannerHashStr('remote-notice:' + id + ':' + latest + ':' + message + ':' + url);
-
-  if (localStorage.getItem('64pad-notice-dismissed') === hash) return;
-
-  // タイトル+メッセージそのものをリンクにする (RSSバナー3項目と同じ「タイトルがリンク」
-  // パターンに揃える。うりなみさん 2026-07-21「pad Sensei MK1 発売しましたをそのまま
-  // リンクにして」= 別出しのCTAボタンではなく本文自体をクリック可能にする指示)。
-  var textHtml = '';
-  if (title) textHtml += '<b>' + _64peEscapeHtml(title) + '</b> ';
-  if (message) textHtml += _64peEscapeHtml(message);
-  textHtml = textHtml.trim();
-
-  var html = _64peEscapeHtml(icon) + ' ';
-  if (url && textHtml) {
-    html += '<a href="' + _64peEscapeAttr(url) + '" target="_blank" rel="noopener" '
-      + 'style="color:var(--accent);text-decoration:underline;">' + textHtml + '</a>';
-  } else if (textHtml) {
-    html += textHtml;
-  } else if (url) {
-    html += '<a href="' + _64peEscapeAttr(url) + '" target="_blank" rel="noopener">' + _64peEscapeHtml(cta) + '</a>';
-  }
-  html += '&nbsp;&nbsp;';
-
-  bannerText.insertAdjacentHTML('afterbegin', html);
-  _versionNoticeShown = true;
-  _64peShowUpdateNotice(hash);
-}
-
 // ========================================
 // STARTUP TIPS (returning users)
 // ========================================
@@ -1262,91 +1201,114 @@ function toggleSection(name) {
   } catch(_) {}
 })();
 
-// Update notice banner: blog/HPS updates + version release notes (prepended on version change)
-(function() {
-  try {
-    var banner = document.getElementById('update-notice');
-    var bannerText = document.getElementById('update-notice-text');
-    if (!banner || !bannerText) return;
-    var ver = document.querySelector('.version-tag');
-    var currentVer = ver ? ver.textContent.trim() : '';  // "V4.9.99"
-    var currentVerPlain = currentVer.replace(/^V/, '');
+// Common notification feed: articles and product updates share one display
+// surface. Product version numbers remain a separate ledger; an article never
+// changes the application version.
+function _64peNotificationScopeMatches(scope, runtime) {
+  scope = String(scope || 'all').toLowerCase();
+  if (scope === 'all') return true;
+  if (scope === 'web') return !runtime.isDesktop;
+  if (scope === 'standalone') return runtime.isDesktop;
+  return false;
+}
 
-    // Prepend version release notes. Shown once per version: if the user hasn't
-    // dismissed the notice for this specific version, show it — including users who
-    // visited before a whats_new_<digits> entry was added for that version.
-    // i18n key: 'whats_new_' + digits. Web V6.1 → whats_new_61. Desktop v1.2.3 → whats_new_123.
-    // (Desktop overrides version-tag to "Desktop v1.2.3"; non-digit chars are stripped here)
-    // Add a whats_new_<digits> entry in lang-*.js whenever a release is worth announcing.
-    var verDigits = currentVer.replace(/[^0-9]/g, '');
-    var relKey = 'whats_new_' + verDigits;
-    var relMsg = (typeof t === 'function' ? t(relKey) : '');
-    if (relMsg === relKey) relMsg = ''; // no entry for this version → skip notice
-    var noticeSeenKey = '64pad-notice-seen-' + verDigits;
-    if (relMsg && !localStorage.getItem(noticeSeenKey)) {
-      var whatsNew = (typeof t === 'function' ? t('whats_new') : '') || "What's New";
-      var releaseHtml = '\u2728 <b>' + whatsNew + ' (' + currentVer + ')</b> ' + relMsg + '&nbsp;&nbsp;';
-      bannerText.innerHTML = releaseHtml + bannerText.innerHTML;
-      _versionNoticeShown = true;
-    }
+function _64peNotificationVisible(item, runtime) {
+  if (!item || item.status === 'inactive') return false;
+  if (!_64peNotificationScopeMatches(item.scope, runtime)) return false;
+  var latest = item.latestVersion || '';
+  if (latest && _64peCompareVersions(runtime.version, latest) >= 0) return false;
+  return true;
+}
 
-    var msg = bannerText.textContent.trim();
-    if (!msg) return;
-    // Content hash で dismiss 管理 (RSS 更新で content 変われば自動再表示、Pad Sensei Keys と同じパターン、2026-05-11 修正)
-    var contentHash = _64peBannerHashStr(msg);
-    _64peShowUpdateNotice(contentHash, function() {
-      // Record that this version's release notice has been seen
-      if (_versionNoticeShown) localStorage.setItem(noticeSeenKey, '1');
+function _64peApplyNotificationFeed(data) {
+  var banner = document.getElementById('update-notice');
+  var bannerText = document.getElementById('update-notice-text');
+  if (!banner || !bannerText || !data) return false;
+
+  var runtime = _64peRuntimeInfo();
+  var items = Array.isArray(data.items) ? data.items.slice() : [];
+  if (!items.length && Array.isArray(data.notifications)) {
+    items = data.notifications.map(function(item) {
+      return {
+        id: item.id || item.url,
+        channel: item.source === 'substack' ? 'padsensei' : item.source,
+        title: item.title,
+        url: item.url,
+        scope: 'all',
+        status: 'active',
+        icon: item.source === 'hps' ? '🎹' : (item.source === 'substack' ? '📰' : '📝'),
+        label: item.label || item.source
+      };
     });
-  } catch(_) {}
-})();
+  }
 
-// Remote update notices. The app loads a tiny JS manifest from the blog:
-//   window.__64PE_UPDATE__ = {
-//     schemaVersion: 2,
-//     notices: [{
-//       id: "desktop-1.6.0-rc1",
-//       target: "desktop", // desktop / web / all
-//       latestVersion: "1.6.0",
-//       title: { ja: "64Pad Explorer Desktop v1.6 RC", en: "64Pad Explorer Desktop v1.6 RC" },
-//       message: { ja: "RC版があります。", en: "A release candidate is available." },
-//       url: "https://padsensei.gumroad.com/l/bklonh",
-//       cta: { ja: "Gumroadで確認", en: "Open Gumroad" }
-//     }]
-//   };
-(function() {
+  var unhealthy = {};
+  Object.keys(data.sources || {}).forEach(function(channel) {
+    var status = data.sources[channel] && data.sources[channel].status;
+    if (status && status !== 'healthy') unhealthy[channel] = true;
+  });
+
+  var visible = items.filter(function(item) {
+    return !unhealthy[item.channel] && _64peNotificationVisible(item, runtime);
+  });
+  var html = visible.map(function(item) {
+    var icon = _64peLocalized(item.icon) || '•';
+    var title = _64peLocalized(item.title) || '';
+    var message = _64peLocalized(item.message) || '';
+    var label = _64peLocalized(item.label) || '';
+    var url = item.url || '';
+    if (!title || !url) return '';
+    var line = _64peEscapeHtml(icon) + ' ';
+    if (label) line += '<b>' + _64peEscapeHtml(label) + '</b> ';
+    line += '<a href="' + _64peEscapeAttr(url) + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:underline;">';
+    line += _64peEscapeHtml(title) + '</a>';
+    if (message) line += ' ' + _64peEscapeHtml(message);
+    return line;
+  }).filter(Boolean);
+
+  Object.keys(unhealthy).forEach(function(channel) {
+    var label = ({ blog: 'ブログ', hps: 'HPS', padsensei: 'Pad Sensei' })[channel] || channel;
+    html.push('🟡 ' + _64peEscapeHtml(label) + '更新を確認中');
+  });
+
+  bannerText.innerHTML = html.join('&nbsp;&nbsp;');
+  if (!html.length) {
+    banner.style.display = 'none';
+    return true;
+  }
+  _versionNoticeShown = true;
+  var contentHash = _64peBannerHashStr(JSON.stringify(visible.map(function(item) { return item.id; })) + ':' + html.join('|'));
+  _64peShowUpdateNotice(contentHash);
+  return true;
+}
+
+function _64peLoadNotificationScript() {
   try {
-    window.__64PE_UPDATE__ = null;
+    window.__64PE_NOTIFICATION_FEED__ = null;
     var script = document.createElement('script');
-    script.src = 'https://murinaikurashi.com/apps/64-pad/64-pad-explorer-update.js?v=' + Date.now();
+    script.src = 'https://murinaikurashi.com/apps/64-pad/notifications.js?v=' + Date.now();
     script.async = true;
     script.onload = function() {
-      try {
-        var data = window.__64PE_UPDATE__ || {};
-        if (data.enabled === false) return;
-        var runtime = _64peRuntimeInfo();
-        var notices = Array.isArray(data.notices) ? data.notices.slice() : [];
-
-        // Backward compatible single-notice manifest.
-        if (!notices.length && (data.latestDesktopVersion || data.latestVersion || data.message || data.title)) {
-          notices.push({
-            id: data.id || 'desktop-update-' + (data.latestDesktopVersion || data.latestVersion || ''),
-            target: data.target || 'desktop',
-            latestVersion: data.latestDesktopVersion || data.latestVersion || '',
-            title: data.title,
-            message: data.message,
-            url: data.url,
-            cta: data.cta,
-            icon: data.icon,
-            enabled: data.enabled
-          });
-        }
-
-        notices.forEach(function(notice) { _64peAppendRemoteNotice(notice, runtime); });
-      } catch(_) {}
+      if (!_64peApplyNotificationFeed(window.__64PE_NOTIFICATION_FEED__)) {
+        var banner = document.getElementById('update-notice');
+        if (banner) banner.style.display = 'none';
+      }
+    };
+    script.onerror = function() {
+      var banner = document.getElementById('update-notice');
+      if (banner) banner.style.display = 'none';
     };
     document.head.appendChild(script);
-  } catch(_) {}
+  } catch(_) {
+    var banner = document.getElementById('update-notice');
+    if (banner) banner.style.display = 'none';
+  }
+}
+
+(function() {
+  // One JS snapshot is the canonical transport for Web and file:// Standalone.
+  // notifications.json remains a public inspection/API projection.
+  _64peLoadNotificationScript();
 })();
 
 // ========================================

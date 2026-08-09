@@ -101,6 +101,14 @@ def update_block(content: str, feed: dict, title: str, url: str) -> tuple[str, i
 
 
 def main() -> int:
+    print(
+        "[note-banner] 廃止済み: index.htmlを直接書き換えず、"
+        "Vaultのbuild_64pe_notifications.pyを使ってください。",
+        file=sys.stderr,
+    )
+    return 2
+
+    # Legacy implementation kept below only as migration history.
     script_dir = Path(__file__).resolve().parent
     project_root = script_dir.parent
     html_path = project_root / "index.html"

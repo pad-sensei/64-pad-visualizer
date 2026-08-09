@@ -34,12 +34,21 @@ Pad Sensei RSS ────┤                                  ↓
 プロダクト更新台帳 ─┘                    Web / Standalone の #update-notice
 ```
 
-### 公開JSON
+### 公開フィード
 
-公開先はアプリ配下ではなく、Pad Sensei 共通のURLに置く。
+公開先は既存のmurinaikurashi.com公開領域に置く。Web / Standaloneの実行時に
+同じJSスナップショットを読むため、アプリ本体とは別に更新できる共通データ境界とする。
+
+正規クライアント transport:
 
 ```text
-https://murinaikurashi.com/pad-sensei/notification-feed.json
+https://murinaikurashi.com/apps/64-pad/notifications.js
+```
+
+検証・外部参照用JSON projection:
+
+```text
+https://murinaikurashi.com/apps/64-pad/notifications.json
 ```
 
 各項目の最小形式:
@@ -64,10 +73,10 @@ https://murinaikurashi.com/pad-sensei/notification-feed.json
 
 ### 運用責務と鮮度保証
 
-- 共通の `notification-feed` リポジトリ（または同等の専用管理領域）を通知データの正本にする。Web / Standalone のリポジトリは消費者であり、RSS取得・JSON生成・公開を担当しない。
-- builderの定期実行、JSONの原子的な公開、取得失敗の監視と通知は、この共通管理領域の運用責務とする。個別アプリの自動commit / pushでは代替しない。
-- builderは毎時実行する。全sourceの取得と検証が成功した時だけ、新しい `items` を含む正常スナップショットを原子的に公開する。
-- 1系統でもRSS取得が失敗した時は、部分取得の項目を混ぜない。直前の正常スナップショットの `items` を維持しつつ、失敗channelの `attemptedAt` を今回の試行時刻に、`consecutiveFailures` を `+ 1` にする状態JSONを原子的に公開する。最初の失敗は `warning`、`consecutiveFailures >= 2` または `lastSuccessAt` から2時間超は `stale` とする。
+- 共通の通知台帳とbuilder（Vaultの `AI関連/scripts/build_64pe_notifications.py`）を通知データの正本にする。Web / Standalone のリポジトリは消費者であり、RSS取得・通知生成・公開を担当しない。
+- builderの定期実行、JS正規transportの原子的な公開、取得失敗の監視と通知は、この共通管理領域の運用責務とする。個別アプリの自動commit / pushでは代替しない。JSONは同じsnapshotの検証・外部参照用projectionとして公開する。
+- builderは、ブログ記事の公開・更新後に `blog_auto_index.py --full` から実行し、製品リリース時は製品台帳の更新後に実行する。TUNERの日次監査でも同じbuilderを再検証できる。全sourceの取得と検証が成功した時だけ、新しい `items` を含む正常スナップショットを原子的に公開する。
+- 1系統でもRSS取得が失敗した時は、部分取得の項目を混ぜない。直前の正常スナップショットの `items` を維持しつつ、失敗channelの `attemptedAt` を今回の試行時刻に、`consecutiveFailures` を `+ 1` にする状態snapshotを原子的に公開する。最初の失敗は `warning`、`consecutiveFailures >= 2` または `lastSuccessAt` から2時間超は `stale` とする。
 - `warning` / `stale` のchannelの既存項目は画面に表示しない。通知面には、そのchannelが一時的に取得確認中であることだけを短く示す。失敗が `stale` に達した時点で運用者へ通知する。全sourceが成功して `healthy` に戻るまで、健全な更新として扱わない。
 - プロダクト更新台帳の追加は、当該リリース手順の完了条件にする。台帳への反映が成功して公開JSONに現れた時だけ、通知導線まで含むリリース完了とする。Gumroadの購入者メールやcontent updateは補助的な販促であり、その送信成否はこの完了判定に使わない。
 
@@ -95,15 +104,15 @@ https://murinaikurashi.com/pad-sensei/notification-feed.json
 
 1. 共通のプロダクト更新台帳とnotification-feed builderを作る。
 2. builderが公開JSONを生成・配置できることを確認する。
-3. Webの `#update-notice` を公開JSON読みに切り替える。
-4. Standaloneも同じJSONを読む。現在の `64-pad-explorer-update.js` は移行期間だけ互換入力として扱う。
+3. Webの `#update-notice` を共通通知フィード読み取りに切り替える。
+4. Web / Standaloneとも同じ `notifications.js` スナップショットを読む。旧 `64-pad-explorer-update.js` は読まない。
 5. `#sales-banner` と `tools/update_note_banner.py` のHTML書換えを廃止する。
 6. `tools/auto_update_banner.sh` のアプリ本体commit / pushを廃止し、通知JSONだけを更新する経路へ置き換える。
 7. Web / Standalone の実画面で、ブログ・HPS・プロダクト更新が一つの通知面に入ることを確認する。
 
 ## テスト
 
-- builder: 各RSS成功、1系統失敗時の正常JSON保持と `stale` 記録、鮮度監視通知、プロダクト更新台帳の読込、ID重複、URL不正をテストする。
+- builder: 各RSS成功、1系統失敗時の正常スナップショット保持と `stale` 記録、鮮度監視通知、プロダクト更新台帳の読込、ID重複、URL不正をテストする。JSを正規transportとし、JSONと同じ `generatedAt` を持つことを検証する。
 - Web / Standalone: `#update-notice` が一つだけで、`#sales-banner` が存在しないことを確認する。
 - 表示: 各channelの項目、scope分岐、セッション折りたたみ、新規項目での再表示、リンク先を確認する。
 - リリース: プロダクト更新台帳に対象バージョンがない場合は、該当プロダクトのリリースを完了扱いにしない。
