@@ -50,6 +50,7 @@ fi
 # デプロイ実行
 echo -e "${BLUE}📤 デプロイ中...${NC}"
 rsync -avz \
+    --chmod=Du=rwx,Dgo=rx,Fu=rw,Fgo=r \
     --exclude='.git' \
     --exclude='.github' \
     --exclude='CLAUDE.md' \
