@@ -1,3 +1,5 @@
+// Compatibility projection for older builds only.
+// New Web / Standalone builds read notifications.js from the Vault feed.
 window.__64PE_UPDATE__ = {
   enabled: true,
   schemaVersion: 2,
@@ -22,15 +24,16 @@ window.__64PE_UPDATE__ = {
       icon: "📦"
     },
     {
-      id: "web-ust-relative-degree-1.6.12",
+      id: "web-v6.7.18-release",
       target: "web",
+      latestVersion: "6.7.18",
       title: {
-        ja: "64Pad Explorer",
-        en: "64Pad Explorer"
+        ja: "64Pad Explorer Web v6.7.18",
+        en: "64Pad Explorer Web v6.7.18"
       },
       message: {
-        ja: "UST表示にルートからの相対度数を追加しました。",
-        en: "UST labels now include the relative degree from the root."
+        ja: "Push 3入力中のモード切り替えとTo DAWのベース音域を改善しました。",
+        en: "Push 3 input is more stable, and To DAW handles slash-bass range more reliably."
       },
       url: "https://murinaikurashi.com/64-pad-explorer-manual/update-history/",
       cta: {

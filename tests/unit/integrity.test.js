@@ -95,3 +95,22 @@ describe('Repository portability', () => {
     expect(bannerScript).toContain('LOG_DIR="${LOG_DIR:-');
   });
 });
+
+describe('Common notification feed', () => {
+  it('keeps one notification surface and removes the fixed sales banner', () => {
+    const html = readFileSync(resolve(ROOT, 'index.html'), 'utf-8');
+    const main = readFileSync(resolve(ROOT, 'main.js'), 'utf-8');
+    expect((html.match(/id="update-notice"/g) || []).length).toBe(1);
+    expect(html).not.toContain('sales-banner');
+    expect(main).toContain('/apps/64-pad/notifications.js');
+    expect(main).not.toContain('64-pad-explorer-update.js');
+    expect(main).toContain('_64peApplyNotificationFeed');
+  });
+
+  it('does not let the retired RSS script mutate the app shell', () => {
+    const deploy = readFileSync(resolve(ROOT, 'deploy.sh'), 'utf-8');
+    const updater = readFileSync(resolve(ROOT, 'tools/auto_update_banner.sh'), 'utf-8');
+    expect(deploy).not.toContain('update_note_banner.py');
+    expect(updater).toContain('no index.html mutation or git push');
+  });
+});
