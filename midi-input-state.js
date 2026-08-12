@@ -181,6 +181,16 @@ if (typeof window !== 'undefined') {
   window.normalizeMidiSource = normalizeMidiSource;
   window.createMidiHeldState = createMidiHeldState;
   window.createMidiPortBindingRegistry = createMidiPortBindingRegistry;
+
+  // midi.js loads this state module synchronously while the HTML parser is active.
+  // Load the observed-structure adapter in the same parser turn so the existing
+  // formatDetectedUstInlineHtml entry point is upgraded before MIDI events can fire.
+  // This is dependency wiring only; no musical decision is made in the MIDI layer.
+  if (typeof document !== 'undefined' && document.readyState === 'loading'
+      && typeof window.padWebFormatObservedUstInlineHtml !== 'function') {
+    document.write('<script src="pad-core/observed-structure.js?v=6.7.44"><\/script>');
+    document.write('<script src="observed-ust-consumer.js?v=6.7.44"><\/script>');
+  }
 }
 
 if (typeof module !== 'undefined') module.exports = {
