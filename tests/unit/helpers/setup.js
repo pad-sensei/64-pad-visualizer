@@ -55,6 +55,10 @@ Object.assign(globalThis, tastyStock);
 const builder = require('../../../builder.js');
 Object.assign(globalThis, builder);
 
+// Load browser MIDI ownership helpers before midi.js integration.
+const midiInputState = require('../../../midi-input-state.js');
+Object.assign(globalThis, midiInputState);
+
 // Load midi.js
 const midi = require('../../../midi.js');
 Object.assign(globalThis, midi);
