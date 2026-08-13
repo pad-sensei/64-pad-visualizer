@@ -10,7 +10,7 @@
     return notes;
   }
 
-  function model(deviceHeader, programmerLayout, capabilities) {
+  function model(deviceHeader, programmerLayout, capabilities, programmerModeMessage) {
     var gridNotes = fixedProgrammerGrid();
     var positionByNote = {};
     gridNotes.forEach(function(note, index) {
@@ -19,6 +19,7 @@
     return {
       deviceHeader: deviceHeader,
       programmerLayout: programmerLayout,
+      programmerModeMessage: programmerModeMessage,
       capabilities: capabilities,
       gridNotes: gridNotes,
       positionForNote: function(rawPad) { return positionByNote[rawPad] || null; },
@@ -30,10 +31,26 @@
   }
 
   var LAUNCHPAD_MODELS = {
-    'launchpad-x': model(0x0c, 0x7f, { velocity: true, pressure: true }),
-    'launchpad-mini-mk3': model(0x0d, 0x7f, { velocity: false, pressure: false }),
-    'launchpad-pro-mk3': model(0x0e, 0x11, { velocity: true, pressure: true }),
+    'launchpad-x': model(0x0c, 0x7f, { velocity: true, pressure: true }, [0xF0, 0x00, 0x20, 0x29, 0x02, 0x0c, 0x00, 0x7f, 0xF7]),
+    'launchpad-mini-mk3': model(0x0d, 0x7f, { velocity: false, pressure: false }, [0xF0, 0x00, 0x20, 0x29, 0x02, 0x0d, 0x00, 0x7f, 0xF7]),
+    'launchpad-pro-mk3': model(0x0e, 0x11, { velocity: true, pressure: true }, [0xF0, 0x00, 0x20, 0x29, 0x02, 0x0e, 0x00, 0x11, 0x00, 0xF7]),
   };
+
+  // Web MIDI port names published by Novation for these interfaces. Do not use
+  // broad "Launchpad" matching: Custom layouts and other generations are raw.
+  var OFFICIAL_PORT_MODELS = {
+    'lpx midi': 'launchpad-x',
+    'launchpad x midi': 'launchpad-x',
+    'lpminimk3 midi': 'launchpad-mini-mk3',
+    'launchpad mini mk3 midi': 'launchpad-mini-mk3',
+    'lppromk3 midi': 'launchpad-pro-mk3',
+    'launchpad pro mk3 midi': 'launchpad-pro-mk3',
+  };
+
+  function officialLaunchpadModelForPort(port) {
+    if (!port || typeof port.name !== 'string') return null;
+    return OFFICIAL_PORT_MODELS[port.name.trim().toLowerCase()] || null;
+  }
 
   // `inquiryFamily` is intentionally not consulted. It identifies an inquiry
   // family, not a particular physical model. Callers must supply an independently
@@ -74,7 +91,7 @@
     };
   }
 
-  var api = { LAUNCHPAD_MODELS: LAUNCHPAD_MODELS, resolveLaunchpadProgrammerIdentity: resolveLaunchpadProgrammerIdentity, launchpadSourceMetadata: launchpadSourceMetadata };
+  var api = { LAUNCHPAD_MODELS: LAUNCHPAD_MODELS, officialLaunchpadModelForPort: officialLaunchpadModelForPort, resolveLaunchpadProgrammerIdentity: resolveLaunchpadProgrammerIdentity, launchpadSourceMetadata: launchpadSourceMetadata };
   Object.assign(root, api);
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

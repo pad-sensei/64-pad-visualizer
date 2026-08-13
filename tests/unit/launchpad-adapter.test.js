@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   LAUNCHPAD_MODELS,
   launchpadSourceMetadata,
@@ -83,5 +83,41 @@ describe('Launchpad Programmer adapter', () => {
     expect(midiSourceMetadataForInput({ id: 'unverified' }, 0x90, 18, 60, false)).toEqual(expect.objectContaining({
       sourceId: 'unverified:0:18', rawPad: 18, row: null, col: null, positionConfidence: 'none',
     }));
+  });
+
+  it.each([
+    ['launchpad-x', 'LPX MIDI'],
+    ['launchpad-mini-mk3', 'LPMiniMK3 MIDI'],
+    ['launchpad-pro-mk3', 'LPProMK3 MIDI'],
+  ])('sets %s identity only after Programmer mode is sent to the uniquely paired official-model output', (model, name) => {
+    const wiredInput = { id: model + '-in', name };
+    const output = { id: model + '-out', name, send: vi.fn() };
+    expect(establishLaunchpadProgrammerIdentity(wiredInput, [output])).toBe(true);
+    expect(output.send).toHaveBeenCalledWith(LAUNCHPAD_MODELS[model].programmerModeMessage);
+    expect(wiredInput.launchpadProgrammerIdentity).toEqual({ model, deviceHeader: LAUNCHPAD_MODELS[model].deviceHeader, layout: LAUNCHPAD_MODELS[model].programmerLayout });
+    expect(midiSourceMetadataForInput(wiredInput, 0x90, 11, 60, false)).toEqual(expect.objectContaining({ row: 0, col: 0, positionConfidence: 'exact' }));
+  });
+
+  it('clears identity across reconnect and leaves generic/non-matching inputs untouched', () => {
+    const input = { id: 'mini-in', name: 'LPMiniMK3 MIDI', launchpadProgrammerIdentity: identity('launchpad-mini-mk3') };
+    clearLaunchpadProgrammerIdentity(input);
+    expect(input).not.toHaveProperty('launchpadProgrammerIdentity');
+    expect(establishLaunchpadProgrammerIdentity(input, [{ id: 'x-out', name: 'LPX MIDI', send: () => {} }])).toBe(false);
+    expect(input).not.toHaveProperty('launchpadProgrammerIdentity');
+
+    const generic = { id: 'keys', name: 'Keyboard', launchpadProgrammerIdentity: identity('launchpad-x') };
+    expect(establishLaunchpadProgrammerIdentity(generic, [{ id: 'x-out', name: 'LPX MIDI', send: () => {} }])).toBe(false);
+    expect(generic).not.toHaveProperty('launchpadProgrammerIdentity');
+    expect(midiSourceMetadataForInput(generic, 0x90, 60, 60, false)).toEqual(expect.objectContaining({ rawPad: 60, row: null, col: null, positionConfidence: 'none' }));
+  });
+
+  it('rejects duplicate candidate outputs so reconnect cannot claim the wrong same-model device', () => {
+    const input = { id: 'pro-in', name: 'LPProMK3 MIDI' };
+    const outputs = [
+      { id: 'pro-a', name: 'LPProMK3 MIDI', send: () => {} },
+      { id: 'pro-b', name: 'LPProMK3 MIDI', send: () => {} },
+    ];
+    expect(establishLaunchpadProgrammerIdentity(input, outputs)).toBe(false);
+    expect(input).not.toHaveProperty('launchpadProgrammerIdentity');
   });
 });

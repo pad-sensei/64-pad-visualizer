@@ -120,6 +120,42 @@ let _pushColorPickPaletteVisible = false;
 let _pushColorPickReadyAt = 0;
 const _pushLedColorRoleOrder = ['root', 'scale', 'pressed', 'memorySlot', 'performActive'];
 
+function clearLaunchpadProgrammerIdentity(input) {
+  if (input && Object.prototype.hasOwnProperty.call(input, 'launchpadProgrammerIdentity')) {
+    delete input.launchpadProgrammerIdentity;
+  }
+}
+
+// Enter Programmer mode only for one unambiguous, same-model official MIDI
+// output. A successful send is the session-local proof carried by the input.
+function establishLaunchpadProgrammerIdentity(input, outputs) {
+  clearLaunchpadProgrammerIdentity(input);
+  if (typeof officialLaunchpadModelForPort !== 'function' || typeof LAUNCHPAD_MODELS === 'undefined') return false;
+  var model = officialLaunchpadModelForPort(input);
+  if (!model) return false;
+  var candidates = Array.from(outputs || []).filter(function(output) {
+    return officialLaunchpadModelForPort(output) === model && output && typeof output.send === 'function';
+  });
+  if (candidates.length !== 1) return false;
+  var config = LAUNCHPAD_MODELS[model];
+  try {
+    candidates[0].send(config.programmerModeMessage);
+  } catch (_) {
+    return false;
+  }
+  input.launchpadProgrammerIdentity = {
+    model: model,
+    deviceHeader: config.deviceHeader,
+    layout: config.programmerLayout,
+  };
+  midiOutput = candidates[0];
+  midiOutputDAW = candidates[0];
+  _lpDeviceByte = config.deviceHeader;
+  _lpProgrammerMode = true;
+  _lpOutputActive = true;
+  return true;
+}
+
 // PUSHシリアル配列(row間8半音) → 4度クロマチック配列(row間5半音) 変換
 // baseMidi() を使用: octaveShift + semitoneShift 両方反映
 const PUSH_SERIAL_BASE = 36;
@@ -636,7 +672,10 @@ function initWebMIDI() {
     function connectInputs() {
       // Invalidate every previously-owned listener before rebinding current ports.
       if (midiPortBindings) midiPortBindings.clear();
-      for (const input of access.inputs.values()) input.onmidimessage = null;
+      for (const input of access.inputs.values()) {
+        input.onmidimessage = null;
+        clearLaunchpadProgrammerIdentity(input);
+      }
       // Topology/selection changes can strand NoteOff. Conservatively release every
       // held source before reconnecting so audio/UI cannot remain stuck.
       releaseAllMidiHeldSources();
@@ -646,11 +685,15 @@ function initWebMIDI() {
       const selectedId = select.value;
       let connected = false;
       let connectedName = '';
+      const programmerEligibleInputs = [];
 
       for (const input of access.inputs.values()) {
         if (selectedId !== 'all' && input.id !== selectedId) continue;
         connected = true;
         connectedName = input.name;
+        if (typeof officialLaunchpadModelForPort === 'function' && officialLaunchpadModelForPort(input)) {
+          programmerEligibleInputs.push(input);
+        }
         // Per-input Push detection: シリアル→4度変換をデバイス単位で適用
         const isPush = /Push/i.test(input.name);
         const inputHandler = (e) => {
@@ -772,7 +815,7 @@ function initWebMIDI() {
       }
       if (_lpHpsUnlocked && connected && connectedName) {
         var isPush = /push/i.test(connectedName) || /ableton/i.test(connectedName);
-        var isLaunchpad = /launchpad/i.test(connectedName);
+        var isLaunchpad = programmerEligibleInputs.length === 1;
         console.log('[64PE LED] isPush:', isPush, 'isLaunchpad:', isLaunchpad);
         if (isPush) {
           // Push 3 User Mode: Note On with velocity=color, no SysEx needed
@@ -795,19 +838,8 @@ function initWebMIDI() {
             _lpProgrammerMode = true;
             console.log('[64PE LED] Push LED output:', midiOutput.name);
           }
-        } else if (false && isLaunchpad) {
-          // Launchpad: disabled until physical device testing
-          _lpDeviceByte = /mini/i.test(connectedName) ? 0x0D : 0x0C;
-          var matchedOutputs = [];
-          for (const output of access.outputs.values()) {
-            if (/launchpad/i.test(output.name)) matchedOutputs.push(output);
-          }
-          if (matchedOutputs.length > 0) {
-            midiOutput = matchedOutputs[0];
-            midiOutputDAW = matchedOutputs.length > 1 ? matchedOutputs[1] : matchedOutputs[0];
-            _lpOutputActive = true;
-            _enterLaunchpadProgrammerMode();
-          }
+        } else if (isLaunchpad) {
+          establishLaunchpadProgrammerIdentity(programmerEligibleInputs[0], Array.from(access.outputs.values()));
         } else {
           // Non-Launchpad: try direct name match for basic LED
           for (const output of access.outputs.values()) {
@@ -1263,6 +1295,7 @@ function clearLaunchpadLEDs() {
 if (typeof module !== 'undefined') module.exports = {
   detectChord, CHORD_DB, TRIAD_DB, TETRAD_DB,
   midiSourceMetadataForInput, nativeMidiSourceMetadata, getMidiHeldSources,
+  establishLaunchpadProgrammerIdentity, clearLaunchpadProgrammerIdentity,
   onMidiNoteOn, onMidiNoteOff, onNativeMidiIn, onNativeMidiOff,
   releaseAllMidiHeldSources,
 };
