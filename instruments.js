@@ -18,6 +18,7 @@ function toggleLinkMode() {
   var btn = document.getElementById('inst-toggle-link');
   if (btn) btn.classList.toggle('active', linkMode);
   if (linkMode) {
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
     applyLinkDim();
   } else {
     removeLinkDim();

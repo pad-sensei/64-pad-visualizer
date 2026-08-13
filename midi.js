@@ -299,12 +299,16 @@ function updateMidiDisplay() {
   const detectEl = document.getElementById('midi-detect');
   const notes = [...midiActiveNotes].sort((a, b) => a - b);
   if (notes.length === 0) {
-    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
     document.querySelectorAll('.midi-highlight').forEach(el => el.remove());
     document.querySelectorAll('.link-highlight').forEach(el => el.remove());
-    if (chordPracticeDisplayLocked()) return;
+    if (chordPracticeDisplayLocked()) {
+      if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
+      return;
+    }
     // Plain mode: #midi-detect is SSOT of updatePlainDisplay(), don't clear
+    // its canonical snapshot before the Desktop bridge can consume it.
     if (!linkMode && AppState.mode === 'input') return;
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
     if (linkMode) { detectEl.innerHTML = ''; return; } // Link mode: just clear highlights, keep display
     detectEl.innerHTML = '';
     // Restore diagrams: instrument input state takes priority over builder state
