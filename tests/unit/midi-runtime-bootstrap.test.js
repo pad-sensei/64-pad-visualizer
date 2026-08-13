@@ -6,8 +6,19 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const midiPath = path.resolve(here, '../../midi.js');
 const source = fs.readFileSync(midiPath, 'utf8');
+const indexPath = path.resolve(here, '../../index.html');
+const index = fs.readFileSync(indexPath, 'utf8');
 
 describe('browser MIDI ownership bootstrap', () => {
+  it('loads the ownership helper before the MIDI runtime in the app shell', () => {
+    const helper = index.indexOf('midi-input-state.js?v=6.7.45');
+    const midi = index.indexOf('midi.js?v=6.7.45');
+
+    expect(helper).toBeGreaterThanOrEqual(0);
+    expect(midi).toBeGreaterThanOrEqual(0);
+    expect(helper).toBeLessThan(midi);
+  });
+
   it('loads the source-ownership helper before constructing held state', () => {
     const bootstrap = source.indexOf('midi-input-state.js');
     const heldState = source.indexOf('const midiHeldState');
