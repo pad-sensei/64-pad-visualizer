@@ -11,12 +11,26 @@ const index = fs.readFileSync(indexPath, 'utf8');
 
 describe('browser MIDI ownership bootstrap', () => {
   it('loads the ownership helper before the MIDI runtime in the app shell', () => {
-    const helper = index.indexOf('midi-input-state.js?v=6.7.45');
-    const midi = index.indexOf('midi.js?v=6.7.45');
+    const helper = index.indexOf('midi-input-state.js?v=6.7.46');
+    const midi = index.indexOf('midi.js?v=6.7.46');
 
     expect(helper).toBeGreaterThanOrEqual(0);
     expect(midi).toBeGreaterThanOrEqual(0);
     expect(helper).toBeLessThan(midi);
+  });
+
+  it('precaches observed payload dependencies before the MIDI bootstrap', () => {
+    const swPath = path.resolve(here, '../../sw.js');
+    const sw = fs.readFileSync(swPath, 'utf8');
+    const observedCore = sw.indexOf('pad-core/observed-structure.js?v=6.7.46');
+    const consumer = sw.indexOf('observed-ust-consumer.js?v=6.7.46');
+    const helper = sw.indexOf('midi-input-state.js?v=6.7.46');
+    const midi = sw.indexOf('midi.js?v=6.7.46');
+
+    expect(observedCore).toBeGreaterThanOrEqual(0);
+    expect(consumer).toBeGreaterThan(observedCore);
+    expect(helper).toBeGreaterThan(consumer);
+    expect(midi).toBeGreaterThan(helper);
   });
 
   it('loads the source-ownership helper before constructing held state', () => {
