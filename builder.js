@@ -36,6 +36,11 @@ function setMode(mode) {
     if (StockState.enabled) disableStock();
   }
   AppState.mode = mode;
+  // A Builder payload describes chord-mode intent only. Clear it synchronously
+  // on every mode transition so Desktop never receives the previous chord.
+  if (mode !== 'chord' && typeof padWebSetLatestObservedShellUstPayload === 'function') {
+    padWebSetLatestObservedShellUstPayload(null);
+  }
   document.getElementById('mode-scale').classList.toggle('active', mode === 'scale');
   document.getElementById('mode-chord').classList.toggle('active', mode === 'chord');
   document.getElementById('mode-input').classList.toggle('active', mode === 'input');
@@ -310,6 +315,18 @@ function updateChordDisplay() {
   if (!activeVoicingSummary && typeof getTastyActiveSummary === 'function') activeVoicingSummary = getTastyActiveSummary();
   if (!activeVoicingSummary && typeof getGuitarActiveSummary === 'function') activeVoicingSummary = getGuitarActiveSummary();
   nameEl.textContent = (activeVoicingSummary && activeVoicingSummary.chordName) || getBuilderChordName() || '—';
+  if (AppState.mode === 'chord' && BuilderState.root !== null && BuilderState.quality
+      && typeof padBuildChordPayload === 'function'
+      && typeof padWebBuildCanonicalChordPayload === 'function'
+      && typeof padWebSetLatestObservedShellUstPayload === 'function') {
+    var builderCoreStructure = padBuildChordPayload(BuilderState.quality.pcs, BuilderState.tension);
+    padWebSetLatestObservedShellUstPayload(padWebBuildCanonicalChordPayload({
+      chord: { rootPC: BuilderState.root, quality: BuilderState.quality.name, name: getBuilderChordName() },
+      coreStructure: builderCoreStructure,
+    }));
+  } else if (typeof padWebSetLatestObservedShellUstPayload === 'function') {
+    padWebSetLatestObservedShellUstPayload(null);
+  }
   // Auto bass from voicing (inversion/drop) when no explicit on-chord bass
   let displayBass = BuilderState.bass;
   if (displayBass === null && BuilderState.root !== null && BuilderState.quality) {
@@ -868,7 +885,27 @@ function applyParsedChordToBuilder(parsed) {
 
   var matchedTension = null;
   var matchedEl = null;
-  if (extras.length > 0) {
+  // Core keeps compound register intent (e.g. dim7's explicit upper 13).
+  // Match that exact interval structure before the legacy pitch-class fallback.
+  var parsedIntervals = parsed.intervals.slice().sort(function(a, b) { return a - b; });
+  if (typeof padBuildChordPayload === 'function') {
+    var coreBtns = document.querySelectorAll('#tension-grid .tension-btn');
+    for (var coreIndex = 0; coreIndex < coreBtns.length; coreIndex++) {
+      var coreBtn = coreBtns[coreIndex];
+      var coreTension = coreBtn._tension;
+      if (!coreTension) continue;
+      var corePayload = padBuildChordPayload(bestQuality.pcs, coreTension);
+      var coreIntervals = corePayload && corePayload.chordIntervals;
+      if (!Array.isArray(coreIntervals) || coreIntervals.length !== parsedIntervals.length) continue;
+      var exact = coreIntervals.every(function(interval, index) { return interval === parsedIntervals[index]; });
+      if (exact) {
+        matchedTension = coreTension;
+        matchedEl = coreBtn;
+        break;
+      }
+    }
+  }
+  if (!matchedTension && extras.length > 0) {
     var extraSet = new Set(extras);
     var btns = document.querySelectorAll('#tension-grid .tension-btn');
     for (var i = 0; i < btns.length; i++) {

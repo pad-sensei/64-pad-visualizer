@@ -278,6 +278,7 @@ function updateMidiDisplay() {
   const detectEl = document.getElementById('midi-detect');
   const notes = [...midiActiveNotes].sort((a, b) => a - b);
   if (notes.length === 0) {
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
     document.querySelectorAll('.midi-highlight').forEach(el => el.remove());
     document.querySelectorAll('.link-highlight').forEach(el => el.remove());
     if (chordPracticeDisplayLocked()) return;
@@ -298,14 +299,19 @@ function updateMidiDisplay() {
   // Chord practice: when a chord is already displayed, external/Push pad input should
   // play only. Do not replace the chord display, diagrams, octave range, or add white
   // practice highlights; the screen is the exercise target.
-  if (chordPracticeDisplayLocked()) return;
+  if (chordPracticeDisplayLocked()) {
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
+    return;
+  }
   // Guitar/Bass/Piano input active: preserve instrument chord name, only add MIDI highlights
   if (!linkMode && instrumentInputActive) {
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
     highlightMidiPads(notes);
     return;
   }
   // Plain mode: #midi-detect handled by updatePlainDisplay() (SSOT), only add highlights
   if (!linkMode && AppState.mode === 'input') {
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
     highlightMidiPads(notes);
     return;
   }
@@ -316,19 +322,36 @@ function updateMidiDisplay() {
     : 'Note: ' + notes.map(n => NOTE_NAMES_SHARP[n % 12]).join(' ');
   if (candidates.length > 0) {
     const best = candidates[0];
-    const ustInline = (typeof formatDetectedUstInlineHtml === 'function')
-      ? formatDetectedUstInlineHtml(notes, best.rootPC, best.name, getMidiHeldSources()) : '';
-    let html = '<div style="color:var(--accent);font-weight:700;font-size:1.1rem;">' + best.name + ustInline + '</div>';
+    const observedQuality = best.quality || (typeof detectedUstBaseQuality === 'function'
+      ? detectedUstBaseQuality(best.name) : null);
+    const observedPayload = typeof padWebBuildCanonicalChordPayload === 'function'
+      ? padWebBuildCanonicalChordPayload({
+        chord: { rootPC: best.rootPC, quality: observedQuality, name: best.name },
+        midiNotes: notes,
+        sourceNotes: getMidiHeldSources(),
+        coreStructure: best,
+      }) : null;
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(observedPayload);
+    const legacyUstText = typeof formatDetectedUstText === 'function'
+      ? formatDetectedUstText(notes, best.rootPC, best.name) : '';
+    const ustInline = (typeof padWebFormatObservedUstInlineFromPayload === 'function')
+      ? padWebFormatObservedUstInlineFromPayload(observedPayload, legacyUstText) : '';
+    const escapeHtml = typeof padWebEscapeHtml === 'function' ? padWebEscapeHtml : String;
+    let html = '<div style="color:var(--accent);font-weight:700;font-size:1.1rem;">' + escapeHtml(best.name) + ustInline + '</div>';
     if (candidates.length > 1) {
       html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">';
       candidates.slice(1).forEach(c => {
-        html += '<span style="font-size:0.6rem;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.08);color:var(--text-muted);">' + c.name + '</span>';
+        html += '<span style="font-size:0.6rem;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.08);color:var(--text-muted);">' + escapeHtml(c.name) + '</span>';
       });
       html += '</div>';
     }
-    html += '<div style="font-size:0.6rem;color:var(--text-muted);margin-top:1px;">' + noteText + '</div>';
+    if (typeof padWebFormatObservedStructureHtml === 'function') {
+      html += padWebFormatObservedStructureHtml(observedPayload);
+    }
+    html += '<div style="font-size:0.6rem;color:var(--text-muted);margin-top:1px;">' + escapeHtml(noteText) + '</div>';
     detectEl.innerHTML = html;
   } else {
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
     detectEl.textContent = noteText;
   }
   // Update instrument diagrams with MIDI-detected chord, or highlight-only in link mode

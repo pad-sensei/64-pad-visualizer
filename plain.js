@@ -775,6 +775,7 @@ function updatePlainDisplay() {
     notes = [...merged].sort((a, b) => a - b);
   }
   if (notes.length === 0) {
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
     detectEl.innerHTML = '';
     lastDetectedNotes = [];
     lastDetectedCandidates = [];
@@ -790,18 +791,26 @@ function updatePlainDisplay() {
     noteText = 'Note: ' + notes.map(function(n) { return NOTE_NAMES_SHARP[n % 12]; }).join(' ');
   }
   if (candidates.length > 0) {
-    const ustInline = (typeof formatDetectedUstInlineHtml === 'function')
-      ? formatDetectedUstInlineHtml(notes, candidates[0].rootPC, candidates[0].name)
+    const best = candidates[0];
+    const observedQuality = best.quality || (typeof detectedUstBaseQuality === 'function' ? detectedUstBaseQuality(best.name) : null);
+    const observedPayload = typeof padWebBuildCanonicalChordPayload === 'function'
+      ? padWebBuildCanonicalChordPayload({ chord: { rootPC: best.rootPC, quality: observedQuality, name: best.name }, midiNotes: notes, coreStructure: best }) : null;
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(observedPayload);
+    const legacyUstText = typeof formatDetectedUstText === 'function' ? formatDetectedUstText(notes, best.rootPC, best.name) : '';
+    const ustInline = (typeof padWebFormatObservedUstInlineFromPayload === 'function')
+      ? padWebFormatObservedUstInlineFromPayload(observedPayload, legacyUstText)
       : '';
-    let html = '<span class="detect-candidate-best" draggable="true" data-candidate-idx="0" onclick="transferDetectedCandidate(0,this)">' + candidates[0].name + ustInline + '</span>';
+    const escapeHtml = typeof padWebEscapeHtml === 'function' ? padWebEscapeHtml : String;
+    let html = '<span class="detect-candidate-best" draggable="true" data-candidate-idx="0" onclick="transferDetectedCandidate(0,this)">' + escapeHtml(best.name) + ustInline + '</span>';
     if (candidates.length > 1) {
       html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">';
       candidates.slice(1).forEach((c, i) => {
-        html += '<span class="detect-candidate" draggable="true" data-candidate-idx="' + (i + 1) + '" onclick="transferDetectedCandidate(' + (i + 1) + ',this)">' + c.name + '</span>';
+        html += '<span class="detect-candidate" draggable="true" data-candidate-idx="' + (i + 1) + '" onclick="transferDetectedCandidate(' + (i + 1) + ',this)">' + escapeHtml(c.name) + '</span>';
       });
       html += '</div>';
     }
-    html += '<div style="font-size:0.65rem;color:#aaa;margin-top:2px;letter-spacing:0.5px;">' + noteText + '</div>';
+    if (typeof padWebFormatObservedStructureHtml === 'function') html += padWebFormatObservedStructureHtml(observedPayload);
+    html += '<div style="font-size:0.65rem;color:#aaa;margin-top:2px;letter-spacing:0.5px;">' + escapeHtml(noteText) + '</div>';
     detectEl.innerHTML = html;
     // Attach dragstart to candidate labels for D&D to memory slots
     detectEl.querySelectorAll('[data-candidate-idx]').forEach(el => {
@@ -814,6 +823,7 @@ function updatePlainDisplay() {
       });
     });
   } else {
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
     detectEl.textContent = noteText;
   }
   lastDetectedNotes = notes;

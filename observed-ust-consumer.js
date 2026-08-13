@@ -42,15 +42,68 @@ function padWebNormalizeObservedSources(midiNotes, sourceNotes) {
   });
 }
 
-function padWebObservedStructureModel(input) {
+function padWebEscapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function(char) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char];
+  });
+}
+
+function padWebObservedPayloadNote(note) {
+  if (!note) return null;
+  return {
+    midi: Number(note.midi),
+    pc: Number(note.pc),
+    degree: note.degree || null,
+    row: Number.isInteger(note.row) ? note.row : null,
+    col: Number.isInteger(note.col) ? note.col : null,
+    physicalPadId: note.physicalPadId != null ? String(note.physicalPadId) : null,
+    sourceId: note.sourceId != null ? String(note.sourceId) : null,
+    deviceId: note.deviceId != null ? String(note.deviceId) : null,
+    rawNote: Number.isFinite(Number(note.rawNote)) ? Number(note.rawNote) : null,
+    mappedMidi: Number.isFinite(Number(note.mappedMidi)) ? Number(note.mappedMidi) : Number(note.midi),
+    positionConfidence: note.positionConfidence === 'exact' || note.positionConfidence === 'reconstructed'
+      ? note.positionConfidence : 'none',
+  };
+}
+
+function padWebObservedPayloadLayer(layer) {
+  if (!layer) return null;
+  return {
+    kind: layer.kind || null,
+    name: layer.name || null,
+    degrees: Array.isArray(layer.degrees) ? layer.degrees.slice() : [],
+    confidence: layer.confidence || 'none',
+    positionConfidence: layer.positionConfidence || 'none',
+    notes: Array.isArray(layer.notes) ? layer.notes.map(padWebObservedPayloadNote).filter(Boolean) : [],
+  };
+}
+
+// Canonical bridge for Web and Desktop Push. This is deliberately plain data:
+// naming, localisation, HTML, and platform-specific labels are consumers' work.
+function padBuildObservedShellUstPayload(input) {
   input = input || {};
+  var empty = {
+    schema: 'pad-observed-shell-ust',
+    version: 1,
+    available: false,
+    reason: null,
+    chord: { name: null, rootPC: null, quality: null },
+    shell: null,
+    ust: null,
+    positionEvidence: 'none',
+    sourceConfidence: 'none',
+    tensions: [],
+    register: null,
+  };
   if (typeof padAnalyzeObservedShellUst !== 'function') {
-    return { available: false, reason: 'pad-core-observed-api-unavailable', shell: null, ust: null };
+    empty.reason = 'pad-core-observed-api-unavailable';
+    return empty;
   }
 
   var chord = input.chord || {};
   if (!Number.isFinite(Number(chord.rootPC)) || !chord.quality) {
-    return { available: false, reason: 'chord-context-incomplete', shell: null, ust: null };
+    empty.reason = 'chord-context-incomplete';
+    return empty;
   }
 
   var notes = padWebNormalizeObservedSources(input.midiNotes || [], input.sourceNotes || []);
@@ -64,20 +117,52 @@ function padWebObservedStructureModel(input) {
   });
 
   return {
+    schema: 'pad-observed-shell-ust',
+    version: 1,
     available: true,
     reason: null,
-    chord: analysis.chord,
-    shell: analysis.shell,
-    ust: analysis.ust,
-    positionEvidence: analysis.positionEvidence,
-    // Keep final educational wording/styling out of the data model. Human Gate owns
-    // the Push-visible presentation; tests can still assert exact musical structure.
-    labels: {
-      shellDegrees: analysis.shell ? analysis.shell.degrees.slice() : [],
-      ustName: analysis.ust ? analysis.ust.name : null,
-      ustDegrees: analysis.ust ? analysis.ust.degrees.slice() : [],
-    },
+    chord: { name: analysis.chord.name || null, rootPC: analysis.chord.rootPC, quality: analysis.chord.quality || null },
+    shell: padWebObservedPayloadLayer(analysis.shell),
+    ust: padWebObservedPayloadLayer(analysis.ust),
+    positionEvidence: analysis.positionEvidence || 'none',
+    // This expresses the provenance of the held sources independently from the
+    // shell/UST inference confidence (physical vs register).
+    sourceConfidence: analysis.positionEvidence || 'none',
+    tensions: [],
+    register: null,
   };
+}
+
+// Core owns chord/tension/register semantics. This boundary accepts only its
+// structured output and deliberately does not infer labels from a chord name.
+function padWebAttachCoreStructure(payload, structure) {
+  payload = payload || {};
+  structure = structure || {};
+  var labels = Array.isArray(structure.tensionLabels) ? structure.tensionLabels : [];
+  var intervals = Array.isArray(structure.tensionIntervals) ? structure.tensionIntervals : [];
+  var validLabel = function(label) { return typeof label === 'string' && label.length > 0 && label.length <= 16 && /^(?:[b#]?(?:5|6|7|9|11|13)|add9|sus4|aug)$/.test(label); };
+  var validInterval = function(interval) { return Number.isInteger(interval) && interval >= 0 && interval <= 127; };
+  payload.tensions = labels.length <= 8 && labels.length === intervals.length && labels.every(validLabel)
+    && intervals.every(validInterval) ? labels.map(function(label, index) {
+      return { label: label, interval: Number(intervals[index]) };
+    }) : [];
+  var register = structure.register;
+  payload.register = register && typeof register.explicit === 'boolean' && Array.isArray(register.intervals)
+    && register.intervals.length <= 8 && register.intervals.every(validInterval)
+    ? { explicit: register.explicit, intervals: register.intervals.map(Number) } : null;
+  return payload;
+}
+
+function padWebBuildCanonicalChordPayload(input) {
+  input = input || {};
+  var payload = padBuildObservedShellUstPayload(input);
+  return padWebAttachCoreStructure(payload, input.coreStructure || null);
+}
+
+// Compatibility alias for existing Web callers. It now returns the canonical data
+// payload; callers must not use this as a presentation model.
+function padWebObservedStructureModel(input) {
+  return padBuildObservedShellUstPayload(input);
 }
 
 function padWebHasPhysicalPosition(sourceNotes) {
@@ -89,7 +174,42 @@ function padWebHasPhysicalPosition(sourceNotes) {
   });
 }
 
-function padWebFormatObservedUstInlineHtml(midiNotes, rootPC, chordName, sourceNotes) {
+var padWebLatestObservedShellUstPayload = null;
+
+function padWebSetLatestObservedShellUstPayload(payload) {
+  // The Desktop bridge reads this JSON-safe snapshot; it never asks Web to
+  // reconstruct a theory label from DOM text or recalculate the analysis.
+  padWebLatestObservedShellUstPayload = payload || null;
+  return padWebLatestObservedShellUstPayload;
+}
+
+function padWebGetLatestObservedShellUstPayload() {
+  return padWebLatestObservedShellUstPayload;
+}
+
+function padWebFormatObservedUstInlineFromPayload(payload, legacyText) {
+  var formatFraction = typeof formatDetectedUstFractionHtml === 'function'
+    ? formatDetectedUstFractionHtml : function(text) { return text || ''; };
+  if (!payload || !payload.available) return formatFraction(legacyText || '');
+  if (!payload.ust || payload.ust.kind !== 'quartal') {
+    // Physical evidence may reject a legacy quartal subset, but never suppress a
+    // separate legacy triadic interpretation.
+    if (payload.shell && payload.shell.positionConfidence !== 'none' && /^UST:\s*Q/.test(legacyText || '')) return '';
+    return formatFraction(legacyText || '');
+  }
+  var baseQuality = payload.chord && payload.chord.quality;
+  var chordName = payload.chord && payload.chord.name || '';
+  var rootName = typeof chordRootDisplayName === 'function' ? chordRootDisplayName(chordName) : '';
+  var suffix = typeof detectedUstBaseQualitySuffix === 'function'
+    ? detectedUstBaseQualitySuffix(baseQuality) : baseQuality;
+  var baseName = rootName ? rootName + suffix : chordName;
+  var text = 'UST: ' + padWebEscapeHtml(payload.ust.name);
+  if (payload.ust.degrees && payload.ust.degrees.length) text += ' [' + payload.ust.degrees.map(padWebEscapeHtml).join(',') + ']';
+  text += ' / ' + padWebEscapeHtml(baseName);
+  return formatFraction(text);
+}
+
+function padWebFormatObservedUstInlineHtml(midiNotes, rootPC, chordName, sourceNotes, payload) {
   var legacyText = typeof formatDetectedUstText === 'function'
     ? formatDetectedUstText(midiNotes, rootPC, chordName)
     : '';
@@ -102,53 +222,47 @@ function padWebFormatObservedUstInlineHtml(midiNotes, rootPC, chordName, sourceN
 
   if (!baseQuality) return formatFraction(legacyText);
 
-  var model = padWebObservedStructureModel({
-    chord: { rootPC: rootPC, quality: baseQuality, name: chordName },
-    midiNotes: midiNotes,
-    sourceNotes: sourceNotes,
+  payload = payload || padBuildObservedShellUstPayload({
+    chord: { rootPC: rootPC, quality: baseQuality, name: chordName }, midiNotes: midiNotes, sourceNotes: sourceNotes,
   });
 
   // Quartal naming is authoritative from the structured observed analysis. In
   // particular, the physical upper F-Bb-Eb over Cm7 is Q4; a lower shell C may
   // never be borrowed to manufacture legacy Q1.
-  if (model.available && model.ust && model.ust.kind === 'quartal') {
-    var rootName = typeof chordRootDisplayName === 'function' ? chordRootDisplayName(chordName) : '';
-    var suffix = typeof detectedUstBaseQualitySuffix === 'function'
-      ? detectedUstBaseQualitySuffix(baseQuality)
-      : baseQuality;
-    var baseName = rootName ? rootName + suffix : chordName;
-    var text = 'UST: ' + model.ust.name;
-    if (model.ust.degrees && model.ust.degrees.length) text += ' [' + model.ust.degrees.join(',') + ']';
-    text += ' / ' + baseName;
-    return formatFraction(text);
-  }
+  return padWebFormatObservedUstInlineFromPayload(payload, legacyText);
+}
 
-  // Exact/reconstructed grid evidence outranks a pitch-class subset guess. If the
-  // legacy detector sees a quartal UST but pad-core rejects the actual physical
-  // upper geometry, suppress only that quartal guess. Triadic UST behavior stays
-  // on the existing path.
-  if (padWebHasPhysicalPosition(sourceNotes)
-      && model.available
-      && model.shell
-      && /^UST:\s*Q/.test(legacyText)) {
-    return '';
-  }
-
-  return formatFraction(legacyText);
+function padWebFormatObservedStructureHtml(payload) {
+  if (!payload || !payload.available) return '';
+  var label = padWebEscapeHtml(typeof t === 'function' ? t('help.observed_chord') : 'Chord');
+  var shellLabel = padWebEscapeHtml(typeof t === 'function' ? t('help.observed_shell') : 'Shell');
+  var ustLabel = padWebEscapeHtml(typeof t === 'function' ? t('help.observed_ust') : 'UST');
+  var parts = [];
+  if (payload.chord && payload.chord.name) parts.push(label + ': ' + padWebEscapeHtml(payload.chord.name));
+  if (payload.shell) parts.push(shellLabel + ': ' + (payload.shell.degrees || []).map(padWebEscapeHtml).join(','));
+  if (payload.ust) parts.push(ustLabel + ': ' + padWebEscapeHtml(payload.ust.name) + ' [' + (payload.ust.degrees || []).map(padWebEscapeHtml).join(',') + ']');
+  return parts.length ? '<div class="midi-observed-structure">' + parts.join(' · ') + '</div>' : '';
 }
 
 if (typeof window !== 'undefined') {
   window.padWebNormalizeObservedSources = padWebNormalizeObservedSources;
+  window.padBuildObservedShellUstPayload = padBuildObservedShellUstPayload;
+  window.padWebBuildCanonicalChordPayload = padWebBuildCanonicalChordPayload;
   window.padWebObservedStructureModel = padWebObservedStructureModel;
+  window.padWebAttachCoreStructure = padWebAttachCoreStructure;
+  window.padWebSetLatestObservedShellUstPayload = padWebSetLatestObservedShellUstPayload;
+  window.padWebGetLatestObservedShellUstPayload = padWebGetLatestObservedShellUstPayload;
   window.padWebHasPhysicalPosition = padWebHasPhysicalPosition;
   window.padWebFormatObservedUstInlineHtml = padWebFormatObservedUstInlineHtml;
+  window.padWebFormatObservedUstInlineFromPayload = padWebFormatObservedUstInlineFromPayload;
+  window.padWebFormatObservedStructureHtml = padWebFormatObservedStructureHtml;
 
   // theory.js is already loaded when the browser MIDI bootstrap loads this adapter.
   // Replace only the inline presentation entry point; raw legacy triadic helpers stay
   // intact and are used as the fallback inside padWebFormatObservedUstInlineHtml().
   if (!window.__padObservedUstFormatterInstalled && typeof window.formatDetectedUstInlineHtml === 'function') {
-    window.formatDetectedUstInlineHtml = function(notes, rootPC, chordName, sourceNotes) {
-      return padWebFormatObservedUstInlineHtml(notes, rootPC, chordName, sourceNotes);
+    window.formatDetectedUstInlineHtml = function(notes, rootPC, chordName, sourceNotes, payload) {
+      return padWebFormatObservedUstInlineHtml(notes, rootPC, chordName, sourceNotes, payload);
     };
     window.__padObservedUstFormatterInstalled = true;
   }
@@ -156,7 +270,15 @@ if (typeof window !== 'undefined') {
 
 if (typeof module !== 'undefined') module.exports = {
   padWebNormalizeObservedSources,
+  padWebEscapeHtml,
+  padBuildObservedShellUstPayload,
+  padWebBuildCanonicalChordPayload,
   padWebObservedStructureModel,
+  padWebAttachCoreStructure,
+  padWebSetLatestObservedShellUstPayload,
+  padWebGetLatestObservedShellUstPayload,
   padWebHasPhysicalPosition,
   padWebFormatObservedUstInlineHtml,
+  padWebFormatObservedUstInlineFromPayload,
+  padWebFormatObservedStructureHtml,
 };

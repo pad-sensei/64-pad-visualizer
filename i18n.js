@@ -116,6 +116,11 @@ I18N.setLang = function(code) {
   if (typeof TutorialHints !== 'undefined' && TutorialHints && typeof TutorialHints.updateButtonLabel === 'function') {
     TutorialHints.updateButtonLabel();
   }
+  // Held MIDI analysis contains localized dynamic labels; refresh it after language
+  // changes without touching ownership or triggering any MIDI side effect.
+  if (typeof updateMidiDisplay === 'function'
+      && typeof midiActiveNotes !== 'undefined'
+      && midiActiveNotes && midiActiveNotes.size > 0) updateMidiDisplay();
   // Update lang selector
   var sel = document.getElementById('lang-select');
   if (sel) sel.value = code;
