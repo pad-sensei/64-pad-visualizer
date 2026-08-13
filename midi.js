@@ -3,7 +3,7 @@
 // ========================================
 // Source ownership must exist before the held-state objects below are constructed.
 if (typeof createMidiHeldState === 'undefined' && typeof document !== 'undefined' && document.readyState === 'loading') {
-  document.write('<script src="midi-input-state.js?v=6.7.44"><\/script>');
+  document.write('<script src="midi-input-state.js?v=6.7.45"><\/script>');
 }
 
 const midiActiveNotes = new Set(); // currently held mapped MIDI notes (compatibility mirror)
@@ -210,12 +210,36 @@ function onMidiNoteOff(note, source) {
 // Called from C++ (evaluateJavascript) when native MIDI input is received.
 // When VST loaded: sound plays via C++ processBlock, JS only updates UI.
 // When no VST: play via WebAudioFont (C++ sine is muted).
-function onNativeMidiIn(note, velocity) {
-  var source = {
-    deviceId: 'native', sourceId: 'native:0:' + note, channel: 0,
-    rawNote: note, mappedMidi: note, row: null, col: null,
-    physicalPadId: null, positionConfidence: 'none',
+function nativeMidiSourceMetadata(note, metadata) {
+  metadata = metadata || {};
+  var rawPad = Number(metadata.rawPad);
+  var exactPosition = metadata.positionConfidence === 'exact'
+    && Number.isInteger(rawPad)
+    && Number.isInteger(metadata.row)
+    && Number.isInteger(metadata.col)
+    && rawPad >= 36 && rawPad <= 99
+    && metadata.row >= 0 && metadata.row < 8
+    && metadata.col >= 0 && metadata.col < 8
+    && rawPad === 36 + metadata.row * 8 + metadata.col;
+  var deviceId = metadata.deviceId != null ? String(metadata.deviceId) : 'native';
+  var channel = Number.isInteger(metadata.channel) && metadata.channel >= 0 && metadata.channel <= 15
+    ? metadata.channel : 0;
+  var physicalPadId = exactPosition ? 'r' + metadata.row + 'c' + metadata.col : null;
+  return {
+    deviceId: deviceId,
+    sourceId: metadata.sourceId != null ? String(metadata.sourceId) : deviceId + ':' + channel + ':' + (exactPosition ? physicalPadId : note),
+    channel: channel,
+    rawNote: exactPosition ? rawPad : note,
+    mappedMidi: note,
+    row: exactPosition ? metadata.row : null,
+    col: exactPosition ? metadata.col : null,
+    physicalPadId: physicalPadId,
+    positionConfidence: exactPosition ? 'exact' : 'none',
   };
+}
+
+function onNativeMidiIn(note, velocity, metadata) {
+  var source = nativeMidiSourceMetadata(note, metadata);
   if (midiHeldState) {
     midiHeldState.noteOn(source);
     syncMidiActiveNotesFromOwnership();
@@ -237,13 +261,10 @@ function onNativeMidiIn(note, velocity) {
   scheduleMidiUpdate();
 }
 
-function onNativeMidiOff(note) {
+function onNativeMidiOff(note, metadata) {
   var shouldReleasePitch = true;
   if (midiHeldState) {
-    var release = midiHeldState.noteOff({
-      deviceId: 'native', sourceId: 'native:0:' + note, channel: 0,
-      rawNote: note, mappedMidi: note,
-    });
+    var release = midiHeldState.noteOff(nativeMidiSourceMetadata(note, metadata));
     if (!release.changed) return;
     shouldReleasePitch = release.pitchBecameInactive;
     syncMidiActiveNotesFromOwnership();
@@ -1244,7 +1265,7 @@ function clearLaunchpadLEDs() {
 // Conditional exports for Node.js (Vitest) — ignored in browser
 if (typeof module !== 'undefined') module.exports = {
   detectChord, CHORD_DB, TRIAD_DB, TETRAD_DB,
-  midiSourceMetadataForInput, getMidiHeldSources,
+  midiSourceMetadataForInput, nativeMidiSourceMetadata, getMidiHeldSources,
   onMidiNoteOn, onMidiNoteOff, onNativeMidiIn, onNativeMidiOff,
   releaseAllMidiHeldSources,
 };
