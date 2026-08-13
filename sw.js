@@ -34,6 +34,7 @@ var ASSETS = [
   'pad-core/observed-structure.js?v=6.7.46',
   'observed-ust-consumer.js?v=6.7.46',
   'midi-input-state.js?v=6.7.46',
+  'launchpad-adapter.js?v=6.7.46',
   'midi.js?v=6.7.46',
   'plain.js?v=6.7.46',
   'perform.js?v=6.7.46',

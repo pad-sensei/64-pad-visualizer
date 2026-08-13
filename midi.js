@@ -29,6 +29,12 @@ function getMidiHeldSources() {
 }
 
 function midiSourceMetadataForInput(input, status, rawNote, mappedMidi, isPush) {
+  // Launchpad positions are exact only after a caller has independently matched
+  // port/model identity with the model-specific Programmer layout readback.
+  if (!isPush && typeof launchpadSourceMetadata === 'function') {
+    return launchpadSourceMetadata(input, status, rawNote, mappedMidi,
+      input && input.launchpadProgrammerIdentity);
+  }
   var deviceId = input && input.id != null ? String(input.id)
     : (input && input.name ? String(input.name) : 'web-midi');
   var channel = status & 0x0f;
@@ -43,15 +49,6 @@ function midiSourceMetadataForInput(input, status, rawNote, mappedMidi, isPush) 
     col = pushIdx % 8;
     physicalPadId = 'r' + row + 'c' + col;
     positionConfidence = 'exact';
-  } else if (!isPush && _lpProgrammerMode && rawNote >= 11 && rawNote <= 88) {
-    var lpRow = Math.floor(rawNote / 10) - 1;
-    var lpCol = (rawNote % 10) - 1;
-    if (lpRow >= 0 && lpRow < 8 && lpCol >= 0 && lpCol < 8) {
-      row = lpRow;
-      col = lpCol;
-      physicalPadId = 'r' + row + 'c' + col;
-      positionConfidence = 'exact';
-    }
   }
 
   var sourceAtom = physicalPadId || String(rawNote);

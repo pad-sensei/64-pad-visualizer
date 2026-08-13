@@ -59,6 +59,9 @@ Object.assign(globalThis, builder);
 const midiInputState = require('../../../midi-input-state.js');
 Object.assign(globalThis, midiInputState);
 
+const launchpadAdapter = require('../../../launchpad-adapter.js');
+Object.assign(globalThis, launchpadAdapter);
+
 // Load midi.js
 const midi = require('../../../midi.js');
 Object.assign(globalThis, midi);
