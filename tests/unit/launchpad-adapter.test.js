@@ -120,4 +120,43 @@ describe('Launchpad Programmer adapter', () => {
     expect(establishLaunchpadProgrammerIdentity(input, outputs)).toBe(false);
     expect(input).not.toHaveProperty('launchpadProgrammerIdentity');
   });
+
+  it('requests SysEx first and falls back to ordinary Web MIDI when permission is refused', async () => {
+    const request = vi.fn()
+      .mockRejectedValueOnce(new Error('sysex denied'))
+      .mockResolvedValueOnce({ inputs: new Map(), outputs: new Map() });
+    await expect(requestWebMIDIAccess(request)).resolves.toEqual(expect.objectContaining({ inputs: expect.any(Map) }));
+    expect(request.mock.calls).toEqual([[{ sysex: true }], []]);
+  });
+
+  it('keeps the SysEx-granted access without a second request', async () => {
+    const access = { inputs: new Map(), outputs: new Map() };
+    const request = vi.fn().mockResolvedValue(access);
+    await expect(requestWebMIDIAccess(request)).resolves.toBe(access);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith({ sysex: true });
+  });
+
+  it('keeps a generic input raw while a verified input remaps only fixed grid notes', () => {
+    const launchpad = { id: 'x', name: 'LPX MIDI', launchpadProgrammerIdentity: identity('launchpad-x') };
+    const generic = { id: 'keys', name: 'Keyboard' };
+    expect(midiNoteForInput(launchpad, 11, false)).not.toBe(11);
+    expect(midiNoteForInput(launchpad, 19, false)).toBe(19); // right-side CC / non-grid
+    expect(midiNoteForInput(generic, 11, false)).toBe(11);
+    expect(midiNoteForInput(generic, 19, false)).toBe(19);
+  });
+
+  it('uses the Pro layout-select exit message after a successful Programmer session', () => {
+    const input = { id: 'pro', name: 'LPProMK3 MIDI' };
+    const output = { id: 'pro-out', name: 'LPProMK3 MIDI', send: vi.fn() };
+    expect(establishLaunchpadProgrammerIdentity(input, [output])).toBe(true);
+    exitLaunchpadProgrammerMode();
+    expect(output.send).toHaveBeenLastCalledWith([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0e, 0x00, 0x00, 0x00, 0xF7]);
+  });
+
+  it('does not retain identity when the Programmer SysEx send throws', () => {
+    const input = { id: 'x', name: 'LPX MIDI' };
+    expect(establishLaunchpadProgrammerIdentity(input, [{ name: 'LPX MIDI', send: () => { throw new Error('blocked'); } }])).toBe(false);
+    expect(input).not.toHaveProperty('launchpadProgrammerIdentity');
+  });
 });

@@ -10,7 +10,7 @@
     return notes;
   }
 
-  function model(deviceHeader, programmerLayout, capabilities, programmerModeMessage) {
+  function model(deviceHeader, programmerLayout, capabilities, programmerModeMessage, programmerExitMessage) {
     var gridNotes = fixedProgrammerGrid();
     var positionByNote = {};
     gridNotes.forEach(function(note, index) {
@@ -20,6 +20,7 @@
       deviceHeader: deviceHeader,
       programmerLayout: programmerLayout,
       programmerModeMessage: programmerModeMessage,
+      programmerExitMessage: programmerExitMessage,
       capabilities: capabilities,
       gridNotes: gridNotes,
       positionForNote: function(rawPad) { return positionByNote[rawPad] || null; },
@@ -31,9 +32,9 @@
   }
 
   var LAUNCHPAD_MODELS = {
-    'launchpad-x': model(0x0c, 0x7f, { velocity: true, pressure: true }, [0xF0, 0x00, 0x20, 0x29, 0x02, 0x0c, 0x00, 0x7f, 0xF7]),
-    'launchpad-mini-mk3': model(0x0d, 0x7f, { velocity: false, pressure: false }, [0xF0, 0x00, 0x20, 0x29, 0x02, 0x0d, 0x00, 0x7f, 0xF7]),
-    'launchpad-pro-mk3': model(0x0e, 0x11, { velocity: true, pressure: true }, [0xF0, 0x00, 0x20, 0x29, 0x02, 0x0e, 0x00, 0x11, 0x00, 0xF7]),
+    'launchpad-x': model(0x0c, 0x7f, { velocity: true, pressure: true }, [0xF0, 0x00, 0x20, 0x29, 0x02, 0x0c, 0x00, 0x7f, 0xF7], [0xF0, 0x00, 0x20, 0x29, 0x02, 0x0c, 0x0e, 0x00, 0xF7]),
+    'launchpad-mini-mk3': model(0x0d, 0x7f, { velocity: false, pressure: false }, [0xF0, 0x00, 0x20, 0x29, 0x02, 0x0d, 0x00, 0x7f, 0xF7], [0xF0, 0x00, 0x20, 0x29, 0x02, 0x0d, 0x0e, 0x00, 0xF7]),
+    'launchpad-pro-mk3': model(0x0e, 0x11, { velocity: true, pressure: true }, [0xF0, 0x00, 0x20, 0x29, 0x02, 0x0e, 0x00, 0x11, 0x00, 0xF7], [0xF0, 0x00, 0x20, 0x29, 0x02, 0x0e, 0x00, 0x00, 0x00, 0xF7]),
   };
 
   // Web MIDI port names published by Novation for these interfaces. Do not use
@@ -91,7 +92,12 @@
     };
   }
 
-  var api = { LAUNCHPAD_MODELS: LAUNCHPAD_MODELS, officialLaunchpadModelForPort: officialLaunchpadModelForPort, resolveLaunchpadProgrammerIdentity: resolveLaunchpadProgrammerIdentity, launchpadSourceMetadata: launchpadSourceMetadata };
+  function isVerifiedLaunchpadProgrammerGridNote(input, rawPad) {
+    var recognized = resolveLaunchpadProgrammerIdentity(input && input.launchpadProgrammerIdentity);
+    return !!(recognized && recognized.config.positionForNote(rawPad));
+  }
+
+  var api = { LAUNCHPAD_MODELS: LAUNCHPAD_MODELS, officialLaunchpadModelForPort: officialLaunchpadModelForPort, resolveLaunchpadProgrammerIdentity: resolveLaunchpadProgrammerIdentity, launchpadSourceMetadata: launchpadSourceMetadata, isVerifiedLaunchpadProgrammerGridNote: isVerifiedLaunchpadProgrammerGridNote };
   Object.assign(root, api);
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

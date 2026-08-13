@@ -111,6 +111,7 @@ let _lpOutputActive = false;
 let _lpHpsUnlocked = false;  // set in main.js from ?hps
 let _lpProgrammerMode = false; // true when Launchpad is in Programmer mode
 let _lpDeviceByte = 0x0C;   // 0x0C = Launchpad X, 0x0D = Mini MK3
+let _lpProgrammerConfig = null;
 let _isPush = false;         // true when Push 3 User Mode detected
 const _prevLEDState = new Array(64).fill(-1); // -1 = never sent
 let _lpLEDMode = 'full'; // 'full' | 'root' | 'off'
@@ -151,9 +152,25 @@ function establishLaunchpadProgrammerIdentity(input, outputs) {
   midiOutput = candidates[0];
   midiOutputDAW = candidates[0];
   _lpDeviceByte = config.deviceHeader;
+  _lpProgrammerConfig = config;
   _lpProgrammerMode = true;
   _lpOutputActive = true;
   return true;
+}
+
+function midiNoteForInput(input, rawNote, isPush) {
+  if (isPush) return pushSerialToFourths(rawNote);
+  if (typeof isVerifiedLaunchpadProgrammerGridNote === 'function'
+      && isVerifiedLaunchpadProgrammerGridNote(input, rawNote)) {
+    return _lpProgrammerToFourths(rawNote);
+  }
+  return rawNote;
+}
+
+function requestWebMIDIAccess(requestMIDIAccess) {
+  return requestMIDIAccess({ sysex: true }).catch(function() {
+    return requestMIDIAccess();
+  });
 }
 
 // PUSHシリアル配列(row間8半音) → 4度クロマチック配列(row間5半音) 変換
@@ -637,7 +654,7 @@ function _resolveSustainOff() {
 
 function initWebMIDI() {
   if (!navigator.requestMIDIAccess) return;
-  navigator.requestMIDIAccess().then(access => {
+  requestWebMIDIAccess(navigator.requestMIDIAccess.bind(navigator)).then(access => {
     midiAccess = access;
     const statusEl = document.getElementById('midi-status');
     statusEl.style.display = '';
@@ -769,7 +786,7 @@ function initWebMIDI() {
           }
           // Non-Push fourths-layout controller perform mode (Linnstrument, Launchpad, etc.)
           if (!isPush && memoryViewMode === 'perform' && cmd === 0x90 && velocity > 0) {
-            var perfNote = (_lpProgrammerMode && rawNote >= 11 && rawNote <= 88) ? _lpProgrammerToFourths(rawNote) : rawNote;
+            var perfNote = midiNoteForInput(input, rawNote, false);
             if (perfNote >= 0 && handlePerformMidi(perfNote)) {
               ensureAudioResumed();
               return;
@@ -779,14 +796,7 @@ function initWebMIDI() {
           if (isPush && (cmd === 0x90 || cmd === 0x80) && (rawNote < 36 || rawNote > 99)) return;
           // Launchpad Programmer mode: convert notes 11-88 to 4th chromatic
           var note;
-          if (isPush) {
-            note = pushSerialToFourths(rawNote);
-          } else if (_lpProgrammerMode && rawNote >= 11 && rawNote <= 88) {
-            note = _lpProgrammerToFourths(rawNote);
-            if (note < 0) return; // Invalid pad position (e.g., note 19 = side button)
-          } else {
-            note = rawNote;
-          }
+          note = midiNoteForInput(input, rawNote, isPush);
           var source = midiSourceMetadataForInput(input, status, rawNote, note, isPush);
           if (cmd === 0x90 && velocity > 0) onMidiNoteOn(note, velocity, source);
           else if (cmd === 0x80 || (cmd === 0x90 && velocity === 0)) onMidiNoteOff(note, source);
@@ -799,11 +809,12 @@ function initWebMIDI() {
       midiNoteRemap = null;
 
       // Auto-match MIDI output for LED control (HPS exclusive)
-      _exitLaunchpadProgrammerMode();
+  exitLaunchpadProgrammerMode();
       midiOutput = null;
       midiOutputDAW = null;
       _lpOutputActive = false;
       _lpProgrammerMode = false;
+      _lpProgrammerConfig = null;
       var ledSel = document.getElementById('led-mode');
       if (ledSel) ledSel.style.display = 'none';
       // LED control: Push 3 User Mode (no SysEx needed) + Launchpad (disabled until physical testing)
@@ -1224,13 +1235,14 @@ function _enterLaunchpadProgrammerMode() {
   }
 }
 
-function _exitLaunchpadProgrammerMode() {
-  if (!_lpProgrammerMode) return;
-  var sysex = [0xF0, 0x00, 0x20, 0x29, 0x02, _lpDeviceByte, 0x0E, 0x00, 0xF7];
+function exitLaunchpadProgrammerMode() {
+  if (!_lpProgrammerMode || !_lpProgrammerConfig) return;
+  var sysex = _lpProgrammerConfig.programmerExitMessage;
   var port = midiOutputDAW || midiOutput;
   try { if (port) port.send(sysex); } catch(_) {}
   try { if (midiOutput && midiOutput !== port) midiOutput.send(sysex); } catch(_) {}
   _lpProgrammerMode = false;
+  _lpProgrammerConfig = null;
 }
 
 function updateLaunchpadLEDs(state) {
@@ -1296,6 +1308,7 @@ if (typeof module !== 'undefined') module.exports = {
   detectChord, CHORD_DB, TRIAD_DB, TETRAD_DB,
   midiSourceMetadataForInput, nativeMidiSourceMetadata, getMidiHeldSources,
   establishLaunchpadProgrammerIdentity, clearLaunchpadProgrammerIdentity,
+  midiNoteForInput, requestWebMIDIAccess, exitLaunchpadProgrammerMode,
   onMidiNoteOn, onMidiNoteOff, onNativeMidiIn, onNativeMidiOff,
   releaseAllMidiHeldSources,
 };
