@@ -33,6 +33,21 @@ describe('browser MIDI ownership bootstrap', () => {
     expect(midi).toBeGreaterThan(helper);
   });
 
+  it('loads parser-time observed dependencies from the same cache version', () => {
+    const helperPath = path.resolve(here, '../../midi-input-state.js');
+    const helper = fs.readFileSync(helperPath, 'utf8');
+    const swPath = path.resolve(here, '../../sw.js');
+    const sw = fs.readFileSync(swPath, 'utf8');
+
+    for (const asset of [
+      'pad-core/observed-structure.js?v=6.7.49',
+      'observed-ust-consumer.js?v=6.7.49',
+    ]) {
+      expect(helper).toContain(asset);
+      expect(sw).toContain(`'${asset}'`);
+    }
+  });
+
   it('loads the source-ownership helper before constructing held state', () => {
     const bootstrap = source.indexOf('midi-input-state.js');
     const heldState = source.indexOf('const midiHeldState');
