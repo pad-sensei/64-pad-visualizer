@@ -146,12 +146,12 @@ describe('Launchpad Programmer adapter', () => {
     expect(midiNoteForInput(generic, 19, false)).toBe(19);
   });
 
-  it('uses the Pro layout-select exit message after a successful Programmer session', () => {
+  it('uses the Pro Programmer/Live toggle exit message after a successful Programmer session', () => {
     const input = { id: 'pro', name: 'LPProMK3 MIDI' };
     const output = { id: 'pro-out', name: 'LPProMK3 MIDI', send: vi.fn() };
     expect(establishLaunchpadProgrammerIdentity(input, [output])).toBe(true);
     exitLaunchpadProgrammerMode();
-    expect(output.send).toHaveBeenLastCalledWith([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0e, 0x00, 0x00, 0x00, 0xF7]);
+    expect(output.send).toHaveBeenLastCalledWith([0xF0, 0x00, 0x20, 0x29, 0x02, 0x0e, 0x0e, 0x00, 0xF7]);
   });
 
   it('does not retain identity when the Programmer SysEx send throws', () => {
