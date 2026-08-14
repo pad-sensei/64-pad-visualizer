@@ -11,8 +11,8 @@ const index = fs.readFileSync(indexPath, 'utf8');
 
 describe('browser MIDI ownership bootstrap', () => {
   it('loads the ownership helper before the MIDI runtime in the app shell', () => {
-    const helper = index.indexOf('midi-input-state.js?v=6.7.51');
-    const midi = index.indexOf('midi.js?v=6.7.51');
+    const helper = index.indexOf('midi-input-state.js?v=6.7.52');
+    const midi = index.indexOf('midi.js?v=6.7.52');
 
     expect(helper).toBeGreaterThanOrEqual(0);
     expect(midi).toBeGreaterThanOrEqual(0);
@@ -22,10 +22,10 @@ describe('browser MIDI ownership bootstrap', () => {
   it('precaches observed payload dependencies before the MIDI bootstrap', () => {
     const swPath = path.resolve(here, '../../sw.js');
     const sw = fs.readFileSync(swPath, 'utf8');
-    const observedCore = sw.indexOf('pad-core/observed-structure.js?v=6.7.51');
-    const consumer = sw.indexOf('observed-ust-consumer.js?v=6.7.51');
-    const helper = sw.indexOf('midi-input-state.js?v=6.7.51');
-    const midi = sw.indexOf('midi.js?v=6.7.51');
+    const observedCore = sw.indexOf('pad-core/observed-structure.js?v=6.7.52');
+    const consumer = sw.indexOf('observed-ust-consumer.js?v=6.7.52');
+    const helper = sw.indexOf('midi-input-state.js?v=6.7.52');
+    const midi = sw.indexOf('midi.js?v=6.7.52');
 
     expect(observedCore).toBeGreaterThanOrEqual(0);
     expect(consumer).toBeGreaterThan(observedCore);
@@ -40,12 +40,23 @@ describe('browser MIDI ownership bootstrap', () => {
     const sw = fs.readFileSync(swPath, 'utf8');
 
     for (const asset of [
-      'pad-core/observed-structure.js?v=6.7.51',
-      'observed-ust-consumer.js?v=6.7.51',
+      'pad-core/observed-structure.js?v=6.7.52',
+      'observed-ust-consumer.js?v=6.7.52',
     ]) {
       expect(helper).toContain(asset);
       expect(sw).toContain(`'${asset}'`);
     }
+  });
+
+  it('inherits the app-shell cache version for the parser-time ownership fallback', () => {
+    const helperVersion = index.match(/midi-input-state\.js\?v=([\d.]+)/)?.[1];
+    const swPath = path.resolve(here, '../../sw.js');
+    const sw = fs.readFileSync(swPath, 'utf8');
+
+    expect(helperVersion).toBeTruthy();
+    expect(sw).toContain(`'midi-input-state.js?v=${helperVersion}'`);
+    expect(source).toContain('document.currentScript');
+    expect(source).not.toMatch(/midi-input-state\.js\?v=\d/);
   });
 
   it('loads the source-ownership helper before constructing held state', () => {
