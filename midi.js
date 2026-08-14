@@ -3,7 +3,10 @@
 // ========================================
 // Source ownership must exist before the held-state objects below are constructed.
 if (typeof createMidiHeldState === 'undefined' && typeof document !== 'undefined' && document.readyState === 'loading') {
-  document.write('<script src="midi-input-state.js?v=6.7.46"><\/script>');
+  var currentScriptSrc = document.currentScript && document.currentScript.src;
+  var versionMatch = currentScriptSrc && currentScriptSrc.match(/[?&]v=([^&]+)/);
+  var assetVersion = versionMatch ? '?v=' + versionMatch[1] : '';
+  document.write('<script src="midi-input-state.js' + assetVersion + '"><\/script>');
 }
 
 const midiActiveNotes = new Set(); // currently held mapped MIDI notes (compatibility mirror)

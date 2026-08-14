@@ -63,6 +63,21 @@ describe('browser MIDI ownership bootstrap', () => {
     ]);
   });
 
+  it('loads the standalone ownership fallback at the current precached asset version', () => {
+    const writes = [];
+    vm.runInNewContext(source.slice(0, source.indexOf('const midiActiveNotes')), {
+      document: {
+        readyState: 'loading',
+        currentScript: { src: 'https://example.test/midi.js?v=' + assetVersion },
+        write: (html) => writes.push(html),
+      },
+    });
+
+    expect(writes).toEqual([
+      '<script src="midi-input-state.js?v=' + assetVersion + '"></script>',
+    ]);
+  });
+
   it('loads the source-ownership helper before constructing held state', () => {
     const bootstrap = source.indexOf('midi-input-state.js');
     const heldState = source.indexOf('const midiHeldState');
