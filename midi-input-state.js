@@ -188,8 +188,8 @@ if (typeof window !== 'undefined') {
   // This is dependency wiring only; no musical decision is made in the MIDI layer.
   if (typeof document !== 'undefined' && document.readyState === 'loading'
       && typeof window.padWebFormatObservedUstInlineHtml !== 'function') {
-    document.write('<script src="pad-core/observed-structure.js?v=6.7.49"><\/script>');
-    document.write('<script src="observed-ust-consumer.js?v=6.7.49"><\/script>');
+    document.write('<script src="pad-core/observed-structure.js?v=6.7.51"><\/script>');
+    document.write('<script src="observed-ust-consumer.js?v=6.7.51"><\/script>');
   }
 }
 
