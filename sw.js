@@ -20,6 +20,7 @@ var ASSETS = [
   'audio-core/audio-overlay.js?v=6.7.51',
   'audio-core/audio-voice.js?v=6.7.51',
   'audio-core/audio.js?v=6.7.51',
+  'master-tail.js?v=6.7.51',
   'audio-ui-binding.js?v=6.7.51',
   'theory.js?v=6.7.51',
   'tasty-stock.js?v=6.7.51',

@@ -39,6 +39,19 @@ describe('browser MIDI ownership bootstrap', () => {
     expect(midi).toBeGreaterThan(helper);
   });
 
+  it('precaches the parser-loaded master tail in its runtime dependency order', () => {
+    const swPath = path.resolve(here, '../../sw.js');
+    const sw = fs.readFileSync(swPath, 'utf8');
+    const runtimeMasterTail = index.indexOf("'master-tail.js'");
+    const audio = sw.indexOf('audio-core/audio.js?v=' + assetVersion);
+    const masterTail = sw.indexOf('master-tail.js?v=' + assetVersion);
+    const audioUi = sw.indexOf('audio-ui-binding.js?v=' + assetVersion);
+
+    expect(runtimeMasterTail).toBeGreaterThanOrEqual(0);
+    expect(masterTail).toBeGreaterThan(audio);
+    expect(masterTail).toBeLessThan(audioUi);
+  });
+
   it('loads parser-time observed dependencies at the current precached asset version', () => {
     const writes = [];
     const runtimeWindow = {};
