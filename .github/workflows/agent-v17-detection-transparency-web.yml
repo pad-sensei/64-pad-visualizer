@@ -38,3 +38,5 @@ jobs:
           git diff --cached --check
           git commit -m "chore: remove web validation workflow"
           git push origin HEAD:agent/v17-detection-transparency-web
+
+# Registration-trigger commit: validation only; this file self-deletes after PASS.
