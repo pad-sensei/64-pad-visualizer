@@ -33,6 +33,22 @@ describe('browser MIDI ownership bootstrap', () => {
     expect(midi).toBeGreaterThan(helper);
   });
 
+  it('precaches the parser-time master tail at the app-shell cache version', () => {
+    const version = index.match(/midi-input-state\.js\?v=([\d.]+)/)?.[1];
+    const dynamicMasterTail = index.indexOf("'master-tail.js'");
+    const dynamicAudioBinding = index.indexOf("'audio-ui-binding.js'");
+    const swPath = path.resolve(here, '../../sw.js');
+    const sw = fs.readFileSync(swPath, 'utf8');
+    const precachedMasterTail = sw.indexOf(`'master-tail.js?v=${version}'`);
+    const precachedAudioBinding = sw.indexOf(`'audio-ui-binding.js?v=${version}'`);
+
+    expect(version).toBeTruthy();
+    expect(dynamicMasterTail).toBeGreaterThanOrEqual(0);
+    expect(dynamicAudioBinding).toBeGreaterThan(dynamicMasterTail);
+    expect(precachedMasterTail).toBeGreaterThanOrEqual(0);
+    expect(precachedAudioBinding).toBeGreaterThan(precachedMasterTail);
+  });
+
   it('loads parser-time observed dependencies from the same cache version', () => {
     const helperPath = path.resolve(here, '../../midi-input-state.js');
     const helper = fs.readFileSync(helperPath, 'utf8');
