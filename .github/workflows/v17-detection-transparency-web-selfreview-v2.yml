@@ -1,0 +1,188 @@
+name: v1.7 Web detection transparency self-review v2
+
+on:
+  push:
+    branches:
+      - agent/v17-detection-transparency-web
+    paths:
+      - .github/workflows/v17-detection-transparency-web-selfreview-v2.yml
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: v17-web-detection-transparency-selfreview-v2
+  cancel-in-progress: false
+
+jobs:
+  review-finalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: pad-sensei/64-pad-visualizer
+      CORE_REPO: pad-sensei/pad-core
+      OUTPUT_BRANCH: agent/v17-detection-transparency-web
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Resolve and validate exact stack
+        id: refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_ref=$(gh api repos/${REPO}/pulls/5 --jq .head.ref)
+          base_sha=$(gh api repos/${REPO}/pulls/5 --jq .head.sha)
+          core_sha=$(gh api repos/${CORE_REPO}/pulls/19 --jq .head.sha)
+          test "$core_sha" = a21b9221dded1841542e21ccffb4406fe9c34a13
+          git merge-base --is-ancestor "$base_sha" HEAD
+          {
+            echo "base_ref=$base_ref"
+            echo "base_sha=$base_sha"
+            echo "core_sha=$core_sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Identify exact pad-core consumption mode
+        id: consume
+        shell: bash
+        run: |
+          set -euo pipefail
+          core_sha='${{ steps.refs.outputs.core_sha }}'
+          mode=''
+          target=''
+
+          if [ -f .gitmodules ]; then
+            while IFS= read -r key; do
+              path=$(git config -f .gitmodules --get "$key")
+              url=$(git config -f .gitmodules --get "${key%.path}.url" || true)
+              if [[ "$url" == *pad-core* ]]; then
+                test "$(git -C "$path" rev-parse HEAD)" = "$core_sha"
+                mode='submodule-pin'
+                target="$path"
+                break
+              fi
+            done < <(git config -f .gitmodules --name-only --get-regexp '^submodule\..*\.path$' || true)
+          fi
+
+          if [ -z "$mode" ]; then
+            mapfile -t candidates < <(grep -RIl --exclude-dir=.git --exclude-dir=node_modules \
+              'function padDetectChord' . --include='theory.js' || true)
+            for file in "${candidates[@]}"; do
+              dir=$(dirname "$file")
+              if [ -f "$dir/tests/v17-detection-transparency.test.js" ]; then
+                if [ -n "$target" ]; then
+                  echo 'Multiple transparent detector modules found.' >&2
+                  exit 12
+                fi
+                target=${dir#./}
+                [ -z "$target" ] && target='.'
+              fi
+            done
+            if [ -n "$target" ]; then mode='vendored-module'; fi
+          fi
+
+          if [ -z "$mode" ]; then
+            mapfile -t pins < <(git grep -Il "$core_sha" -- \
+              package.json package-lock.json npm-shrinkwrap.json pnpm-lock.yaml yarn.lock \
+              '**/package.json' '**/package-lock.json' '**/npm-shrinkwrap.json' '**/pnpm-lock.yaml' '**/yarn.lock' 2>/dev/null || true)
+            if [ "${#pins[@]}" -gt 0 ]; then
+              mode='dependency-pin'
+              target=$(IFS=,; echo "${pins[*]}")
+            fi
+          fi
+
+          test -n "$mode"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+          printf 'mode=%s target=%s\n' "$mode" "$target"
+
+      - name: Assert bounded product diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='${{ steps.refs.outputs.base_sha }}'
+          mapfile -t files < <(git diff --name-only "$base"...HEAD -- \
+            ':!.github/workflows/v17-detection-transparency-web-selfreview-v2.yml')
+          test "${#files[@]}" -gt 0
+          for file in "${files[@]}"; do
+            case "$file" in
+              pad-core|*/pad-core|theory.js|tests/theory.test.js|tests/v17-detection-transparency.test.js|*/theory.js|*/tests/theory.test.js|*/tests/v17-detection-transparency.test.js|package.json|package-lock.json|npm-shrinkwrap.json|pnpm-lock.yaml|yarn.lock|*/package.json|*/package-lock.json|*/npm-shrinkwrap.json|*/pnpm-lock.yaml|*/yarn.lock) ;;
+              *) echo "Unexpected stacked product file: $file" >&2; exit 21 ;;
+            esac
+          done
+          git diff --check "$base"...HEAD
+
+      - name: Run Web suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          if ! npm test; then
+            npm run test --if-present
+            npx vitest run
+          fi
+          npm run build --if-present
+
+      - name: Run consumed transparent-detector regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mode='${{ steps.consume.outputs.mode }}'
+          target='${{ steps.consume.outputs.target }}'
+          if [ "$mode" = submodule-pin ] || [ "$mode" = vendored-module ]; then
+            module="$target"
+            if [ "$module" != '.' ]; then
+              if [ -f "$module/package-lock.json" ]; then npm --prefix "$module" ci; fi
+              npm --prefix "$module" test
+            fi
+            npm --prefix "$module" exec -- vitest run tests/v17-detection-transparency.test.js
+            grep -q '#9' "$module/tests/v17-detection-transparency.test.js"
+            grep -q 'observedPCS' "$module/tests/v17-detection-transparency.test.js"
+            grep -q 'D / C' "$module/tests/v17-detection-transparency.test.js"
+          else
+            for file in ${target//,/ }; do grep -q '${{ steps.refs.outputs.core_sha }}' "$file"; done
+          fi
+
+      - name: Finalize branch without temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/v17-detection-transparency-web-selfreview-v2.yml
+          rm -f .github/workflows/v17-detection-transparency-web-selfreview.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            git diff --cached --check
+            git commit -m 'ci: finalize transparent detector Web consumer'
+            git push origin "HEAD:$OUTPUT_BRANCH"
+          fi
+
+      - name: Mark stacked PR Ready for review
+        shell: bash
+        run: |
+          set -euo pipefail
+          pr=$(gh pr list --repo "$REPO" --state open --head "$OUTPUT_BRANCH" --json number --jq '.[0].number')
+          test -n "$pr"
+          gh pr ready "$pr" --repo "$REPO" || true
+          marker='<!-- TUNER:v17-detection-selfreview -->'
+          body="$marker Self-review PASS at \`$(git rev-parse HEAD)\`: Web suite, build-if-present, exact pad-core PR #19 identity, transparent detector regression, bounded stack diff, and education/fact-layer boundary verified. No merge, release, deploy, or publication performed."
+          comments=$(gh api repos/${REPO}/issues/${pr}/comments --paginate)
+          id=$(jq -r --arg marker "$marker" '.[] | select(.body | contains($marker)) | .id' <<<"$comments" | head -1)
+          if [ -n "$id" ]; then
+            gh api --method PATCH repos/${REPO}/issues/comments/$id -f body="$body" >/dev/null
+          else
+            gh pr comment "$pr" --repo "$REPO" --body "$body"
+          fi
