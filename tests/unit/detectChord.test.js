@@ -56,7 +56,7 @@ describe('detectChord', () => {
     it('prefers modal major seventh b9 #11 over lower-structure slash readings', () => {
       const results = detectChord([60, 61, 64, 66, 68, 71]);
       expect(results.length).toBeGreaterThan(0);
-      expect(results[0].name).toBe('CMaj7(b9,#11)');
+      expect(results[0].name).toBe('CMaj7(b9,#11,#5)');
     });
 
     it('C7 [60,64,67,70]', () => {
@@ -130,7 +130,7 @@ describe('detectChord', () => {
     it('C7 shell + D upper structure triad → C7(9,#11,13)', () => {
       const results = detectChord([60, 64, 70, 74, 78, 81]);
       expect(results.length).toBeGreaterThan(0);
-      expect(results[0].name).toBe('C7(9,#11,13)');
+      expect(results[0].name).toBe('C7(9,#11,13)(omit5)');
     });
 
     it('C altered dominant colors are not represented as Caug', () => {
@@ -140,20 +140,23 @@ describe('detectChord', () => {
       expect(results[0].name).not.toBe('Caug');
     });
 
-    it('does not force a chord name onto major seventh split-third colors', () => {
+    it('keeps major seventh split-third colors detectable with candidate-local #9', () => {
       const results = detectChord([60, 63, 64, 69, 71]);
-      expect(results).toEqual([]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results.some(r => r.rootPC === 0 && r.name.includes('#9'))).toBe(true);
     });
 
-    it('does not force a chord name when flat seventh and major seventh coexist', () => {
+    it('keeps flat seventh and major seventh coexistence detectable', () => {
       const results = detectChord([60, 64, 67, 70, 71]);
-      expect(results).toEqual([]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results.some(r => r.name === 'C7(Maj7)')).toBe(true);
+      expect(results.some(r => r.name === 'CMaj7(b7)')).toBe(true);
     });
 
     it('C lydian 6(9) color detects as C6(9,#11), not a rootless shell chord', () => {
       const results = detectChord([60, 64, 69, 74, 78]);
       expect(results.length).toBeGreaterThan(0);
-      expect(results[0].name).toBe('C6(9,#11)');
+      expect(results[0].name).toBe('C6(9,#11)(omit5)');
     });
 
     it('detects add chords beyond add9 on major triads', () => {
@@ -212,15 +215,15 @@ describe('detectChord', () => {
     it('does not promote b7-over-bass slash chords when the bass already has a dominant shell', () => {
       const results = detectChord([55, 59, 65, 69, 72, 76]);
       expect(results.length).toBeGreaterThan(0);
-      expect(results[0].name).toBe('G7(9,11,13)');
+      expect(results[0].name).toBe('G7(9,11,13)(omit5)');
       expect(results.slice(0, 4).some(r => r.name === 'F / G')).toBe(false);
     });
 
-    it('reads Gadd9 over B before a false Bm7(b13) interpretation', () => {
+    it('keeps Gadd9 over B first while retaining the Bm7(b13) interpretation', () => {
       const results = detectChord([59, 67, 69, 74]);
       expect(results.length).toBeGreaterThan(0);
       expect(results[0].name).toBe('Gadd9 / B');
-      expect(results.some(r => r.name === 'Bm7(b13)')).toBe(false);
+      expect(results.some(r => r.name.startsWith('Bm7(b13)'))).toBe(true);
     });
 
     it('recognizes jazz half-diminished omit3 voicings', () => {
