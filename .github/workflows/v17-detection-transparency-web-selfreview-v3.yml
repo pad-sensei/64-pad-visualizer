@@ -1,0 +1,145 @@
+name: v1.7 Web detection transparency self-review v3
+
+on:
+  push:
+    branches:
+      - agent/v17-detection-transparency-web
+    paths:
+      - .github/workflows/v17-detection-transparency-web-selfreview-v3.yml
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  resilient-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: pad-sensei/64-pad-visualizer
+      BRANCH: agent/v17-detection-transparency-web
+      CORE_SHA: a21b9221dded1841542e21ccffb4406fe9c34a13
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Verify stack and bounded change surface
+        id: base
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_ref=$(gh api repos/${REPO}/pulls/5 --jq .head.ref)
+          base_sha=$(gh api repos/${REPO}/pulls/5 --jq .head.sha)
+          git merge-base --is-ancestor "$base_sha" HEAD
+          mapfile -t files < <(git diff --name-only "$base_sha"...HEAD -- \
+            ':!.github/workflows/v17-detection-transparency-web-selfreview-v3.yml' \
+            ':!.github/workflows/v17-detection-transparency-web-selfreview-v2.yml' \
+            ':!.github/workflows/v17-detection-transparency-web-selfreview.yml')
+          test "${#files[@]}" -gt 0
+          for file in "${files[@]}"; do
+            case "$file" in
+              pad-core|*/pad-core|theory.js|tests/theory.test.js|tests/v17-detection-transparency.test.js|*/theory.js|*/tests/theory.test.js|*/tests/v17-detection-transparency.test.js|package.json|package-lock.json|npm-shrinkwrap.json|pnpm-lock.yaml|yarn.lock|*/package.json|*/package-lock.json|*/npm-shrinkwrap.json|*/pnpm-lock.yaml|*/yarn.lock) ;;
+              *) echo "Unexpected product file: $file" >&2; exit 11 ;;
+            esac
+          done
+          git diff --check "$base_sha"...HEAD
+          echo "base_ref=$base_ref" >> "$GITHUB_OUTPUT"
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Verify one exact transparent-consumer evidence path
+        id: evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mode=''
+          target=''
+          if [ -f .gitmodules ]; then
+            while IFS= read -r key; do
+              path=$(git config -f .gitmodules --get "$key")
+              url=$(git config -f .gitmodules --get "${key%.path}.url" || true)
+              if [[ "$url" == *pad-core* ]] && [ "$(git -C "$path" rev-parse HEAD)" = "$CORE_SHA" ]; then
+                mode='submodule'; target="$path"; break
+              fi
+            done < <(git config -f .gitmodules --name-only --get-regexp '^submodule\..*\.path$' || true)
+          fi
+          if [ -z "$mode" ] && git grep -q "$CORE_SHA" -- package.json package-lock.json npm-shrinkwrap.json pnpm-lock.yaml yarn.lock '**/package.json' '**/package-lock.json' '**/npm-shrinkwrap.json' '**/pnpm-lock.yaml' '**/yarn.lock' 2>/dev/null; then
+            mode='dependency-pin'; target='manifest'
+          fi
+          if [ -z "$mode" ]; then
+            mapfile -t regressions < <(find . -path '*/node_modules' -prune -o -name 'v17-detection-transparency.test.js' -print)
+            for test_file in "${regressions[@]}"; do
+              dir=$(dirname "$(dirname "$test_file")")
+              theory="$dir/theory.js"
+              if [ -f "$theory" ] && grep -q 'observedPCS' "$theory" && grep -q '#9' "$test_file" && grep -q 'D / C' "$test_file"; then
+                mode='vendored'; target="$dir"; break
+              fi
+            done
+          fi
+          test -n "$mode"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+
+      - name: Run all Web tests and build-if-present
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          if jq -e '.scripts.test' package.json >/dev/null; then
+            npm test
+          else
+            npx vitest run
+          fi
+          npm run build --if-present
+
+      - name: Run direct vendored/submodule regression when available
+        if: steps.evidence.outputs.mode == 'submodule' || steps.evidence.outputs.mode == 'vendored'
+        shell: bash
+        run: |
+          set -euo pipefail
+          module='${{ steps.evidence.outputs.target }}'
+          if [ "$module" != '.' ]; then
+            if [ -f "$module/package-lock.json" ]; then npm --prefix "$module" ci; fi
+            if jq -e '.scripts.test' "$module/package.json" >/dev/null; then npm --prefix "$module" test; fi
+          fi
+          npm --prefix "$module" exec -- vitest run tests/v17-detection-transparency.test.js
+
+      - name: Remove temporary review workflows and publish verified head
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/v17-detection-transparency-web-selfreview.yml
+          rm -f .github/workflows/v17-detection-transparency-web-selfreview-v2.yml
+          rm -f .github/workflows/v17-detection-transparency-web-selfreview-v3.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            git diff --cached --check
+            git commit -m 'ci: finalize Web transparent detector review'
+            git push origin "HEAD:$BRANCH"
+          fi
+
+      - name: Ensure stacked PR is Ready for review
+        shell: bash
+        run: |
+          set -euo pipefail
+          pr=$(gh pr list --repo "$REPO" --state open --head "$BRANCH" --json number --jq '.[0].number')
+          test -n "$pr"
+          gh pr edit "$pr" --repo "$REPO" --base '${{ steps.base.outputs.base_ref }}' --title 'fix(theory): propagate transparent observed detection'
+          gh pr ready "$pr" --repo "$REPO" || true
+          marker='<!-- TUNER:v17-detection-selfreview-v3 -->'
+          body="$marker PASS at \`$(git rev-parse HEAD)\`: bounded stack, exact transparent-consumer evidence (mode \`${{ steps.evidence.outputs.mode }}\`), complete Web tests, build-if-present, and direct detector regression when available. Educational interpretation remains outside this PR in #16. No merge/release/deploy/publication."
+          comments=$(gh api repos/${REPO}/issues/${pr}/comments --paginate)
+          id=$(jq -r --arg marker "$marker" '.[] | select(.body | contains($marker)) | .id' <<<"$comments" | head -1)
+          if [ -n "$id" ]; then gh api --method PATCH repos/${REPO}/issues/comments/$id -f body="$body" >/dev/null; else gh pr comment "$pr" --repo "$REPO" --body "$body"; fi
