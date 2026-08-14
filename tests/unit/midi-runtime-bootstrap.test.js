@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -9,6 +10,8 @@ const source = fs.readFileSync(midiPath, 'utf8');
 const indexPath = path.resolve(here, '../../index.html');
 const index = fs.readFileSync(indexPath, 'utf8');
 const assetVersion = index.match(/midi-input-state\.js\?v=([0-9.]+)/)?.[1];
+const midiInputStatePath = path.resolve(here, '../../midi-input-state.js');
+const midiInputStateSource = fs.readFileSync(midiInputStatePath, 'utf8');
 
 describe('browser MIDI ownership bootstrap', () => {
   it('loads the ownership helper before the MIDI runtime in the app shell', () => {
@@ -34,6 +37,30 @@ describe('browser MIDI ownership bootstrap', () => {
     expect(consumer).toBeGreaterThan(observedCore);
     expect(helper).toBeGreaterThan(consumer);
     expect(midi).toBeGreaterThan(helper);
+  });
+
+  it('loads parser-time observed dependencies at the current precached asset version', () => {
+    const writes = [];
+    const runtimeWindow = {};
+    vm.runInNewContext(midiInputStateSource, {
+      window: runtimeWindow,
+      document: {
+        readyState: 'loading',
+        currentScript: { src: 'https://example.test/midi-input-state.js?v=' + assetVersion },
+        write: (html) => writes.push(html),
+      },
+      Set,
+      Map,
+      Array,
+      Object,
+      String,
+      Number,
+    });
+
+    expect(writes).toEqual([
+      '<script src="pad-core/observed-structure.js?v=' + assetVersion + '"></script>',
+      '<script src="observed-ust-consumer.js?v=' + assetVersion + '"></script>',
+    ]);
   });
 
   it('loads the source-ownership helper before constructing held state', () => {
