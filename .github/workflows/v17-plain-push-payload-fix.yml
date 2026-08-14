@@ -1,0 +1,137 @@
+name: v1.7 Plain Push payload repair
+
+on:
+  push:
+    branches:
+      - tuner/v17-plain-push-payload-fix
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v17-plain-push-payload-fix
+  cancel-in-progress: true
+
+jobs:
+  repair-and-verify:
+    runs-on: [self-hosted, macOS, ARM64, pad-native]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Web PR14 head
+        uses: actions/checkout@v4
+        with:
+          ref: agent/preserve-input-canonical-payload-lifetime
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Preserve exact Plain source payload lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          midi = Path('midi.js')
+          text = midi.read_text()
+          old = """  if (!linkMode && AppState.mode === 'input') {
+              if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
+              highlightMidiPads(notes);
+              return;
+            }"""
+          new = """  if (!linkMode && AppState.mode === 'input') {
+              // updatePlainDisplay() owns the canonical Input snapshot. MIDI highlight
+              // refresh must not erase Shell/UST while physical notes are still held.
+              highlightMidiPads(notes);
+              return;
+            }"""
+          if text.count(old) != 1:
+              raise SystemExit(f'midi.js Plain clear anchor mismatch: {text.count(old)}')
+          midi.write_text(text.replace(old, new, 1))
+
+          plain = Path('plain.js')
+          text = plain.read_text()
+          old = """    const observedPayload = typeof padWebBuildCanonicalChordPayload === 'function'
+              ? padWebBuildCanonicalChordPayload({ chord: { rootPC: best.rootPC, quality: observedQuality, name: best.name }, midiNotes: notes, coreStructure: best }) : null;"""
+          new = """    const observedPayload = typeof padWebBuildCanonicalChordPayload === 'function'
+              ? padWebBuildCanonicalChordPayload({
+                  chord: { rootPC: best.rootPC, quality: observedQuality, name: best.name },
+                  midiNotes: notes,
+                  sourceNotes: typeof getMidiHeldSources === 'function' ? getMidiHeldSources() : [],
+                  coreStructure: best,
+                }) : null;"""
+          if text.count(old) != 1:
+              raise SystemExit(f'plain.js payload anchor mismatch: {text.count(old)}')
+          plain.write_text(text.replace(old, new, 1))
+
+          spec = Path('tests/e2e/observed-ust-runtime.spec.js')
+          text = spec.read_text()
+          anchor = """  test('clears a stale canonical snapshot for an empty MIDI update in Chord Practice', async ({ page }) => {"""
+          test = r"""  test('keeps exact Push positions and Shell/Q4 through the scheduled Plain MIDI refresh', async ({ page }) => {
+              await page.goto('./');
+              await page.waitForLoadState('domcontentloaded');
+
+              const sources = [
+                pushSource(48, 0, 0, 'shell-c'),
+                pushSource(51, 0, 3, 'shell-eb'),
+                pushSource(58, 1, 5, 'shell-bb'),
+                pushSource(65, 3, 2, 'upper-f'),
+                pushSource(70, 4, 2, 'upper-bb'),
+                pushSource(75, 5, 2, 'upper-eb'),
+              ];
+
+              const result = await page.evaluate(async (heldSources) => {
+                setMode('input');
+                PlainState.activeNotes.clear();
+                if (typeof releaseAllMidiHeldSources === 'function') releaseAllMidiHeldSources();
+
+                heldSources.forEach(source => {
+                  midiHeldState.noteOn(source);
+                  PlainState.activeNotes.add(source.mappedMidi);
+                });
+                syncMidiActiveNotesFromOwnership();
+                updatePlainDisplay();
+                const immediate = padWebGetLatestObservedShellUstPayload();
+
+                scheduleMidiUpdate();
+                await new Promise(resolve => setTimeout(resolve, MIDI_DEBOUNCE_MS + 50));
+                const afterScheduledRefresh = padWebGetLatestObservedShellUstPayload();
+                return { immediate, afterScheduledRefresh };
+              }, sources);
+
+              expect(result.immediate).toMatchObject({
+                sourceConfidence: 'exact',
+                positionEvidence: 'exact',
+                shell: { degrees: ['R', 'm3', 'b7'], positionConfidence: 'exact' },
+                ust: { name: 'Q4', degrees: ['11', 'b7', 'm3'], positionConfidence: 'exact' },
+              });
+              expect(result.afterScheduledRefresh).toEqual(result.immediate);
+              expect(JSON.stringify(result.afterScheduledRefresh)).not.toContain('Q1');
+            });
+
+            """
+          if text.count(anchor) != 1:
+              raise SystemExit(f'e2e insertion anchor mismatch: {text.count(anchor)}')
+          spec.write_text(text.replace(anchor, test + anchor, 1))
+          PY
+          git diff --check
+          git diff -- midi.js plain.js tests/e2e/observed-ust-runtime.spec.js
+
+      - name: Verify Web repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm test
+          npx playwright test tests/e2e/observed-ust-runtime.spec.js
+          ./tools/sw-assets-check.sh
+
+      - name: Push Web PR14 repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "TUNER"
+          git config user.email "tuner@pad-sensei.local"
+          git add midi.js plain.js tests/e2e/observed-ust-runtime.spec.js
+          git commit -m "fix(input): preserve exact observed payload through Plain refresh"
+          git push origin HEAD:agent/preserve-input-canonical-payload-lifetime
+          echo "web_head=$(git rev-parse HEAD)"
