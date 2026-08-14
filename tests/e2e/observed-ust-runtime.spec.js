@@ -14,6 +14,55 @@ function pushSource(mappedMidi, row, col, physicalPadId) {
 }
 
 test.describe('v1.7 observed Shell/UST browser runtime', () => {
+  test('keeps the Input-owned canonical snapshot when MIDI highlight notes are empty', async ({ page }) => {
+    await page.goto('./');
+    await page.waitForLoadState('domcontentloaded');
+    const result = await page.evaluate(() => {
+      setMode('input');
+      PlainState.activeNotes.clear();
+      [48, 51, 58, 65, 70, 75].forEach(note => PlainState.activeNotes.add(note));
+      updatePlainDisplay();
+      const before = window.padWebGetLatestObservedShellUstPayload();
+      midiActiveNotes.clear();
+      updateMidiDisplay();
+      return { before, after: window.padWebGetLatestObservedShellUstPayload() };
+    });
+    expect(result.before).toMatchObject({
+      chord: { name: 'Cm7(11)' },
+      shell: { degrees: ['R', 'm3', 'b7'] },
+      ust: { name: 'Q4', degrees: ['11', 'b7', 'm3'] },
+    });
+    expect(result.after).toEqual(result.before);
+    expect(JSON.stringify(result.after)).not.toContain('Q1');
+  });
+
+  test('clears a stale canonical snapshot for an empty MIDI update in Chord Practice', async ({ page }) => {
+    await page.goto('./');
+    await page.waitForLoadState('domcontentloaded');
+    const payload = await page.evaluate(() => {
+      setMode('chord');
+      applyParsedChordToBuilder(padParseChordName('Cm7'));
+      padWebSetLatestObservedShellUstPayload({ chord: { name: 'stale Input' } });
+      midiActiveNotes.clear();
+      updateMidiDisplay();
+      return padWebGetLatestObservedShellUstPayload();
+    });
+    expect(payload).toBeNull();
+  });
+
+  test('clears the Input-owned canonical snapshot when Link starts', async ({ page }) => {
+    await page.goto('./');
+    await page.waitForLoadState('domcontentloaded');
+    const payload = await page.evaluate(() => {
+      setMode('input');
+      padWebSetLatestObservedShellUstPayload({ chord: { name: 'stale Input' } });
+      if (linkMode) toggleLinkMode();
+      toggleLinkMode();
+      return padWebGetLatestObservedShellUstPayload();
+    });
+    expect(payload).toBeNull();
+  });
+
   test('publishes actual detected dim7 tensions without inventing an upper 13', async ({ page }) => {
     await page.goto('./');
     await page.waitForLoadState('domcontentloaded');

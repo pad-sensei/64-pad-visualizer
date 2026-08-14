@@ -3,7 +3,10 @@
 // ========================================
 // Source ownership must exist before the held-state objects below are constructed.
 if (typeof createMidiHeldState === 'undefined' && typeof document !== 'undefined' && document.readyState === 'loading') {
-  document.write('<script src="midi-input-state.js?v=6.7.46"><\/script>');
+  var _midiBootstrapSrc = document.currentScript && document.currentScript.src;
+  var _midiBootstrapQuery = _midiBootstrapSrc ? _midiBootstrapSrc.indexOf('?') : -1;
+  var _midiBootstrapSuffix = _midiBootstrapQuery >= 0 ? _midiBootstrapSrc.slice(_midiBootstrapQuery) : '';
+  document.write('<script src="midi-input-state.js' + _midiBootstrapSuffix + '"><\/script>');
 }
 
 const midiActiveNotes = new Set(); // currently held mapped MIDI notes (compatibility mirror)
@@ -299,12 +302,16 @@ function updateMidiDisplay() {
   const detectEl = document.getElementById('midi-detect');
   const notes = [...midiActiveNotes].sort((a, b) => a - b);
   if (notes.length === 0) {
-    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
     document.querySelectorAll('.midi-highlight').forEach(el => el.remove());
     document.querySelectorAll('.link-highlight').forEach(el => el.remove());
-    if (chordPracticeDisplayLocked()) return;
+    if (chordPracticeDisplayLocked()) {
+      if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
+      return;
+    }
     // Plain mode: #midi-detect is SSOT of updatePlainDisplay(), don't clear
+    // its canonical snapshot before the Desktop bridge can consume it.
     if (!linkMode && AppState.mode === 'input') return;
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
     if (linkMode) { detectEl.innerHTML = ''; return; } // Link mode: just clear highlights, keep display
     detectEl.innerHTML = '';
     // Restore diagrams: instrument input state takes priority over builder state
