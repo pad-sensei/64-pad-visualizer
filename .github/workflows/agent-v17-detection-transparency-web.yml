@@ -6,6 +6,7 @@ on:
       - agent/v17-detection-transparency-web
     paths:
       - .github/workflows/agent-v17-detection-transparency-web.yml
+      - tests/unit/detectChord.test.js
       - tests/unit/v17-detection-transparency-consumer.test.js
       - pad-core
 
@@ -13,7 +14,7 @@ permissions:
   contents: write
 
 jobs:
-  validate-and-clean:
+  validate-sync-and-clean:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,16 +28,60 @@ jobs:
       - name: Verify pad-core pin
         run: test "$(git -C pad-core rev-parse HEAD)" = "a21b9221dded1841542e21ccffb4406fe9c34a13"
       - run: npm ci
+      - name: Sync duplicated Web expectations to pad-core transparency contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('tests/unit/detectChord.test.js')
+          text = path.read_text()
+          replacements = [
+              (
+                  "expect(results[0].name).toBe('CMaj7(b9,#11)');",
+                  "expect(results[0].name).toBe('CMaj7(b9,#11,#5)');",
+              ),
+              (
+                  "expect(results[0].name).toBe('C7(9,#11,13)');",
+                  "expect(results[0].name).toBe('C7(9,#11,13)(omit5)');",
+              ),
+              (
+                  "    it('does not force a chord name onto major seventh split-third colors', () => {\n      const results = detectChord([60, 63, 64, 69, 71]);\n      expect(results).toEqual([]);\n    });",
+                  "    it('keeps major seventh split-third colors detectable with candidate-local #9', () => {\n      const results = detectChord([60, 63, 64, 69, 71]);\n      expect(results.length).toBeGreaterThan(0);\n      expect(results.some(r => r.rootPC === 0 && r.name.includes('#9'))).toBe(true);\n    });",
+              ),
+              (
+                  "    it('does not force a chord name when flat seventh and major seventh coexist', () => {\n      const results = detectChord([60, 64, 67, 70, 71]);\n      expect(results).toEqual([]);\n    });",
+                  "    it('keeps flat seventh and major seventh coexistence detectable', () => {\n      const results = detectChord([60, 64, 67, 70, 71]);\n      expect(results.length).toBeGreaterThan(0);\n      expect(results.some(r => r.name === 'C7(Maj7)')).toBe(true);\n      expect(results.some(r => r.name === 'CMaj7(b7)')).toBe(true);\n    });",
+              ),
+              (
+                  "expect(results[0].name).toBe('C6(9,#11)');",
+                  "expect(results[0].name).toBe('C6(9,#11)(omit5)');",
+              ),
+              (
+                  "expect(results[0].name).toBe('G7(9,11,13)');",
+                  "expect(results[0].name).toBe('G7(9,11,13)(omit5)');",
+              ),
+              (
+                  "    it('reads Gadd9 over B before a false Bm7(b13) interpretation', () => {\n      const results = detectChord([59, 67, 69, 74]);\n      expect(results.length).toBeGreaterThan(0);\n      expect(results[0].name).toBe('Gadd9 / B');\n      expect(results.some(r => r.name === 'Bm7(b13)')).toBe(false);\n    });",
+                  "    it('keeps Gadd9 over B first while retaining the Bm7(b13) interpretation', () => {\n      const results = detectChord([59, 67, 69, 74]);\n      expect(results.length).toBeGreaterThan(0);\n      expect(results[0].name).toBe('Gadd9 / B');\n      expect(results.some(r => r.name.startsWith('Bm7(b13)'))).toBe(true);\n    });",
+              ),
+          ]
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected exactly one stale expectation, found {count}: {old[:80]}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+      - name: Run focused transparent-consumer suite
+        run: npx vitest run tests/unit/v17-detection-transparency-consumer.test.js tests/unit/detectChord.test.js
       - name: Run full Web unit suite
         run: npm test
-      - name: Remove validation-only workflow
+      - name: Commit validated regression sync and remove workflow
         run: |
           rm -f .github/workflows/agent-v17-detection-transparency-web.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --cached --check
-          git commit -m "chore: remove web validation workflow"
+          git commit -m "test(theory): sync Web detection regressions"
           git push origin HEAD:agent/v17-detection-transparency-web
-
-# Registration-trigger commit: validation only; this file self-deletes after PASS.
