@@ -12,11 +12,11 @@ permissions:
 
 concurrency:
   group: tuner-64pe-v17-production-deploy
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   test-and-deploy:
-    runs-on: [self-hosted, macOS, ARM64, dojo-audio]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       SOURCE_SHA: 97180936eb28454bc02b5a4fd21b7a1b6579d9ff
@@ -35,16 +35,20 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
-      - name: Verify exact product source and fixed runner
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Verify exact product source and repository deployment prerequisites
         shell: bash
         run: |
           set -euo pipefail
           echo "runner_name=${RUNNER_NAME}"
           echo "runner_os=${RUNNER_OS}"
           echo "runner_arch=${RUNNER_ARCH}"
-          test "$RUNNER_NAME" = "dojo-mac-local"
-          test "$RUNNER_OS" = "macOS"
-          test "$RUNNER_ARCH" = "ARM64"
+          test "$RUNNER_OS" = "Linux"
 
           git cat-file -e "${SOURCE_SHA}^{commit}"
           changed="$(git diff --name-only "$SOURCE_SHA" HEAD)"
@@ -53,10 +57,14 @@ jobs:
           command -v node
           command -v npm
           command -v python3
-          command -v rsync
           command -v ssh
           command -v ssh-keyscan
+          if ! command -v rsync >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y rsync
+          fi
           echo "product_source=$SOURCE_SHA"
+          echo "deployment_path=pad-sensei/64-pad-visualizer GitHub Actions"
 
       - name: Run repository test and PWA gates
         shell: bash
@@ -65,6 +73,7 @@ jobs:
           npm ci
           npm test
           ./tools/sw-assets-check.sh
+          npx playwright install --with-deps chromium
 
           PORT="$(python3 - <<'PY'
           import socket
@@ -171,7 +180,7 @@ jobs:
             echo "## 64 Pad Explorer Web production deployment — PASS"
             echo "- repository: \`pad-sensei/64-pad-visualizer\`"
             echo "- exact product source: \`${SOURCE_SHA}\`"
-            echo "- runner: \`${RUNNER_NAME}\`"
+            echo "- runner: GitHub-hosted \`${RUNNER_NAME}\`"
             echo "- unit tests: PASS"
             echo "- focused Playwright gates: PASS"
             echo "- service-worker/PWA asset gate: PASS"
