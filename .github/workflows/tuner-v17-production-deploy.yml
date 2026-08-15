@@ -1,0 +1,181 @@
+name: TUNER 64PE v1.7 production deploy from repository
+
+on:
+  push:
+    branches:
+      - tuner/v17-production-deploy
+    paths:
+      - .github/workflows/tuner-v17-production-deploy.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tuner-64pe-v17-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  test-and-deploy:
+    runs-on: [self-hosted, macOS, ARM64, dojo-audio]
+    timeout-minutes: 30
+    env:
+      SOURCE_SHA: 97180936eb28454bc02b5a4fd21b7a1b6579d9ff
+      PUBLIC_URL: https://murinaikurashi.com/apps/64-pad/
+      REMOTE_HOST: xs071284.xsrv.jp
+      REMOTE_PORT: "10022"
+      REMOTE_USER: xs071284
+      REMOTE_PATH: ~/murinaikurashi.com/public_html/apps/64-pad/
+      XSERVER_SSH_KEY: ${{ secrets.XSERVER_SSH_KEY }}
+
+    steps:
+      - name: Checkout exact repository deployment branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Verify exact product source and fixed runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "runner_name=${RUNNER_NAME}"
+          echo "runner_os=${RUNNER_OS}"
+          echo "runner_arch=${RUNNER_ARCH}"
+          test "$RUNNER_NAME" = "dojo-mac-local"
+          test "$RUNNER_OS" = "macOS"
+          test "$RUNNER_ARCH" = "ARM64"
+
+          git cat-file -e "${SOURCE_SHA}^{commit}"
+          changed="$(git diff --name-only "$SOURCE_SHA" HEAD)"
+          test "$changed" = ".github/workflows/tuner-v17-production-deploy.yml"
+          test -n "$XSERVER_SSH_KEY"
+          command -v node
+          command -v npm
+          command -v python3
+          command -v rsync
+          command -v ssh
+          command -v ssh-keyscan
+          echo "product_source=$SOURCE_SHA"
+
+      - name: Run repository test and PWA gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm test
+          ./tools/sw-assets-check.sh
+
+          PORT="$(python3 - <<'PY'
+          import socket
+          s = socket.socket()
+          s.bind(('127.0.0.1', 0))
+          print(s.getsockname()[1])
+          s.close()
+          PY
+          )"
+          python3 -m http.server "$PORT" --bind 127.0.0.1 > "$RUNNER_TEMP/64pe-prod-http.log" 2>&1 &
+          server_pid=$!
+          cleanup_server() { kill "$server_pid" 2>/dev/null || true; }
+          trap cleanup_server EXIT
+          for attempt in {1..30}; do
+            curl -fsS "http://127.0.0.1:${PORT}/" >/dev/null && break
+            kill -0 "$server_pid" 2>/dev/null || { cat "$RUNNER_TEMP/64pe-prod-http.log"; exit 1; }
+            sleep 1
+          done
+          BASE_URL="http://127.0.0.1:${PORT}" npx playwright test \
+            tests/e2e/input-canonical-source-lifecycle.spec.js \
+            tests/e2e/observed-ust-runtime.spec.js
+          cleanup_server
+          trap - EXIT
+
+      - name: Deploy exact tested tree to Xserver production
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEY_FILE="$RUNNER_TEMP/64pe-xserver-key"
+          KNOWN_HOSTS="$RUNNER_TEMP/64pe-xserver-known-hosts"
+          printf '%s\n' "$XSERVER_SSH_KEY" | tr -d '\r' > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          ssh-keyscan -H -p "$REMOTE_PORT" "$REMOTE_HOST" > "$KNOWN_HOSTS" 2>/dev/null
+          chmod 600 "$KNOWN_HOSTS"
+
+          SSH_BASE="ssh -i $KEY_FILE -p $REMOTE_PORT -o IdentitiesOnly=yes -o UserKnownHostsFile=$KNOWN_HOSTS -o StrictHostKeyChecking=yes"
+          $SSH_BASE "$REMOTE_USER@$REMOTE_HOST" "test -d $REMOTE_PATH"
+
+          EXCLUDES=(
+            --exclude=.git
+            --exclude=.github
+            --exclude=CLAUDE.md
+            --exclude=deploy.sh
+            --exclude=config.sh
+            --exclude='*.bak'
+            --exclude=tests
+            --exclude=node_modules
+            --exclude='package*.json'
+            --exclude='vitest.config.*'
+            --exclude=playwright.config.js
+            --exclude=test-results
+            --exclude='pad-core/tests'
+            --exclude='pad-core/node_modules'
+            --exclude='pad-core/package*.json'
+            --exclude='pad-core/vitest.config.*'
+            --exclude='pad-core/CLAUDE.md'
+            --exclude='audio-core/tests'
+            --exclude='audio-core/node_modules'
+            --exclude='audio-core/package*.json'
+            --exclude='audio-core/vitest.config.*'
+            --exclude='audio-core/CLAUDE.md'
+          )
+
+          rsync -avz --checksum \
+            -e "$SSH_BASE" \
+            "${EXCLUDES[@]}" \
+            ./ "$REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH"
+
+          VERIFY_OUTPUT="$RUNNER_TEMP/64pe-rsync-verify.txt"
+          rsync -rci --dry-run \
+            -e "$SSH_BASE" \
+            "${EXCLUDES[@]}" \
+            ./ "$REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH" \
+            > "$VERIFY_OUTPUT"
+          if [[ -s "$VERIFY_OUTPUT" ]]; then
+            echo "Remote checksum verification found differences:" >&2
+            cat "$VERIFY_OUTPUT" >&2
+            exit 1
+          fi
+          echo "rsync_checksum_verify=PASS"
+
+      - name: Verify public production files
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERIFY_DIR="$RUNNER_TEMP/64pe-public-verify"
+          rm -rf "$VERIFY_DIR"
+          mkdir -p "$VERIFY_DIR"
+          verified=0
+          for file in index.html sw.js midi.js data.js pad-core/observed-shell-ust.js; do
+            [[ -f "$file" ]] || continue
+            mkdir -p "$VERIFY_DIR/$(dirname "$file")"
+            curl -fsSL \
+              -H 'Cache-Control: no-cache' \
+              "${PUBLIC_URL}${file}?source=${SOURCE_SHA}" \
+              -o "$VERIFY_DIR/$file"
+            cmp "$file" "$VERIFY_DIR/$file"
+            echo "public_match=$file"
+            verified=$((verified + 1))
+          done
+          (( verified >= 4 ))
+          echo "public_exact_file_count=$verified"
+          {
+            echo "## 64 Pad Explorer Web production deployment — PASS"
+            echo "- repository: \`pad-sensei/64-pad-visualizer\`"
+            echo "- exact product source: \`${SOURCE_SHA}\`"
+            echo "- runner: \`${RUNNER_NAME}\`"
+            echo "- unit tests: PASS"
+            echo "- focused Playwright gates: PASS"
+            echo "- service-worker/PWA asset gate: PASS"
+            echo "- Xserver rsync checksum verification: PASS"
+            echo "- public exact-file verification: PASS (${verified} files)"
+            echo "- production URL: ${PUBLIC_URL}"
+          } >> "$GITHUB_STEP_SUMMARY"
