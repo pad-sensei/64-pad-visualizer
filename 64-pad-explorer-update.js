@@ -5,16 +5,16 @@ window.__64PE_UPDATE__ = {
   schemaVersion: 2,
   notices: [
     {
-      id: "desktop-1.6.12-release",
+      id: "desktop-1.6.14-release",
       target: "desktop",
-      latestVersion: "1.6.12",
+      latestVersion: "1.6.14",
       title: {
-        ja: "64Pad Explorer Desktop v1.6.12",
-        en: "64Pad Explorer Desktop v1.6.12"
+        ja: "64Pad Explorer Desktop v1.6.14",
+        en: "64Pad Explorer Desktop v1.6.14"
       },
       message: {
-        ja: "UST表示にルートからの相対度数を追加し、Push 3でも同じ表記を表示します。",
-        en: "UST labels now include the relative degree from the root, with the same notation on Push 3."
+        ja: "Push 3のパッドLED表示と再接続時の復旧を安定させました。Standalone版のMIDI入力を一つの経路に整理し、演奏中の表示と応答を改善しました。",
+        en: "Improved Push 3 pad LED stability and reconnect recovery. Standalone MIDI input now uses one authoritative path for more consistent display and response."
       },
       url: "https://murinaikurashi.com/pad-sensei-products/?utm_source=64pad&utm_medium=update-notice&utm_campaign=desktop-products",
       cta: {
