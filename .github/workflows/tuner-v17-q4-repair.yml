@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: tuner-v17-q4-repair
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   repair-and-verify:
