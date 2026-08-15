@@ -1,0 +1,228 @@
+name: TUNER v1.7 physical Q4 repair
+
+on:
+  push:
+    branches:
+      - agent/preserve-input-canonical-payload-lifetime
+    paths:
+      - .github/workflows/tuner-v17-q4-repair.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tuner-v17-q4-repair
+  cancel-in-progress: false
+
+jobs:
+  repair-and-verify:
+    runs-on: [self-hosted, macOS, ARM64, pad-native]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/preserve-input-canonical-payload-lifetime
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Apply exact physical-source and snapshot repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          git -C pad-core fetch origin 312fde8849702f407fad5c8a3a92b3fdf95aeadc
+          git -C pad-core checkout 312fde8849702f407fad5c8a3a92b3fdf95aeadc
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one replacement, found {count}')
+              p.write_text(text.replace(old, new, 1))
+
+          consumer = Path('observed-ust-consumer.js')
+          text = consumer.read_text()
+          helper = r'''
+          // Physical source evidence is usable only when the currently held source
+          // set covers the complete displayed pitch set. Duplicated physical pads
+          // remain distinct sources, but partial/latching mixtures fall back to
+          // explicit generic-MIDI confidence rather than fabricating coordinates.
+          function padWebSelectCompleteObservedSources(midiNotes, sourceNotes) {
+            var expected = new Set((midiNotes || []).filter(function(midi) {
+              return Number.isFinite(Number(midi));
+            }).map(Number));
+            var sources = Array.isArray(sourceNotes) ? sourceNotes.filter(Boolean) : [];
+            if (!expected.size || !sources.length) return [];
+            var observed = new Set();
+            for (var i = 0; i < sources.length; i++) {
+              var source = sources[i];
+              var midi = Number.isFinite(Number(source.mappedMidi)) ? Number(source.mappedMidi) : Number(source.midi);
+              if (!Number.isFinite(midi) || !expected.has(midi)) return [];
+              observed.add(midi);
+            }
+            if (observed.size !== expected.size) return [];
+            var complete = true;
+            expected.forEach(function(midi) { if (!observed.has(midi)) complete = false; });
+            return complete ? sources.slice() : [];
+          }
+
+          '''
+          marker = 'function padWebEscapeHtml(value) {'
+          if marker not in text or 'function padWebSelectCompleteObservedSources' in text:
+              raise SystemExit('observed consumer helper insertion boundary changed')
+          text = text.replace(marker, helper + marker, 1)
+          text = text.replace(
+              '  window.padWebNormalizeObservedSources = padWebNormalizeObservedSources;\n',
+              '  window.padWebNormalizeObservedSources = padWebNormalizeObservedSources;\n'
+              '  window.padWebSelectCompleteObservedSources = padWebSelectCompleteObservedSources;\n',
+              1)
+          text = text.replace(
+              '  padWebNormalizeObservedSources,\n',
+              '  padWebNormalizeObservedSources,\n  padWebSelectCompleteObservedSources,\n',
+              1)
+          consumer.write_text(text)
+
+          old_plain = '''    const observedQuality = best.quality || (typeof detectedUstBaseQuality === 'function' ? detectedUstBaseQuality(best.name) : null);
+              const observedPayload = typeof padWebBuildCanonicalChordPayload === 'function'
+                ? padWebBuildCanonicalChordPayload({ chord: { rootPC: best.rootPC, quality: observedQuality, name: best.name }, midiNotes: notes, coreStructure: best }) : null;'''
+          new_plain = '''    const observedQuality = best.quality || (typeof detectedUstBaseQuality === 'function' ? detectedUstBaseQuality(best.name) : null);
+              const observedSources = typeof getMidiHeldSources === 'function' && typeof padWebSelectCompleteObservedSources === 'function'
+                ? padWebSelectCompleteObservedSources(notes, getMidiHeldSources()) : [];
+              const observedPayload = typeof padWebBuildCanonicalChordPayload === 'function'
+                ? padWebBuildCanonicalChordPayload({
+                  chord: { rootPC: best.rootPC, quality: observedQuality, name: best.name },
+                  midiNotes: notes,
+                  sourceNotes: observedSources,
+                  coreStructure: best,
+                }) : null;'''
+          replace_once('plain.js', old_plain, new_plain)
+
+          old_midi = '''  // Plain mode: #midi-detect handled by updatePlainDisplay() (SSOT), only add highlights
+            if (!linkMode && AppState.mode === 'input') {
+              if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
+              highlightMidiPads(notes);
+              return;
+            }'''
+          new_midi = '''  // Plain mode: updatePlainDisplay() owns both the visible result and the
+            // same-event canonical snapshot. MIDI highlight refresh must not erase it.
+            if (!linkMode && AppState.mode === 'input') {
+              highlightMidiPads(notes);
+              return;
+            }'''
+          replace_once('midi.js', old_midi, new_midi)
+
+          Path('tests/unit/input-observed-source-lifecycle.test.js').write_text(r'''import { describe, it, expect } from 'vitest';
+          import { createRequire } from 'node:module';
+
+          const require = createRequire(import.meta.url);
+          const { padWebSelectCompleteObservedSources } = require('../../observed-ust-consumer.js');
+
+          function source(mappedMidi, id) {
+            return { mappedMidi, sourceId: id, row: 0, col: 0, positionConfidence: 'exact' };
+          }
+
+          describe('Input physical source lifecycle', () => {
+            it('keeps all duplicate owners when their unique pitches completely cover the displayed notes', () => {
+              const sources = [source(60, 'a'), source(64, 'b'), source(67, 'c'), source(67, 'duplicate-c')];
+              expect(padWebSelectCompleteObservedSources([60, 64, 67], sources)).toEqual(sources);
+            });
+
+            it('rejects partial held sources for a latched displayed chord', () => {
+              expect(padWebSelectCompleteObservedSources([60, 64, 67], [source(60, 'a'), source(64, 'b')])).toEqual([]);
+            });
+
+            it('rejects a source outside the displayed pitch set', () => {
+              expect(padWebSelectCompleteObservedSources([60, 64, 67], [source(60, 'a'), source(64, 'b'), source(69, 'x')])).toEqual([]);
+            });
+          });
+          ''')
+
+          Path('tests/e2e/input-canonical-source-lifecycle.spec.js').write_text(r'''import { test, expect } from '@playwright/test';
+
+          function metadata(mappedMidi, row, col, id) {
+            return {
+              note: mappedMidi,
+              meta: {
+                rawPad: 36 + row * 8 + col,
+                row,
+                col,
+                deviceId: 'native-push:test',
+                sourceId: `native-push:test:${id}`,
+                channel: 0,
+                positionConfidence: 'exact',
+              },
+            };
+          }
+
+          test('Input publishes exact physical Q4 and retains it through MIDI highlight refresh', async ({ page }) => {
+            await page.goto('./');
+            await page.waitForLoadState('domcontentloaded');
+            const fixture = [
+              metadata(48, 0, 0, 'shell-c'),
+              metadata(51, 0, 3, 'shell-eb'),
+              metadata(58, 1, 5, 'shell-bb'),
+              metadata(70, 4, 2, 'upper-bb'),
+              metadata(75, 5, 2, 'upper-eb'),
+              metadata(77, 5, 4, 'upper-f'),
+            ];
+            const result = await page.evaluate((events) => {
+              if (linkMode) toggleLinkMode();
+              setMode('input');
+              PlainState.activeNotes.clear();
+              midiActiveNotes.clear();
+              if (typeof releaseAllMidiHeldSources === 'function') releaseAllMidiHeldSources();
+              events.forEach(event => onNativeMidiIn(event.note, 100, event.meta));
+              const before = padWebGetLatestObservedShellUstPayload();
+              updateMidiDisplay();
+              const after = padWebGetLatestObservedShellUstPayload();
+              return { before, after, text: document.getElementById('midi-detect').textContent };
+            }, fixture);
+
+            expect(result.before).toMatchObject({
+              positionEvidence: 'exact',
+              sourceConfidence: 'exact',
+              shell: { degrees: ['R', 'm3', 'b7'], positionConfidence: 'exact' },
+              ust: { name: 'Q4', degrees: ['11', 'b7', 'm3'], positionConfidence: 'exact' },
+            });
+            expect(result.after).toEqual(result.before);
+            expect(result.text).toContain('Q4');
+            expect(result.text).not.toContain('Q1');
+          });
+          ''')
+
+          # Every changed precached asset must advance together.
+          for raw in subprocess.check_output(['git', 'grep', '-l', '6.7.52'], text=True).splitlines():
+              path = Path(raw)
+              if path.is_file():
+                  path.write_text(path.read_text().replace('6.7.52', '6.7.53'))
+          PY
+
+          git add observed-ust-consumer.js plain.js midi.js pad-core tests index.html sw.js midi-input-state.js
+          git diff --check
+
+      - name: Install and run Web verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm test
+          ./tools/sw-assets-check.sh
+          npx playwright test tests/e2e/input-canonical-source-lifecycle.spec.js tests/e2e/observed-ust-runtime.spec.js
+
+      - name: Publish verified repair and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/tuner-v17-q4-repair.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'fix(input): preserve exact physical Q4 snapshot'
+          git push origin HEAD:agent/preserve-input-canonical-payload-lifetime
