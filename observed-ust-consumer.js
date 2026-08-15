@@ -71,10 +71,44 @@ function padWebObservedPayloadLayer(layer) {
   return {
     kind: layer.kind || null,
     name: layer.name || null,
+    base: layer.base || null,
     degrees: Array.isArray(layer.degrees) ? layer.degrees.slice() : [],
     confidence: layer.confidence || 'none',
     positionConfidence: layer.positionConfidence || 'none',
     notes: Array.isArray(layer.notes) ? layer.notes.map(padWebObservedPayloadNote).filter(Boolean) : [],
+  };
+}
+
+// Convert the existing Web/pad-core-authored triadic UST text into the
+// canonical bridge shape. This is serialization only: C++ never re-analyses
+// theory, and a legacy Q label is deliberately rejected because physical
+// quartal geometry remains authoritative in padAnalyzeObservedShellUst().
+function padWebParseLegacyTriadicUstLayer(legacyText) {
+  if (typeof legacyText !== 'string') return null;
+  var body = legacyText.replace(/^UST:\s*/, '').trim();
+  var slash = body.lastIndexOf(' / ');
+  if (slash <= 0 || slash >= body.length - 3) return null;
+  var upper = body.slice(0, slash).trim();
+  var base = body.slice(slash + 3).trim();
+  if (!upper || !base || /^Q(?:[b#]?\d|\b)/.test(upper)) return null;
+
+  var degrees = [];
+  var match = upper.match(/^(.*?)\s*\[([^\]]*)\]\s*$/);
+  if (match) {
+    upper = match[1].trim();
+    degrees = match[2].split(',').map(function(value) { return value.trim(); }).filter(Boolean);
+  }
+  if (!upper || upper.length > 32 || base.length > 96 || degrees.length > 8
+      || degrees.some(function(value) { return value.length > 16; })) return null;
+
+  return {
+    kind: 'triad',
+    name: upper,
+    base: base,
+    degrees: degrees,
+    confidence: 'register',
+    positionConfidence: 'none',
+    notes: [],
   };
 }
 
@@ -115,6 +149,13 @@ function padBuildObservedShellUstPayload(input) {
     },
     notes: notes,
   });
+  var observedUst = padWebObservedPayloadLayer(analysis.ust);
+  if (!observedUst && typeof formatDetectedUstText === 'function') {
+    observedUst = padWebParseLegacyTriadicUstLayer(formatDetectedUstText(
+      notes.map(function(note) { return note.midi; }), Number(chord.rootPC), chord.name || ''
+    ));
+  }
+  if (observedUst && !observedUst.base) observedUst.base = chord.name || null;
 
   return {
     schema: 'pad-observed-shell-ust',
@@ -123,7 +164,7 @@ function padBuildObservedShellUstPayload(input) {
     reason: null,
     chord: { name: analysis.chord.name || null, rootPC: analysis.chord.rootPC, quality: analysis.chord.quality || null },
     shell: padWebObservedPayloadLayer(analysis.shell),
-    ust: padWebObservedPayloadLayer(analysis.ust),
+    ust: observedUst,
     positionEvidence: analysis.positionEvidence || 'none',
     // This expresses the provenance of the held sources independently from the
     // shell/UST inference confidence (physical vs register).
@@ -191,18 +232,20 @@ function padWebFormatObservedUstInlineFromPayload(payload, legacyText) {
   var formatFraction = typeof formatDetectedUstFractionHtml === 'function'
     ? formatDetectedUstFractionHtml : function(text) { return text || ''; };
   if (!payload || !payload.available) return formatFraction(legacyText || '');
-  if (!payload.ust || payload.ust.kind !== 'quartal') {
+  if (!payload.ust) {
     // Physical evidence may reject a legacy quartal subset, but never suppress a
     // separate legacy triadic interpretation.
     if (payload.shell && payload.shell.positionConfidence !== 'none' && /^UST:\s*Q/.test(legacyText || '')) return '';
     return formatFraction(legacyText || '');
   }
+  if (payload.ust.kind !== 'quartal' && payload.ust.kind !== 'triad') return formatFraction(legacyText || '');
+
   var baseQuality = payload.chord && payload.chord.quality;
   var chordName = payload.chord && payload.chord.name || '';
   var rootName = typeof chordRootDisplayName === 'function' ? chordRootDisplayName(chordName) : '';
   var suffix = typeof detectedUstBaseQualitySuffix === 'function'
     ? detectedUstBaseQualitySuffix(baseQuality) : baseQuality;
-  var baseName = rootName ? rootName + suffix : chordName;
+  var baseName = payload.ust.base || (rootName ? rootName + suffix : chordName);
   var text = 'UST: ' + padWebEscapeHtml(payload.ust.name);
   if (payload.ust.degrees && payload.ust.degrees.length) text += ' [' + payload.ust.degrees.map(padWebEscapeHtml).join(',') + ']';
   text += ' / ' + padWebEscapeHtml(baseName);
@@ -246,6 +289,7 @@ function padWebFormatObservedStructureHtml(payload) {
 
 if (typeof window !== 'undefined') {
   window.padWebNormalizeObservedSources = padWebNormalizeObservedSources;
+  window.padWebParseLegacyTriadicUstLayer = padWebParseLegacyTriadicUstLayer;
   window.padBuildObservedShellUstPayload = padBuildObservedShellUstPayload;
   window.padWebBuildCanonicalChordPayload = padWebBuildCanonicalChordPayload;
   window.padWebObservedStructureModel = padWebObservedStructureModel;
@@ -270,6 +314,7 @@ if (typeof window !== 'undefined') {
 
 if (typeof module !== 'undefined') module.exports = {
   padWebNormalizeObservedSources,
+  padWebParseLegacyTriadicUstLayer,
   padWebEscapeHtml,
   padBuildObservedShellUstPayload,
   padWebBuildCanonicalChordPayload,
