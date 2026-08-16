@@ -1,0 +1,171 @@
+name: TUNER build private Desktop v1.7 Windows installer
+
+on:
+  push:
+    branches: [tuner/v17-windows-builder-bridge]
+    paths: [.github/workflows/tuner-v17-windows-installer-build.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      DESKTOP_TOKEN: ${{ secrets.DESKTOP_DISPATCH_TOKEN }}
+      DESKTOP_SHA: b39ec92e52d8321f4c1b9baf156a38707763ffd2
+      WEB_SHA: 97180936eb28454bc02b5a4fd21b7a1b6579d9ff
+      VERSION: 1.7.0
+    steps:
+      - name: Clone exact private Desktop source read-only
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:DESKTOP_TOKEN)) { throw 'DESKTOP_DISPATCH_TOKEN missing' }
+          $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$env:DESKTOP_TOKEN"))
+          git -c "http.extraheader=AUTHORIZATION: basic $basic" clone https://github.com/pad-sensei/64-pad-explorer-desktop.git desktop
+          if ($LASTEXITCODE -ne 0) { throw 'Private Desktop clone failed' }
+          Push-Location desktop
+          git checkout $env:DESKTOP_SHA
+          if ($LASTEXITCODE -ne 0) { throw 'Exact Desktop checkout failed' }
+          git submodule update --init --recursive
+          if ($LASTEXITCODE -ne 0) { throw 'JUCE submodule checkout failed' }
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne $env:DESKTOP_SHA) { throw "Desktop SHA mismatch: $actual" }
+          $versionLine = Select-String -Path CMakeLists.txt -Pattern '^project\(PadExplorer VERSION ([0-9.]+)\)'
+          if (-not $versionLine) { throw 'Version line missing' }
+          $version = $versionLine.Matches[0].Groups[1].Value
+          if ($version -ne $env:VERSION) { throw "Version mismatch: $version" }
+          Pop-Location
+          Write-Host "desktop_source=$actual"
+
+      - name: Install build prerequisites
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          nuget install Microsoft.Web.WebView2 -Version 1.0.3485.44 -OutputDirectory "$env:RUNNER_TEMP\nuget" -ExcludeVersion
+          if ($LASTEXITCODE -ne 0) { throw 'WebView2 NuGet install failed' }
+          $env:WEBVIEW2_DIR = "$env:RUNNER_TEMP\nuget"
+          "WEBVIEW2_DIR=$env:WEBVIEW2_DIR" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup install failed' }
+          }
+          if (-not (Test-Path $iscc)) { throw 'ISCC.exe unavailable' }
+          Write-Host 'windows_prerequisites=PASS'
+
+      - name: Materialize exact pinned WebUI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git clone --recursive https://github.com/pad-sensei/64-pad-visualizer.git web-source
+          if ($LASTEXITCODE -ne 0) { throw 'Web source clone failed' }
+          Push-Location web-source
+          git checkout $env:WEB_SHA
+          if ($LASTEXITCODE -ne 0) { throw 'Exact Web checkout failed' }
+          git submodule update --init --recursive
+          if ($LASTEXITCODE -ne 0) { throw 'Web recursive submodules failed' }
+          $webActual = (git rev-parse HEAD).Trim()
+          $padActual = (git -C pad-core rev-parse HEAD).Trim()
+          $audioActual = (git -C audio-core rev-parse HEAD).Trim()
+          Pop-Location
+          if ($webActual -ne $env:WEB_SHA) { throw "Web SHA mismatch: $webActual" }
+
+          $dest = Resolve-Path desktop
+          $web = Resolve-Path web-source
+          $webui = Join-Path $dest 'WebUI'
+          if (Test-Path $webui) { Remove-Item -Recurse -Force $webui }
+          New-Item -ItemType Directory -Force $webui | Out-Null
+          $excludeDirs = @('.git','node_modules','tests')
+          $excludeFiles = @('sw.js','manifest.json','package.json','package-lock.json','.gitignore','CLAUDE.md','vitest.config.js','.gitmodules','.webui-source.json','.webui-tree.sha256')
+          $args = @($web, $webui, '/E', '/R:1', '/W:1', '/NFL', '/NDL', '/NJH', '/NJS', '/NP', '/XD') + $excludeDirs + @('/XF') + $excludeFiles
+          & robocopy @args
+          $rc = $LASTEXITCODE
+          if ($rc -ge 8) { throw "robocopy failed: $rc" }
+          $manifest = [ordered]@{
+            sourceRepo = 'https://github.com/pad-sensei/64-pad-visualizer'
+            sourceCommit = $webActual
+            padCoreCommit = $padActual
+            audioCoreCommit = $audioActual
+            commits = [ordered]@{ web = $webActual; padCore = $padActual; audioCore = $audioActual }
+            generatedBy = 'tuner-v17-windows-installer-build'
+          }
+          $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $webui '.webui-source.json') -Encoding utf8
+          foreach ($asset in @('64-pad-explorer-update.js','host-adapter.js','observed-ust-consumer.js','midi.js','midi-input-state.js','pad-core/observed-structure.js','pad-core/theory.js','audio-core/audio-master.js','audio-core/INTERFACE.md')) {
+            if (-not (Test-Path (Join-Path $webui $asset))) { throw "Missing WebUI contract asset: $asset" }
+          }
+          Write-Host "web_source=$webActual"
+          Write-Host "pad_core=$padActual"
+          Write-Host "audio_core=$audioActual"
+
+      - name: Configure and build x64 Standalone VST3 and tests
+        shell: pwsh
+        working-directory: desktop
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake -S . -B build -A x64 -DBUILD_TESTING=ON -DJUCE_WEBVIEW2_PACKAGE_LOCATION="$env:WEBVIEW2_DIR"
+          if ($LASTEXITCODE -ne 0) { throw 'CMake configure failed' }
+          cmake --build build --config Release --target PadExplorer_Standalone PadExplorer_VST3 PadExplorerTests PadExplorerPushDisplayRendererTests --parallel 2
+          if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
+          ctest --test-dir build -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw 'CTest failed' }
+          Write-Host 'windows_build_ctest=PASS'
+
+      - name: Stage formal Windows distribution tree
+        shell: pwsh
+        working-directory: desktop
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = "staging/64-Pad-Explorer-v${env:VERSION}-Win"
+          if (Test-Path $root) { Remove-Item -Recurse -Force $root }
+          New-Item -ItemType Directory -Force "$root/Standalone", "$root/VST3", "$root/Uninstaller" | Out-Null
+          Copy-Item -Recurse -Force "build/PadExplorer_artefacts/Release/Standalone/*" "$root/Standalone/"
+          Copy-Item -Recurse -Force "build/PadExplorer_artefacts/Release/VST3/*" "$root/VST3/"
+          Copy-Item -Force "packaging/uninstaller/uninstall.ps1" "$root/Uninstaller/"
+          Copy-Item -Force "packaging/uninstaller/uninstall.bat" "$root/Uninstaller/"
+          if (-not (Test-Path "$root/Standalone/64 Pad Explorer.exe")) { throw 'Standalone missing from stage' }
+          if (-not (Test-Path "$root/VST3/64 Pad Explorer.vst3/Contents/x86_64-win/64 Pad Explorer.vst3")) { throw 'VST3 missing from stage' }
+          Write-Host 'windows_stage=PASS'
+
+      - name: Build and verify Inno Setup installer
+        shell: pwsh
+        working-directory: desktop
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          $stage = Resolve-Path "staging/64-Pad-Explorer-v${env:VERSION}-Win"
+          & $iscc "/DMyAppVersion=${env:VERSION}" "/DStageDir=$stage" "packaging\windows\installer.iss"
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup failed' }
+          $setup = "installer-out/64-Pad-Explorer-v${env:VERSION}-Win-Setup.exe"
+          if (-not (Test-Path $setup)) { throw 'Setup.exe missing' }
+          $setupSize = (Get-Item $setup).Length
+          if ($setupSize -lt 10000000) { throw "Setup.exe suspiciously small: $setupSize" }
+          $setupSha = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
+
+          $zip = "installer-out/64-Pad-Explorer-v${env:VERSION}-Win.zip"
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Compress-Archive -Path "staging/64-Pad-Explorer-v${env:VERSION}-Win" -DestinationPath $zip -CompressionLevel Optimal
+          $zipSize = (Get-Item $zip).Length
+          $zipSha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+
+          $verify = Join-Path $env:RUNNER_TEMP '64pe-win-verify'
+          if (Test-Path $verify) { Remove-Item -Recurse -Force $verify }
+          Expand-Archive -Path $zip -DestinationPath $verify
+          $formalRoot = Join-Path $verify "64-Pad-Explorer-v${env:VERSION}-Win"
+          foreach ($required in @(
+            'Standalone/64 Pad Explorer.exe',
+            'VST3/64 Pad Explorer.vst3/Contents/x86_64-win/64 Pad Explorer.vst3',
+            'Uninstaller/uninstall.bat',
+            'Uninstaller/uninstall.ps1'
+          )) {
+            if (-not (Test-Path (Join-Path $formalRoot $required))) { throw "Formal zip missing: $required" }
+          }
+          Write-Host "windows_setup=PASS"
+          Write-Host "windows_setup_bytes=$setupSize"
+          Write-Host "windows_setup_sha256=$setupSha"
+          Write-Host "windows_formal_zip=PASS"
+          Write-Host "windows_zip_bytes=$zipSize"
+          Write-Host "windows_zip_sha256=$zipSha"
+          Write-Host 'publication=NO'
