@@ -84,6 +84,7 @@ jobs:
           & robocopy @args
           $rc = $LASTEXITCODE
           if ($rc -ge 8) { throw "robocopy failed: $rc" }
+          $global:LASTEXITCODE = 0
           $manifest = [ordered]@{
             sourceRepo = 'https://github.com/pad-sensei/64-pad-visualizer'
             sourceCommit = $webActual
@@ -99,6 +100,7 @@ jobs:
           Write-Host "web_source=$webActual"
           Write-Host "pad_core=$padActual"
           Write-Host "audio_core=$audioActual"
+          exit 0
 
       - name: Configure and build x64 Standalone VST3 and tests
         shell: pwsh
