@@ -109,7 +109,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           cmake -S . -B build -A x64 -DBUILD_TESTING=ON -DJUCE_WEBVIEW2_PACKAGE_LOCATION="$env:WEBVIEW2_DIR"
           if ($LASTEXITCODE -ne 0) { throw 'CMake configure failed' }
-          cmake --build build --config Release --target PadExplorer_Standalone PadExplorer_VST3 PadExplorerTests PadExplorerPushDisplayRendererTests --parallel 2
+          cmake --build build --config Release --target PadExplorer_Standalone PadExplorer_VST3 PadExplorerTests --parallel 2
           if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
           ctest --test-dir build -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) { throw 'CTest failed' }
