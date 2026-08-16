@@ -1,8 +1,92 @@
 // ========================================
 // WEB MIDI & CHORD DETECTION
 // ========================================
-const midiActiveNotes = new Set(); // currently held MIDI notes
+// Source ownership must exist before the held-state objects below are constructed.
+if (typeof createMidiHeldState === 'undefined' && typeof document !== 'undefined' && document.readyState === 'loading') {
+  var _midiBootstrapSrc = document.currentScript && document.currentScript.src;
+  var _midiBootstrapQuery = _midiBootstrapSrc ? _midiBootstrapSrc.indexOf('?') : -1;
+  var _midiBootstrapSuffix = _midiBootstrapQuery >= 0 ? _midiBootstrapSrc.slice(_midiBootstrapQuery) : '';
+  document.write('<script src="midi-input-state.js' + _midiBootstrapSuffix + '"><\/script>');
+}
+
+const midiActiveNotes = new Set(); // currently held mapped MIDI notes (compatibility mirror)
 let midiAccess = null;
+const midiHeldState = (typeof createMidiHeldState === 'function') ? createMidiHeldState() : null;
+const midiPortBindings = (typeof createMidiPortBindingRegistry === 'function') ? createMidiPortBindingRegistry() : null;
+
+function syncMidiActiveNotesFromOwnership() {
+  if (!midiHeldState) return;
+  midiActiveNotes.clear();
+  midiHeldState.heldPitches().forEach(function(note) { midiActiveNotes.add(note); });
+}
+
+function getMidiHeldSources() {
+  if (midiHeldState) return midiHeldState.heldSources();
+  return Array.from(midiActiveNotes).map(function(note) {
+    return {
+      deviceId: 'legacy', sourceId: 'legacy:' + note, channel: 0,
+      rawNote: note, mappedMidi: note, row: null, col: null,
+      physicalPadId: null, positionConfidence: 'none',
+    };
+  });
+}
+
+function midiSourceMetadataForInput(input, status, rawNote, mappedMidi, isPush) {
+  var deviceId = input && input.id != null ? String(input.id)
+    : (input && input.name ? String(input.name) : 'web-midi');
+  var channel = status & 0x0f;
+  var row = null;
+  var col = null;
+  var physicalPadId = null;
+  var positionConfidence = 'none';
+
+  if (isPush && rawNote >= 36 && rawNote <= 99) {
+    var pushIdx = rawNote - PUSH_SERIAL_BASE;
+    row = Math.floor(pushIdx / 8);
+    col = pushIdx % 8;
+    physicalPadId = 'r' + row + 'c' + col;
+    positionConfidence = 'exact';
+  } else if (!isPush && _lpProgrammerMode && rawNote >= 11 && rawNote <= 88) {
+    var lpRow = Math.floor(rawNote / 10) - 1;
+    var lpCol = (rawNote % 10) - 1;
+    if (lpRow >= 0 && lpRow < 8 && lpCol >= 0 && lpCol < 8) {
+      row = lpRow;
+      col = lpCol;
+      physicalPadId = 'r' + row + 'c' + col;
+      positionConfidence = 'exact';
+    }
+  }
+
+  var sourceAtom = physicalPadId || String(rawNote);
+  return {
+    deviceId: deviceId,
+    sourceId: deviceId + ':' + channel + ':' + sourceAtom,
+    channel: channel,
+    rawNote: rawNote,
+    mappedMidi: mappedMidi,
+    row: row,
+    col: col,
+    physicalPadId: physicalPadId,
+    positionConfidence: positionConfidence,
+  };
+}
+
+function releaseAllMidiHeldSources() {
+  var released = midiHeldState ? midiHeldState.clearAll() : Array.from(midiActiveNotes);
+  midiActiveNotes.clear();
+  released.forEach(function(note) {
+    try { noteOff(note); } catch (_) {}
+  });
+  if (typeof _cancelSustainDebounce === 'function') _cancelSustainDebounce();
+  if (typeof _midiSustainOn !== 'undefined' && _midiSustainOn) {
+    _midiSustainOn = false;
+    if (typeof setSustain === 'function') {
+      try { setSustain(false); } catch (_) {}
+    }
+  }
+  refreshLaunchpadLEDs();
+  return released;
+}
 
 // Chord detection: delegated to pad-core (padDetectChord, CHORD_DETECT_DB, TRIAD_DETECT_DB, TETRAD_DETECT_DB)
 function detectChord(notes) {
@@ -58,7 +142,7 @@ function remapMidiNote(note) {
   return note;
 }
 
-function onMidiNoteOn(note, velocity) {
+function onMidiNoteOn(note, velocity, source) {
   const mapped = remapMidiNote(note);
   // Perform mode: intercept MIDI for pad triggering
   if (handlePerformMidi(mapped)) {
@@ -75,9 +159,17 @@ function onMidiNoteOn(note, velocity) {
       saveAppSettings();
     }
   }
-  midiActiveNotes.add(mapped);
+  if (midiHeldState && source) {
+    source.mappedMidi = mapped;
+    midiHeldState.noteOn(source);
+    syncMidiActiveNotesFromOwnership();
+  } else {
+    midiActiveNotes.add(mapped);
+  }
   refreshLaunchpadLEDs();
   ensureAudioResumed();
+  // Every physical NoteOn remains a real trigger. Ownership only controls when the
+  // shared mapped pitch is finally released.
   noteOn(mapped, applyVelocityCurve(velocity || 100), true);
   // Plain mode: add to activeNotes (auto-start capture if idle)
   if (AppState.mode === 'input') {
@@ -93,15 +185,24 @@ function onMidiNoteOn(note, velocity) {
   scheduleMidiUpdate();
 }
 
-function onMidiNoteOff(note) {
+function onMidiNoteOff(note, source) {
   const mapped = remapMidiNote(note);
-  midiActiveNotes.delete(mapped);
+  var shouldReleasePitch = true;
+  if (midiHeldState && source) {
+    source.mappedMidi = mapped;
+    var release = midiHeldState.noteOff(source);
+    if (!release.changed) return; // stale/lost duplicate NoteOff: do not stop another owner
+    shouldReleasePitch = release.pitchBecameInactive;
+    syncMidiActiveNotesFromOwnership();
+  } else {
+    midiActiveNotes.delete(mapped);
+  }
   refreshLaunchpadLEDs();
-  noteOff(mapped);
+  if (shouldReleasePitch) noteOff(mapped);
   // Plain capture/edit: latch (don't remove on noteOff)
   if (AppState.mode === 'input' && PlainState.subMode !== 'idle') {
     // keep note in activeNotes — user clears with x or edits manually
-  } else if (AppState.mode === 'input') {
+  } else if (AppState.mode === 'input' && shouldReleasePitch) {
     PlainState.activeNotes.delete(mapped);
     updatePlainDisplay();
     render();
@@ -112,10 +213,44 @@ function onMidiNoteOff(note) {
 // Called from C++ (evaluateJavascript) when native MIDI input is received.
 // When VST loaded: sound plays via C++ processBlock, JS only updates UI.
 // When no VST: play via WebAudioFont (C++ sine is muted).
-function onNativeMidiIn(note, velocity) {
+function nativeMidiSourceMetadata(note, metadata) {
+  metadata = metadata || {};
+  var rawPad = Number(metadata.rawPad);
+  var exactPosition = metadata.positionConfidence === 'exact'
+    && Number.isInteger(rawPad)
+    && Number.isInteger(metadata.row)
+    && Number.isInteger(metadata.col)
+    && rawPad >= 36 && rawPad <= 99
+    && metadata.row >= 0 && metadata.row < 8
+    && metadata.col >= 0 && metadata.col < 8
+    && rawPad === 36 + metadata.row * 8 + metadata.col;
+  var deviceId = metadata.deviceId != null ? String(metadata.deviceId) : 'native';
+  var channel = Number.isInteger(metadata.channel) && metadata.channel >= 0 && metadata.channel <= 15
+    ? metadata.channel : 0;
+  var physicalPadId = exactPosition ? 'r' + metadata.row + 'c' + metadata.col : null;
+  return {
+    deviceId: deviceId,
+    sourceId: metadata.sourceId != null ? String(metadata.sourceId) : deviceId + ':' + channel + ':' + (exactPosition ? physicalPadId : note),
+    channel: channel,
+    rawNote: exactPosition ? rawPad : note,
+    mappedMidi: note,
+    row: exactPosition ? metadata.row : null,
+    col: exactPosition ? metadata.col : null,
+    physicalPadId: physicalPadId,
+    positionConfidence: exactPosition ? 'exact' : 'none',
+  };
+}
+
+function onNativeMidiIn(note, velocity, metadata) {
+  var source = nativeMidiSourceMetadata(note, metadata);
+  if (midiHeldState) {
+    midiHeldState.noteOn(source);
+    syncMidiActiveNotesFromOwnership();
+  } else {
+    midiActiveNotes.add(note);
+  }
   noteOn(note, (velocity || 100) / 127, true);
   if (handlePerformMidi(note)) return;
-  midiActiveNotes.add(note);
   if (!linkMode && AppState.mode === 'input') {
     if (PlainState.subMode === 'idle') {
       PlainState.subMode = 'capture';
@@ -129,12 +264,20 @@ function onNativeMidiIn(note, velocity) {
   scheduleMidiUpdate();
 }
 
-function onNativeMidiOff(note) {
-  noteOff(note);
-  midiActiveNotes.delete(note);
+function onNativeMidiOff(note, metadata) {
+  var shouldReleasePitch = true;
+  if (midiHeldState) {
+    var release = midiHeldState.noteOff(nativeMidiSourceMetadata(note, metadata));
+    if (!release.changed) return;
+    shouldReleasePitch = release.pitchBecameInactive;
+    syncMidiActiveNotesFromOwnership();
+  } else {
+    midiActiveNotes.delete(note);
+  }
+  if (shouldReleasePitch) noteOff(note);
   if (!linkMode && AppState.mode === 'input' && PlainState.subMode !== 'idle') {
     // latch: keep note in activeNotes
-  } else if (!linkMode && AppState.mode === 'input') {
+  } else if (!linkMode && AppState.mode === 'input' && shouldReleasePitch) {
     PlainState.activeNotes.delete(note);
     updatePlainDisplay();
     render();
@@ -151,14 +294,24 @@ function scheduleMidiUpdate() {
 }
 
 function updateMidiDisplay() {
+  // Panic UI clears the compatibility Set before asking the MIDI display to refresh.
+  // Reconcile that explicit clear with authoritative source ownership as well.
+  if (midiHeldState && midiActiveNotes.size === 0 && midiHeldState.heldPitches().length > 0) {
+    releaseAllMidiHeldSources();
+  }
   const detectEl = document.getElementById('midi-detect');
   const notes = [...midiActiveNotes].sort((a, b) => a - b);
   if (notes.length === 0) {
     document.querySelectorAll('.midi-highlight').forEach(el => el.remove());
     document.querySelectorAll('.link-highlight').forEach(el => el.remove());
-    if (chordPracticeDisplayLocked()) return;
+    if (chordPracticeDisplayLocked()) {
+      if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
+      return;
+    }
     // Plain mode: #midi-detect is SSOT of updatePlainDisplay(), don't clear
+    // its canonical snapshot before the Desktop bridge can consume it.
     if (!linkMode && AppState.mode === 'input') return;
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
     if (linkMode) { detectEl.innerHTML = ''; return; } // Link mode: just clear highlights, keep display
     detectEl.innerHTML = '';
     // Restore diagrams: instrument input state takes priority over builder state
@@ -174,14 +327,19 @@ function updateMidiDisplay() {
   // Chord practice: when a chord is already displayed, external/Push pad input should
   // play only. Do not replace the chord display, diagrams, octave range, or add white
   // practice highlights; the screen is the exercise target.
-  if (chordPracticeDisplayLocked()) return;
+  if (chordPracticeDisplayLocked()) {
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
+    return;
+  }
   // Guitar/Bass/Piano input active: preserve instrument chord name, only add MIDI highlights
   if (!linkMode && instrumentInputActive) {
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
     highlightMidiPads(notes);
     return;
   }
   // Plain mode: #midi-detect handled by updatePlainDisplay() (SSOT), only add highlights
   if (!linkMode && AppState.mode === 'input') {
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
     highlightMidiPads(notes);
     return;
   }
@@ -192,18 +350,36 @@ function updateMidiDisplay() {
     : 'Note: ' + notes.map(n => NOTE_NAMES_SHARP[n % 12]).join(' ');
   if (candidates.length > 0) {
     const best = candidates[0];
-    const ustInline = (typeof formatDetectedUstInlineHtml === 'function') ? formatDetectedUstInlineHtml(notes, best.rootPC, best.name) : '';
-    let html = '<div style="color:var(--accent);font-weight:700;font-size:1.1rem;">' + best.name + ustInline + '</div>';
+    const observedQuality = best.quality || (typeof detectedUstBaseQuality === 'function'
+      ? detectedUstBaseQuality(best.name) : null);
+    const observedPayload = typeof padWebBuildCanonicalChordPayload === 'function'
+      ? padWebBuildCanonicalChordPayload({
+        chord: { rootPC: best.rootPC, quality: observedQuality, name: best.name },
+        midiNotes: notes,
+        sourceNotes: getMidiHeldSources(),
+        coreStructure: best,
+      }) : null;
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(observedPayload);
+    const legacyUstText = typeof formatDetectedUstText === 'function'
+      ? formatDetectedUstText(notes, best.rootPC, best.name) : '';
+    const ustInline = (typeof padWebFormatObservedUstInlineFromPayload === 'function')
+      ? padWebFormatObservedUstInlineFromPayload(observedPayload, legacyUstText) : '';
+    const escapeHtml = typeof padWebEscapeHtml === 'function' ? padWebEscapeHtml : String;
+    let html = '<div style="color:var(--accent);font-weight:700;font-size:1.1rem;">' + escapeHtml(best.name) + ustInline + '</div>';
     if (candidates.length > 1) {
       html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">';
       candidates.slice(1).forEach(c => {
-        html += '<span style="font-size:0.6rem;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.08);color:var(--text-muted);">' + c.name + '</span>';
+        html += '<span style="font-size:0.6rem;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.08);color:var(--text-muted);">' + escapeHtml(c.name) + '</span>';
       });
       html += '</div>';
     }
-    html += '<div style="font-size:0.6rem;color:var(--text-muted);margin-top:1px;">' + noteText + '</div>';
+    if (typeof padWebFormatObservedStructureHtml === 'function') {
+      html += padWebFormatObservedStructureHtml(observedPayload);
+    }
+    html += '<div style="font-size:0.6rem;color:var(--text-muted);margin-top:1px;">' + escapeHtml(noteText) + '</div>';
     detectEl.innerHTML = html;
   } else {
+    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
     detectEl.textContent = noteText;
   }
   // Update instrument diagrams with MIDI-detected chord, or highlight-only in link mode
@@ -468,12 +644,14 @@ function initWebMIDI() {
     }
 
     function connectInputs() {
-      // Clear all handlers first
-      for (const input of access.inputs.values()) {
-        input.onmidimessage = null;
-      }
-      midiActiveNotes.clear();
+      // Invalidate every previously-owned listener before rebinding current ports.
+      if (midiPortBindings) midiPortBindings.clear();
+      for (const input of access.inputs.values()) input.onmidimessage = null;
+      // Topology/selection changes can strand NoteOff. Conservatively release every
+      // held source before reconnecting so audio/UI cannot remain stuck.
+      releaseAllMidiHeldSources();
       updateMidiDisplay();
+      if (midiPortBindings) midiPortBindings.beginGeneration();
 
       const selectedId = select.value;
       let connected = false;
@@ -485,7 +663,7 @@ function initWebMIDI() {
         connectedName = input.name;
         // Per-input Push detection: シリアル→4度変換をデバイス単位で適用
         const isPush = /Push/i.test(input.name);
-        input.onmidimessage = (e) => {
+        const inputHandler = (e) => {
           if (e.data.length < 3) return;
           const [status, rawNote, velocity] = e.data;
           const cmd = status & 0xf0;
@@ -576,9 +754,12 @@ function initWebMIDI() {
           } else {
             note = rawNote;
           }
-          if (cmd === 0x90 && velocity > 0) onMidiNoteOn(note, velocity);
-          else if (cmd === 0x80 || (cmd === 0x90 && velocity === 0)) onMidiNoteOff(note);
+          var source = midiSourceMetadataForInput(input, status, rawNote, note, isPush);
+          if (cmd === 0x90 && velocity > 0) onMidiNoteOn(note, velocity, source);
+          else if (cmd === 0x80 || (cmd === 0x90 && velocity === 0)) onMidiNoteOff(note, source);
         };
+        if (midiPortBindings) midiPortBindings.bind(input, inputHandler);
+        else input.onmidimessage = inputHandler;
       }
 
       // Per-input remap handles Push now; global remap no longer needed
@@ -1091,4 +1272,7 @@ function clearLaunchpadLEDs() {
 // Conditional exports for Node.js (Vitest) — ignored in browser
 if (typeof module !== 'undefined') module.exports = {
   detectChord, CHORD_DB, TRIAD_DB, TETRAD_DB,
+  midiSourceMetadataForInput, nativeMidiSourceMetadata, getMidiHeldSources,
+  onMidiNoteOn, onMidiNoteOff, onNativeMidiIn, onNativeMidiOff,
+  releaseAllMidiHeldSources,
 };

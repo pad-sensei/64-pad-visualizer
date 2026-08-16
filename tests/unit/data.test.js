@@ -406,7 +406,7 @@ describe('Stock voicing display and builder selection', () => {
       RH: ['b7', '9', '11'],
     })).toMatchObject({
       quality: expect.objectContaining({ name: 'm7(b5)' }),
-      tensionLabel: '11',
+      tensionLabel: '(9)\n(11)',
     });
     expect(getStockBuilderSelection({
       name: 'Cm7(b5,11)(omit3)',
@@ -414,7 +414,7 @@ describe('Stock voicing display and builder selection', () => {
       RH: ['b7', '11'],
     })).toMatchObject({
       quality: expect.objectContaining({ name: 'm7(b5)' }),
-      tensionLabel: '(11)',
+      tensionLabel: '11',
     });
   });
 });
