@@ -78,6 +78,19 @@
   gtag('js', new Date());
   gtag('config', 'G-ZWTBLDWP7P');
 </script>
+<script>
+document.addEventListener('click', function(e) {
+  var link = e.target.closest('a[href]');
+  if (!link) return;
+  var url = link.href;
+  if (url.indexOf('note.com/urinami') === -1 || typeof gtag !== 'function') return;
+  gtag('event', 'outbound_click', {
+    link_url: url,
+    link_text: (link.textContent || '').trim().slice(0, 50),
+    link_destination: 'hps-note-profile'
+  });
+});
+</script>
 
 <link rel="stylesheet" href="../style.css?v=3.7.0">
 <link rel="stylesheet" href="landing.css?v=1.0.0">
@@ -296,10 +309,10 @@
   <div class="footer-links">
     <a href="../" data-i18n="landing.hero_cta">Try It Free</a>
     <a href="../guide.html" data-i18n="landing.cta_guide">Read the Guide</a>
-    <a href="https://note.com/urinami/membership" data-i18n="landing.footer_hps">HPS (Hardcore Pad Style)</a>
+    <a href="https://note.com/urinami?utm_source=64pad-landing&utm_medium=landing&utm_campaign=note-profile" data-i18n="landing.footer_hps">HPS (Hardcore Pad Style)</a>
     <a href="https://murinaikurashi.com/" data-i18n="landing.footer_blog">Blog</a>
   </div>
-  <p>64 Pad Explorer — <a href="https://note.com/urinami/membership">HPS (Hardcore Pad Style)</a></p>
+  <p>64 Pad Explorer — <a href="https://note.com/urinami?utm_source=64pad-landing&utm_medium=landing&utm_campaign=note-profile">HPS (Hardcore Pad Style)</a></p>
 </footer>
 
 </div>

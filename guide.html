@@ -12,7 +12,28 @@
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
-  gtag('config', 'G-ZWTBLDWP7P');
+gtag('config', 'G-ZWTBLDWP7P');
+</script>
+<script>
+// Product links use the same GA4 event contract as the 64PE application.
+document.addEventListener('click', function(e) {
+  var link = e.target.closest('a[href]');
+  if (!link) return;
+  var url = link.href;
+  var dest = null;
+  if (url.indexOf('note.com/urinami') !== -1) dest = 'hps-note-profile';
+  else if (url.indexOf('padsensei.gumroad.com/l/bklonh') !== -1) dest = '64pe-gumroad';
+  else if (url.indexOf('/apps/hps-glossary') !== -1) dest = 'hps-portal';
+  else if (url.indexOf('note.com') !== -1) dest = 'note';
+  else if (url.indexOf('murinaikurashi.com') !== -1 && url.indexOf('/apps/64-pad') === -1) dest = 'blog';
+  if (dest && typeof gtag === 'function') {
+    gtag('event', 'outbound_click', {
+      link_url: url,
+      link_text: (link.textContent || '').trim().slice(0, 50),
+      link_destination: dest
+    });
+  }
+});
 </script>
 <link rel="stylesheet" href="style.css?v=3.40.12">
 <style>
@@ -552,8 +573,8 @@
 <footer class="guide-footer">
   <div class="footer-links">
     <a href="./" data-i18n="guide.footer_open">64 Pad Explorer を開く</a>
-    <a href="https://murinaikurashi.com/apps/hps-glossary/" data-i18n="header.portal">HPSポータル</a>
-    <a href="https://note.com/urinami/membership">HPS</a>
+    <a href="https://murinaikurashi.com/apps/hps-glossary/?utm_source=64pad-guide&utm_medium=manual&utm_campaign=hps-portal" data-i18n="header.portal">HPSポータル</a>
+    <a href="https://note.com/urinami?utm_source=64pad-guide&utm_medium=manual&utm_campaign=note-profile">HPS</a>
     <a href="https://murinaikurashi.com/" data-i18n="header.blog">無理ない暮らし</a>
   </div>
   <a href="https://murinaikurashi.com/" class="blog-link" data-i18n="guide.blog_more">ブログでもっと詳しく →</a>
