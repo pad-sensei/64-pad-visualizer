@@ -95,8 +95,9 @@ npm run test:prod
 
 - Date: 2026-07-14.
 - Canonical remote is the Pad Sensei organization repository; local automation must keep that repository named `origin`.
-- Current product baseline: `b963348e542c7d2a5d8f44e87f3103a01ff15cbf` (`banner: auto-refresh RSS feeds`).
-- This repository-hygiene change is documentation-only. It does not change product code, submodule pointers, cache versions, or audio behavior.
+- Current repository HEAD: `62f89c94ae36c2d5ec152fe85470df09f1cb9fa6`.
+- Last product-behavior commit before the following repository-guidance / CI / portability changes: `b963348e542c7d2a5d8f44e87f3103a01ff15cbf` (`banner: auto-refresh RSS feeds`). Do not use this older hash as the current repository HEAD.
+- Changes since the last product-behavior commit include repository guidance, CI, portability scripts, and tests, but do not change product behavior or audio behavior.
 - The automated banner updater commits and pushes `origin main`; keeping `origin` pointed at the organization repository prevents future split synchronization.
 - The organization repository has the deployment and Desktop-dispatch secrets installed. Its first organization-side workflow run still requires verification before the pipeline is treated as operational.
 - Historical internal material removed from this file is archived outside the public repository.
