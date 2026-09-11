@@ -10,6 +10,9 @@ const touched = [
   'updateMemorySlotUI', 'updateBankUI', 'saveAppSettings', 'refreshLaunchpadLEDs',
   'padWebSendPushButtonLed', 'TastyState', 'StockState', 'SCALES', 'BankState',
   'memoryViewMode', 'localStorage', 'BuilderState', '__pushLedColorPickRole',
+  'VoicingState', 'togglePerformMode', 'setInversion', 'builderBack',
+  'undoMemory', 'redoMemory', 'chordBasicFormActive', 'isGuitarEngineActive',
+  'getBuilderPCS', 'cycleTasty', 'cycleStock',
 ];
 
 afterEach(() => {
@@ -101,5 +104,56 @@ describe('Push Web logical control behavior', () => {
     expect(calls).toContainEqual([63, 'weak', true]);    // Page right available
     expect(calls).toContainEqual([83, 'red-soft', false]);
     expect(calls).toContainEqual([86, 'strong', true]);  // Record/Input
+  });
+
+  it('keeps Layout on the Desktop Input Memory/Perform vocabulary', () => {
+    const calls = [];
+    globalThis.AppState = { mode: 'input' };
+    globalThis.memoryViewMode = 'memory';
+    globalThis.togglePerformMode = () => calls.push('toggle-perform');
+
+    expect(handleLogical(47, 0)).toBe(true);
+    expect(calls).toEqual(['toggle-perform']);
+  });
+
+  it('routes the explicit inversion control to the existing chord inversion state', () => {
+    const calls = [];
+    globalThis.AppState = { mode: 'chord' };
+    globalThis.BuilderState = { quality: { pcs: [0, 4, 7] } };
+    globalThis.VoicingState = { shell: false, inversion: 0, lastBoxes: [] };
+    globalThis.setInversion = value => calls.push(value);
+
+    expect(handleLogical(43, 1)).toBe(true);
+    expect(calls).toEqual([1]);
+  });
+
+  it('lets Jog fall through to inversion when no higher-priority voicing mode is active', () => {
+    const calls = [];
+    globalThis.AppState = { mode: 'chord' };
+    globalThis.BuilderState = { quality: { pcs: [0, 4, 7] } };
+    globalThis.VoicingState = { shell: false, inversion: 0, lastBoxes: [] };
+    globalThis.TastyState = { enabled: false };
+    globalThis.StockState = { enabled: false };
+    globalThis.setInversion = value => calls.push(value);
+
+    expect(handleLogical(30, 1)).toBe(true);
+    expect(calls).toEqual([1]);
+  });
+
+  it('keeps Undo as Back in Chord and Undo/Redo in Input', () => {
+    const calls = [];
+    globalThis.AppState = { mode: 'chord' };
+    globalThis.builderBack = () => calls.push('builder-back');
+
+    expect(handleLogical(41, 0)).toBe(true);
+    expect(calls).toEqual(['builder-back']);
+
+    globalThis.AppState = { mode: 'input' };
+    globalThis.undoMemory = () => calls.push('undo-memory');
+    globalThis.redoMemory = () => calls.push('redo-memory');
+
+    expect(handleLogical(41, 0)).toBe(true);
+    expect(handleLogical(41, 1)).toBe(true);
+    expect(calls).toEqual(['builder-back', 'undo-memory', 'redo-memory']);
   });
 });
