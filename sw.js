@@ -1,4 +1,4 @@
-var CACHE_NAME = '64pad-v180-preview-20260912-audio-sustain-3';
+var CACHE_NAME = '64pad-v180-preview-20260912-webusb-exposure-1';
 var ASSETS = [
   './',
   'index.html',
@@ -41,7 +41,7 @@ var ASSETS = [
   'midi.js?v=6.7.60',
   'push-display-webusb.js?v=webusb-20260911-10',
   'push-surface-cleanup.js?v=webusb-20260911-7',
-  'push-display-webusb-app.js?v=webusb-20260911-10',
+  'push-display-webusb-app.js?v=webusb-20260912-11',
   'plain.js?v=6.7.52',
   'perform.js?v=6.7.52',
   'i18n.js?v=6.7.52',

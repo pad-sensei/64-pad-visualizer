@@ -6,8 +6,9 @@ import {
 } from './push-display-webusb.js?v=webusb-20260911-10';
 import { fastClearPushPads, hardClearPushMidiOutputs } from './push-surface-cleanup.js?v=webusb-20260911-7';
 
-const params = new URLSearchParams(window.location.search);
-const enabled = params.has('webusb') && !window.IS_DESKTOP_MODE;
+// v1.8.0: Push display is a standard optional/manual WebUSB feature.
+// The user still explicitly presses Push Display; only Desktop mode hides this browser control.
+const enabled = !window.IS_DESKTOP_MODE;
 
 const GLYPHS = Object.freeze({
   A:[0x7e,0x11,0x11,0x11,0x7e], B:[0x7f,0x49,0x49,0x49,0x36], C:[0x3e,0x41,0x41,0x41,0x22],
