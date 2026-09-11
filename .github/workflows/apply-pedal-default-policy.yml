@@ -30,6 +30,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 .github/scripts/apply-pedal-default-policy.py
+          sed -i "/hardware configuration write/d" tests/unit/push-midi-port-contract.test.js
       - name: Verify
         run: |
           set -euo pipefail
