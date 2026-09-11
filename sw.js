@@ -36,6 +36,8 @@ var ASSETS = [
   'observed-ust-consumer.js?v=6.7.52',
   'midi-input-state.js?v=6.7.52',
   'midi.js?v=6.7.52',
+  'push-display-webusb.mjs',
+  'push-display-webusb-app.mjs',
   'plain.js?v=6.7.52',
   'perform.js?v=6.7.52',
   'i18n.js?v=6.7.52',
