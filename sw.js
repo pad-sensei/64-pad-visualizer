@@ -1,4 +1,4 @@
-var CACHE_NAME = '64pad-v180-preview-20260912-audio-sustain-2';
+var CACHE_NAME = '64pad-v180-preview-20260912-audio-sustain-3';
 var ASSETS = [
   './',
   'index.html',
@@ -65,8 +65,8 @@ var ASSETS = [
   'favicon.svg',
   'img/icon-192.png',
   'img/icon-512.png',
-  'audio-core/assets/fdtd/attack_tables.bin',
-  'audio-core/assets/fdtd/manifest.json',
+  'audio-core/assets/fdtd/attack_tables.bin?v=6.7.61',
+  'audio-core/assets/fdtd/manifest.json?v=6.7.61',
   'audio-core/assets/twin-cab-ir.wav',
 ];
 
