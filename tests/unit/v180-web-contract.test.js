@@ -25,9 +25,12 @@ describe('v1.8.0 Web product contract', () => {
   });
 
   it('keeps display opt-in lifecycle separate from MIDI pad ownership', () => {
-    const hidden = display.match(/document\.addEventListener\('visibilitychange'[\s\S]*?\}, \{ capture: true \}\);/)?.[0] || '';
-    expect(hidden).toContain('probe.stop');
-    expect(hidden).not.toContain('cleanupPushSurface');
-    expect(hidden).not.toContain('hardClearPushMidiOutputs');
+    // A visibility transition is not a teardown. The physical Push display needs
+    // its keepalive stream, so hiding/switching the tab must not call probe.stop().
+    expect(display).not.toContain("document.addEventListener('visibilitychange'");
+    expect(display).not.toContain('Push display paused because this tab was hidden.');
+    // Real page teardown still performs the best-effort display + MIDI cleanup.
+    expect(display).toContain("window.addEventListener('pagehide', () => cleanupPushSurface()");
+    expect(display).toContain("window.addEventListener('beforeunload', () => cleanupPushSurface()");
   });
 });
