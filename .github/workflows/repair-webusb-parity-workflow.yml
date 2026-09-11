@@ -1,0 +1,39 @@
+name: Repair WebUSB parity workflow anchor
+
+on:
+  push:
+    branches:
+      - codex/web-push3-webusb-display-preview
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: ${{ !contains(github.event.head_commit.message, '[workflow-repair]') && !contains(github.event.head_commit.message, '[webusb-parity]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/web-push3-webusb-display-preview
+          fetch-depth: 0
+      - name: Fix service-worker asset anchor in temporary implementation workflow
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/webusb-display-parity-cleanup.yml')
+          s = p.read_text()
+          old = 'anchor = "  \'./push-display-webusb.js\',\\n"'
+          new = 'anchor = "  \'push-display-webusb.js\',\\n"'
+          if old not in s:
+              raise SystemExit('old anchor not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          git diff --check
+      - name: Commit repair
+        run: |
+          git config user.name 'daikainozaki-cyber'
+          git config user.email 'daikainozaki@gmail.com'
+          git add .github/workflows/webusb-display-parity-cleanup.yml
+          git commit -m 'ci(dev): repair WebUSB parity workflow [workflow-repair]'
+          git push origin HEAD:codex/web-push3-webusb-display-preview
