@@ -3,7 +3,7 @@ import {
   HEIGHT,
   PushWebUsbDisplay,
   encodePushDisplayFrame,
-} from './push-display-webusb.js?v=webusb-20260911-7';
+} from './push-display-webusb.js?v=webusb-20260911-9';
 import { fastClearPushPads, hardClearPushMidiOutputs } from './push-surface-cleanup.js?v=webusb-20260911-7';
 
 const params = new URLSearchParams(window.location.search);
@@ -45,7 +45,7 @@ if (enabled) {
     button.id = 'push-webusb-display-btn';
     button.type = 'button';
     button.textContent = 'Push Display';
-    button.title = 'Connect Push 3 display via WebUSB (Chrome)';
+    button.title = 'Connect Push 2 / Push 3 display via WebUSB (Chrome)';
     button.style.cssText = 'font-size:0.6rem;padding:2px 6px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:4px;cursor:pointer;';
 
     const status = document.createElement('span');

@@ -88,6 +88,7 @@ describe('Push MIDI CC Desktop parity', () => {
     expect(codes(58, 127, { inputName: 'Ableton Push 3 User Port' })).toEqual([]);
     expect(codes(55, 127, { inputName: 'User Port', nowMs: 1000 })).toEqual([[46, 1]]);
     expect(codes(58, 127, { inputName: 'Ableton Push 3 Live Port' })).toEqual([[1, 0]]);
+    expect(codes(58, 127, { inputName: 'Ableton Push 2 Live Port' })).toEqual([[1, 0]]);
   });
 
   it('suppresses encoder-range expression while a pad is held', () => {

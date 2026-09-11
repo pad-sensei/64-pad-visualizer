@@ -27,6 +27,12 @@ describe('Web Push control integration contract', () => {
     expect(midi).not.toContain('// Push octave buttons: CC#55=▲, CC#54=▼');
   });
 
+  it('keeps Push detection generation-neutral for Push 2 and Push 3 MIDI names', () => {
+    expect(midi).toContain('function padWebIsPushMidiPortName(name)');
+    expect(midi).toContain('return /push/i.test(n)');
+    expect(midi).toContain('supported Push 2 / Push 3 MIDI port');
+  });
+
   it('keeps Web MIDI LED/CC standard and retires query-string hps gates', () => {
     expect(main).toContain('_lpHpsUnlocked = true');
     expect(main).not.toContain("has('hps')");

@@ -118,7 +118,7 @@ let _lpOutputActive = false;
 let _lpHpsUnlocked = false;  // main.js enables standard controller LED behavior
 let _lpProgrammerMode = false; // true when Launchpad is in Programmer mode
 let _lpDeviceByte = 0x0C;   // 0x0C = Launchpad X, 0x0D = Mini MK3
-let _isPush = false;         // true when Push 3 User Mode detected
+let _isPush = false;         // true when a supported Push 2 / Push 3 MIDI port is detected
 const _prevLEDState = new Array(64).fill(-1); // -1 = never sent
 let _lpLEDMode = 'full'; // 'full' | 'root' | 'off'
 let _lastLEDState = null; // cached render state for LED refresh on noteOn/noteOff
@@ -570,7 +570,7 @@ function highlightPlaybackPads(midiNotes) {
 }
 
 let selectedMidiInputId = null; // null = all inputs
-var _lastOctCC = 0; // debounce: Push 3 multi-port duplicate CC
+var _lastOctCC = 0; // debounce mirrored/repeated Push octave CC
 
 // Sustain pedal (CC#64) — エッジ非対称 debounce。
 // 経緯: Roland A-88 MK2 等が踏み込み中 / 保持中に CC64=14 などの中間値を
@@ -779,7 +779,7 @@ function initWebMIDI() {
       _lpProgrammerMode = false;
       var ledSel = document.getElementById('led-mode');
       if (ledSel) ledSel.style.display = 'none';
-      // LED control: Push 3 User Mode (no SysEx needed) + Launchpad (disabled until physical testing)
+      // LED control: Push 2 / Push 3 MIDI output (no SysEx needed) + Launchpad (disabled until physical testing)
       _isPush = false;
       console.log('[64PE LED] hpsUnlocked:', _lpHpsUnlocked, 'connected:', connected, 'connectedName:', connectedName);
       // List all output ports for debugging
@@ -994,7 +994,7 @@ function _pushEnsureColorPickOverlay() {
       '<h2>Push Color Select</h2>',
       '<div class="push-color-pick-target"></div>',
       '<div class="push-color-pick-page"></div>',
-      '<div class="push-color-pick-instruction">Push 3 の光っているパッドから色を選びます。</div>',
+      '<div class="push-color-pick-instruction">Push の光っているパッドから色を選びます。</div>',
       '<p class="view-setup-note">十字キー上下で対象、左右で色ページを切り替えます。Undo で設定に戻ります。</p>',
       '<button class="close-btn" type="button" onclick="returnPushLedColorPick()">設定に戻る</button>',
     '</div>'
