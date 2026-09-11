@@ -52,7 +52,6 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          # Transport: send a black display frame before releasing WebUSB.
           p = Path('push-display-webusb.js')
           s = p.read_text()
           anchor = "export function pushDisplayConfiguration(device) {\n"
@@ -88,7 +87,6 @@ jobs:
           s = s.replace(old, new, 1)
           p.write_text(s)
 
-          # Expose a presentation-neutral snapshot and live Push MIDI outputs from existing Web state.
           p = Path('midi.js')
           s = p.read_text()
           anchor = "function setLEDMode(mode) {\n"
@@ -241,8 +239,6 @@ jobs:
                 context.fillStyle = '#449eb4';
                 context.fillRect(0, HEIGHT - 5, WIDTH, 5);
 
-                // Match Desktop Push information hierarchy: chord is the hero,
-                // observed theory sits on the right, Key/Scale stay at top-right.
                 drawLabel(snap.chord, 32, 49, 38, '#ffdb5c', 700, 365);
                 drawLabel(snap.notes.length ? `NOTE: ${snap.notes.join(' ')}` : '', 36, 84, 15, '#ccdae0', 500, 360);
 
@@ -300,8 +296,6 @@ jobs:
                 cleanupStarted = true;
                 try { window.padWebResetPushMidiRuntimeState?.(); } catch (_) {}
                 try { hardClearPushMidiOutputs(window.padWebGetPushMidiOutputs?.() || []); } catch (_) {}
-                // WebUSB is async, so this is best effort during page teardown. The
-                // explicit Stop button uses the same black-frame path reliably.
                 try { void probe.stop('Push display stopped. Surface cleared.'); } catch (_) {}
               }
               window.addEventListener('pagehide', cleanupPushSurface, { capture: true });
@@ -361,11 +355,11 @@ jobs:
           from pathlib import Path
           p = Path('sw.js')
           s = p.read_text()
-          for asset in ['./push-surface-cleanup.js']:
-              if asset not in s:
-                  anchor = "  './push-display-webusb.js',\n"
-                  if anchor not in s: raise SystemExit('sw asset anchor missing')
-                  s = s.replace(anchor, anchor + f"  '{asset}',\n", 1)
+          asset = 'push-surface-cleanup.js'
+          if asset not in s:
+              anchor = "  'push-display-webusb.js',\n"
+              if anchor not in s: raise SystemExit('sw asset anchor missing')
+              s = s.replace(anchor, anchor + "  'push-surface-cleanup.js',\n", 1)
           p.write_text(s)
           PY
 
@@ -376,12 +370,12 @@ jobs:
           npx vitest run tests/unit/push-display-webusb.test.js tests/unit/push-surface-cleanup.test.js
           npm test
           bash tools/sw-assets-check.sh
-      - name: Commit product changes and remove temporary workflow
+      - name: Commit product changes and remove temporary workflows
         run: |
           git config user.name 'daikainozaki-cyber'
           git config user.email 'daikainozaki@gmail.com'
           git add push-display-webusb.js push-display-webusb-app.js push-surface-cleanup.js midi.js sw.js tests/unit/push-display-webusb.test.js tests/unit/push-surface-cleanup.test.js
-          git rm .github/workflows/webusb-display-parity-cleanup.yml
+          git rm .github/workflows/webusb-display-parity-cleanup.yml .github/workflows/repair-webusb-parity-workflow.yml
           git commit -m 'feat(push): align WebUSB display and shutdown with Desktop [webusb-parity]'
           git push origin HEAD:codex/web-push3-webusb-display-preview
       - name: Deploy dev preview
