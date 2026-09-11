@@ -113,7 +113,8 @@ function chordPracticeDisplayLocked() {
 // Controller LED output (standard 64 Pad Explorer feature in v1.8.0)
 let midiOutput = null;       // Output port for LED Note-On
 let midiOutputDAW = null;    // DAW port for SysEx (may be same as midiOutput)
-let _pushLedOutputs = [];  // all Push LED outputs, mirroring Keys standalone fan-out
+let _pushLedOutputs = [];    // operational Push Live output only
+let _pushSetupOutputs = [];  // User/External are setup-only; never ordinary LED transport
 let _lpOutputActive = false;
 let _controllerLedEnabled = false;  // main.js enables standard controller LED behavior
 let _lpProgrammerMode = false; // true when Launchpad is in Programmer mode
@@ -126,6 +127,71 @@ let _pushColorPickRole = null; // Push-style palette picker role
 let _pushColorPickPaletteVisible = false;
 let _pushColorPickReadyAt = 0;
 const _pushLedColorRoleOrder = ['root', 'scale', 'pressed', 'memorySlot', 'performActive'];
+
+
+function padWebPushDiagEnabled() {
+  if (typeof window === 'undefined' || !window.location) return false;
+  try { return new URLSearchParams(window.location.search).has('pushdiag'); } catch (_) { return false; }
+}
+
+function padWebRenderPushMidiDiag() {
+  if (!padWebPushDiagEnabled() || typeof document === 'undefined') return;
+  var el = document.getElementById('push-midi-diag');
+  if (!el) {
+    el = document.createElement('pre');
+    el.id = 'push-midi-diag';
+    el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;max-width:min(92vw,720px);max-height:38vh;overflow:auto;margin:0;padding:8px 10px;background:rgba(0,0,0,.86);color:#9ef7b5;border:1px solid #4caf50;border-radius:6px;font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;pointer-events:none;';
+    (document.body || document.documentElement).appendChild(el);
+  }
+  var d = (typeof window !== 'undefined' && window.__64PE_PUSH_MIDI_DIAG__) || {};
+  var pedal = d.pedalMode ? JSON.stringify(d.pedalMode) : '-';
+  el.textContent = [
+    'PUSH MIDI DIAG',
+    'sysex=' + String(d.sysexEnabled),
+    'bound=' + JSON.stringify(d.boundInputs || []),
+    'setupOut=' + JSON.stringify(d.setupOutputs || []),
+    'liveOut=' + String(d.operationalOutput || '-'),
+    'pedal=' + pedal,
+    'events=' + String(d.eventCount || 0) + ' rebinds=' + String(d.rebindCount || 0),
+    'last=' + String(d.lastEvent || '-'),
+    'lastCC=' + String(d.lastCC || '-'),
+    'lastPedal=' + String(d.lastPedal || '-'),
+    'held=' + String(d.heldNotes || 0),
+    'error=' + String(d.lastError || '-'),
+  ].join('\n');
+}
+
+function padWebPatchPushMidiDiag(patch) {
+  if (typeof window === 'undefined') return;
+  var d = window.__64PE_PUSH_MIDI_DIAG__ || {};
+  Object.keys(patch || {}).forEach(function(key) { d[key] = patch[key]; });
+  window.__64PE_PUSH_MIDI_DIAG__ = d;
+  padWebRenderPushMidiDiag();
+}
+
+function padWebRecordPushMidiEvent(input, data) {
+  var bytes = Array.from(data || []);
+  var d = (typeof window !== 'undefined' && window.__64PE_PUSH_MIDI_DIAG__) || {};
+  var count = (d.eventCount || 0) + 1;
+  var name = input && (input.name || input.id) || '?';
+  var last = name + ' [' + bytes.map(function(v) { return Number(v).toString(16).padStart(2, '0'); }).join(' ') + ']';
+  var patch = { eventCount: count, lastEvent: last };
+  if (bytes.length >= 3 && (bytes[0] & 0xf0) === 0xb0) {
+    patch.lastCC = String(bytes[1]) + '=' + String(bytes[2]) + ' @ ' + name;
+    if (bytes[1] === 64) patch.lastPedal = patch.lastCC;
+  }
+  padWebPatchPushMidiDiag(patch);
+}
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function' && !window.__64PE_PUSH_DIAG_ERROR_HOOK__) {
+  window.__64PE_PUSH_DIAG_ERROR_HOOK__ = true;
+  window.addEventListener('error', function(event) {
+    padWebPatchPushMidiDiag({ lastError: String(event && (event.message || event.error) || 'window error') });
+  });
+  window.addEventListener('unhandledrejection', function(event) {
+    padWebPatchPushMidiDiag({ lastError: 'promise: ' + String(event && event.reason || 'unhandled rejection') });
+  });
+}
 
 // PUSHシリアル配列(row間8半音) → 4度クロマチック配列(row間5半音) 変換
 // baseMidi() を使用: octaveShift + semitoneShift 両方反映
@@ -168,6 +234,7 @@ function onMidiNoteOn(note, velocity, source) {
     midiActiveNotes.add(mapped);
   }
   refreshLaunchpadLEDs();
+  padWebPatchPushMidiDiag({ heldNotes: midiActiveNotes.size });
   ensureAudioResumed();
   // Every physical NoteOn remains a real trigger. Ownership only controls when the
   // shared mapped pitch is finally released.
@@ -199,6 +266,7 @@ function onMidiNoteOff(note, source) {
     midiActiveNotes.delete(mapped);
   }
   refreshLaunchpadLEDs();
+  padWebPatchPushMidiDiag({ heldNotes: midiActiveNotes.size });
   if (shouldReleasePitch) noteOff(mapped);
   // Plain capture/edit: latch (don't remove on noteOff)
   if (AppState.mode === 'input' && PlainState.subMode !== 'idle') {
@@ -659,23 +727,28 @@ function initWebMIDI() {
       const inputCluster = padWebPushPortContract.collectInputCluster(access, selectedId);
       const inputIds = new Set(inputCluster.map(function(input) { return input.id; }));
       const pushInputs = inputCluster.filter(function(input) { return padWebIsPushMidiPortName(input.name); });
+      const pushSetupInputs = padWebPushPortContract.collectPushInputs(access);
       let connected = inputCluster.length > 0;
       let connectedName = pushInputs.length > 0 ? (pushInputs[0].name || '')
         : (inputCluster.length > 0 ? (inputCluster[0].name || '') : '');
-      try {
-        window.__64PE_PUSH_MIDI_DIAG__ = {
-          selectedId: selectedId,
-          boundInputs: inputCluster.map(function(input) { return input.name || input.id || ''; }),
-          pushInputs: pushInputs.map(function(input) { return input.name || input.id || ''; }),
-          sysexEnabled: access.sysexEnabled === true,
-        };
-      } catch (_) {}
+      var previousDiag = (typeof window !== 'undefined' && window.__64PE_PUSH_MIDI_DIAG__) || {};
+      padWebPatchPushMidiDiag({
+        selectedId: selectedId,
+        boundInputs: inputCluster.map(function(input) { return input.name || input.id || ''; }),
+        pushInputs: pushInputs.map(function(input) { return input.name || input.id || ''; }),
+        pushSetupInputs: pushSetupInputs.map(function(input) { return input.name || input.id || ''; }),
+        sysexEnabled: access.sysexEnabled === true,
+        rebindCount: (previousDiag.rebindCount || 0) + 1,
+        eventCount: previousDiag.eventCount || 0,
+      });
 
       for (const input of access.inputs.values()) {
         if (!inputIds.has(input.id)) continue;
         // Per-input Push detection: シリアル→4度変換をデバイス単位で適用
         const isPush = padWebIsPushMidiPortName(input.name);
         const inputHandler = (e) => {
+          if (!e || !e.data) return;
+          padWebRecordPushMidiEvent(input, e.data);
           if (e.data.length < 3) return;
           const [status, rawNote, velocity] = e.data;
           const cmd = status & 0xf0;
@@ -786,6 +859,7 @@ function initWebMIDI() {
       midiOutput = null;
       midiOutputDAW = null;
       _pushLedOutputs = [];
+      _pushSetupOutputs = [];
       _lpOutputActive = false;
       _lpProgrammerMode = false;
       var ledSel = document.getElementById('led-mode');
@@ -802,26 +876,28 @@ function initWebMIDI() {
         var isLaunchpad = /launchpad/i.test(connectedName);
         console.log('[64PE LED] isPush:', isPush, 'isLaunchpad:', isLaunchpad);
         if (isPush) {
-          // Match the standalone products: enumerate every Push output, including
-          // CoreMIDI's prefix-less Live/User/External Port names. Keep Live Port
-          // as the primary compatibility handle, but fan LED writes to all of them.
+          // Live Port is the only operational control-surface transport. User and
+          // External remain setup-only, matching the mature DOJO Push contract.
           _isPush = true;
-          var pushOutputs = padWebCollectPushMidiOutputs(access);
-          _pushLedOutputs = pushOutputs.slice();
-          var pedalInit = padWebPushPortContract.initializePush3PedalMode(access, _pushLedOutputs);
-          try { window.__64PE_PUSH_MIDI_DIAG__.pedalMode = pedalInit; } catch (_) {}
-          var pushLivePort = pushOutputs.find(function(output) { return /live/i.test(output.name || ''); }) || null;
-          var pushUserPort = pushOutputs.find(function(output) { return /user/i.test(output.name || ''); }) || null;
-          midiOutput = pushLivePort || pushUserPort || pushOutputs[0] || null;
+          var pushSetupOutputs = padWebCollectPushMidiOutputs(access);
+          _pushSetupOutputs = pushSetupOutputs.slice();
+          var pedalInit = padWebPushPortContract.initializePush3PedalMode(access, _pushSetupOutputs);
+          midiOutput = padWebPushPortContract.selectPushOperationalOutput(_pushSetupOutputs);
+          _pushLedOutputs = midiOutput ? [midiOutput] : [];
+          padWebPatchPushMidiDiag({
+            setupOutputs: _pushSetupOutputs.map(function(output) { return output.name || output.id || ''; }),
+            operationalOutput: midiOutput ? (midiOutput.name || midiOutput.id || '') : '',
+            pedalMode: pedalInit,
+          });
           if (midiOutput) {
-            // 64PE Desktop explicitly clears a stale previous owner at acquisition.
-            // Do the same before painting the Web state so a crash/old tab cannot
-            // leave an apparently immortal pad colour behind.
+            // Clear and paint only the operational Live Port. Mirroring ordinary
+            // Note/CC LED traffic into User/External can create feedback/ownership
+            // ambiguity; those handles are setup-only.
             padWebHardClearPushOutputs(_pushLedOutputs);
             _lpOutputActive = true;
             _lpProgrammerMode = true;
-            console.log('[64PE LED] Push primary output:', midiOutput.name,
-                        'fan-out:', _pushLedOutputs.map(function(output) { return output.name; }));
+            console.log('[64PE LED] Push operational output:', midiOutput.name,
+                        'setup-only:', _pushSetupOutputs.filter(function(output) { return output !== midiOutput; }).map(function(output) { return output.name; }));
           }
         } else if (false && isLaunchpad) {
           // Launchpad: disabled until physical device testing
@@ -1237,11 +1313,6 @@ function padWebGetPushMidiOutputs() {
   add(midiOutput);
   add(midiOutputDAW);
   _pushLedOutputs.forEach(add);
-  if (midiAccess && midiAccess.outputs) {
-    for (const output of midiAccess.outputs.values()) {
-      if (padWebIsPushMidiPortName(output.name)) add(output);
-    }
-  }
   return outputs;
 }
 

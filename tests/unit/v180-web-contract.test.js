@@ -24,6 +24,12 @@ describe('v1.8.0 Web product contract', () => {
     expect(html).toContain('"softwareVersion":"1.8.0"');
   });
 
+  it('keeps the /64-pad-dev/ hardware gate free of service-worker hot reloads', () => {
+    expect(html).toContain("location.pathname.indexOf('/64-pad-dev/') !== -1");
+    expect(html).toContain("sessionStorage.setItem('64pad-dev-sw-cleared', '1')");
+    expect(html).toContain('navigator.serviceWorker.getRegistrations()');
+  });
+
   it('keeps display opt-in lifecycle separate from MIDI pad ownership', () => {
     // A visibility transition is not a teardown. The physical Push display needs
     // its keepalive stream, so hiding/switching the tab must not call probe.stop().

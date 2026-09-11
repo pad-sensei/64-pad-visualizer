@@ -11,11 +11,11 @@ describe('Web Push control integration contract', () => {
   const portContract = fs.readFileSync('push-midi-port-contract.js', 'utf8');
 
   it('loads the CC mapper/dispatcher before midi.js and precaches both', () => {
-    expect(html.indexOf('push-midi-port-contract.js?v=1.8.0')).toBeGreaterThan(0);
-    expect(html.indexOf('push-midi-cc-map.js?v=1.8.0')).toBeGreaterThan(html.indexOf('push-midi-port-contract.js?v=1.8.0'));
+    expect(html.indexOf('push-midi-port-contract.js?v=1.8.0-liveport2')).toBeGreaterThan(0);
+    expect(html.indexOf('push-midi-cc-map.js?v=1.8.0')).toBeGreaterThan(html.indexOf('push-midi-port-contract.js?v=1.8.0-liveport2'));
     expect(html.indexOf('push-web-control.js?v=1.8.0')).toBeGreaterThan(html.indexOf('push-midi-cc-map.js?v=1.8.0'));
-    expect(html.indexOf('midi.js?v=6.7.57')).toBeGreaterThan(html.indexOf('push-web-control.js?v=1.8.0'));
-    expect(sw).toContain("'push-midi-port-contract.js?v=1.8.0'");
+    expect(html.indexOf('midi.js?v=6.7.58')).toBeGreaterThan(html.indexOf('push-web-control.js?v=1.8.0'));
+    expect(sw).toContain("'push-midi-port-contract.js?v=1.8.0-liveport2'");
     expect(sw).toContain("'push-midi-cc-map.js?v=1.8.0'");
     expect(sw).toContain("'push-web-control.js?v=1.8.0'");
   });
@@ -56,7 +56,7 @@ describe('Web Push control integration contract', () => {
   it('owns the complete Push MIDI port cluster and initializes Push 3 pedal mode', () => {
     expect(midi).toContain('padWebPushPortContract.collectInputCluster(access, selectedId)');
     expect(midi).toContain('pushInputs.length > 0');
-    expect(midi).toContain('padWebPushPortContract.initializePush3PedalMode(access, _pushLedOutputs)');
+    expect(midi).toContain('padWebPushPortContract.initializePush3PedalMode(access, _pushSetupOutputs)');
     expect(midi).toContain('padWebPushPortContract.topologySignature(access)');
   });
 

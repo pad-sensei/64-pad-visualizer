@@ -938,10 +938,10 @@ if (window.AUDIO_ENABLED) {
 <script src="perform.js?v=6.7.52"></script>
 <script src="builder.js?v=6.7.52"></script>
 <script src="midi-input-state.js?v=6.7.52"></script>
-<script src="push-midi-port-contract.js?v=1.8.0"></script>
+<script src="push-midi-port-contract.js?v=1.8.0-liveport2"></script>
 <script src="push-midi-cc-map.js?v=1.8.0"></script>
 <script src="push-web-control.js?v=1.8.0"></script>
-<script src="midi.js?v=6.7.57"></script>
+<script src="midi.js?v=6.7.58"></script>
 <script src="main.js?v=6.7.55"></script>
 <script type="module" src="push-display-webusb-app.js?v=webusb-20260911-10"></script>
 <script src="tutorial-data.js?v=6.7.52"></script>
@@ -960,28 +960,42 @@ if (window.IS_DESKTOP_MODE) {
 </script>
 <script>
 if ('serviceWorker' in navigator) {
-  // Clean up old ?v= registrations (they create zombie SWs)
-  navigator.serviceWorker.getRegistrations().then(function(regs) {
-    regs.forEach(function(r) {
-      if (r.active && r.active.scriptURL.includes('sw.js?v=')) r.unregister();
+  var _is64PadDevDeploy = location.pathname.indexOf('/64-pad-dev/') !== -1;
+  if (_is64PadDevDeploy) {
+    // Real-hardware dev gates must never be interrupted by a newly deployed SW.
+    // Remove the dev registration and escape an already controlling worker once.
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+      return Promise.all(regs.map(function(r) { return r.unregister(); }));
+    }).then(function() {
+      if (navigator.serviceWorker.controller && !sessionStorage.getItem('64pad-dev-sw-cleared')) {
+        sessionStorage.setItem('64pad-dev-sw-cleared', '1');
+        location.reload();
+      }
     });
-  });
-  // Only reload on SW UPDATE, not first install (first install reload wipes version notice)
-  var _hadSWController = !!navigator.serviceWorker.controller;
-  // Register without ?v= query. updateViaCache:'none' bypasses HTTP cache for SW checks.
-  // Version lives inside sw.js (CACHE_NAME). Content change → browser detects update.
-  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function(reg) {
-    reg.addEventListener('updatefound', function() {
-      var w = reg.installing;
-      if (!w) return;
-      w.addEventListener('statechange', function() {
-        if (w.state === 'activated' && _hadSWController) {
-          try { localStorage.setItem('64pad-just-updated', '1'); } catch(_) {}
-          location.reload();
-        }
+  } else {
+    // Clean up old ?v= registrations (they create zombie SWs)
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+      regs.forEach(function(r) {
+        if (r.active && r.active.scriptURL.includes('sw.js?v=')) r.unregister();
       });
     });
-  });
+    // Only reload on SW UPDATE, not first install (first install reload wipes version notice)
+    var _hadSWController = !!navigator.serviceWorker.controller;
+    // Register without ?v= query. updateViaCache:'none' bypasses HTTP cache for SW checks.
+    // Version lives inside sw.js (CACHE_NAME). Content change → browser detects update.
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function(reg) {
+      reg.addEventListener('updatefound', function() {
+        var w = reg.installing;
+        if (!w) return;
+        w.addEventListener('statechange', function() {
+          if (w.state === 'activated' && _hadSWController) {
+            try { localStorage.setItem('64pad-just-updated', '1'); } catch(_) {}
+            location.reload();
+          }
+        });
+      });
+    });
+  }
 }
 </script>
 </body>
