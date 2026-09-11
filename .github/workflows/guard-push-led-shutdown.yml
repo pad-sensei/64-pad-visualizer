@@ -30,8 +30,7 @@ jobs:
 
           p = Path('midi.js')
           s = p.read_text()
-          anchor = '''function padWebResetPushMidiRuntimeState() {
-          '''
+          anchor = 'function padWebResetPushMidiRuntimeState() {\n'
           helper = '''var _pushWebShuttingDown = false;
 
           function padWebBeginPushShutdown() {
@@ -62,36 +61,20 @@ jobs:
                   raise SystemExit('runtime reset anchor missing')
               s = s.replace(anchor, helper + anchor, 1)
 
-          old = '''function updateLaunchpadLEDs(state) {
-            _lastLEDState = state;
-          '''
-          new = '''function updateLaunchpadLEDs(state) {
-            if (_pushWebShuttingDown) return;
-            _lastLEDState = state;
-          '''
+          old = 'function updateLaunchpadLEDs(state) {\n  _lastLEDState = state;\n'
+          new = 'function updateLaunchpadLEDs(state) {\n  if (_pushWebShuttingDown) return;\n  _lastLEDState = state;\n'
           if old not in s:
               raise SystemExit('updateLaunchpadLEDs anchor missing')
           s = s.replace(old, new, 1)
 
-          old = '''function refreshLaunchpadLEDs() {
-            if (_isPush && _pushIsColorPickActive()) return;
-          '''
-          new = '''function refreshLaunchpadLEDs() {
-            if (_pushWebShuttingDown) return;
-            if (_isPush && _pushIsColorPickActive()) return;
-          '''
+          old = 'function refreshLaunchpadLEDs() {\n  if (_isPush && _pushIsColorPickActive()) return;\n'
+          new = 'function refreshLaunchpadLEDs() {\n  if (_pushWebShuttingDown) return;\n  if (_isPush && _pushIsColorPickActive()) return;\n'
           if old not in s:
               raise SystemExit('refreshLaunchpadLEDs anchor missing')
           s = s.replace(old, new, 1)
 
-          old = '''  window.padWebGetPushMidiOutputs = padWebGetPushMidiOutputs;
-            window.padWebResetPushMidiRuntimeState = padWebResetPushMidiRuntimeState;
-          '''
-          new = '''  window.padWebGetPushMidiOutputs = padWebGetPushMidiOutputs;
-            window.padWebBeginPushShutdown = padWebBeginPushShutdown;
-            window.padWebResumePushSurface = padWebResumePushSurface;
-            window.padWebResetPushMidiRuntimeState = padWebResetPushMidiRuntimeState;
-          '''
+          old = '  window.padWebGetPushMidiOutputs = padWebGetPushMidiOutputs;\n  window.padWebResetPushMidiRuntimeState = padWebResetPushMidiRuntimeState;\n'
+          new = '  window.padWebGetPushMidiOutputs = padWebGetPushMidiOutputs;\n  window.padWebBeginPushShutdown = padWebBeginPushShutdown;\n  window.padWebResumePushSurface = padWebResumePushSurface;\n  window.padWebResetPushMidiRuntimeState = padWebResetPushMidiRuntimeState;\n'
           if old not in s:
               raise SystemExit('window export anchor missing')
           s = s.replace(old, new, 1)
@@ -99,51 +82,27 @@ jobs:
 
           p = Path('push-display-webusb-app.js')
           s = p.read_text()
-          old = '''      else {
-                cleanupStarted = false;
-                probe.setFrame(drawFrame());
-          '''
-          new = '''      else {
-                cleanupStarted = false;
-                try { window.padWebResumePushSurface?.(); } catch (_) {}
-                probe.setFrame(drawFrame());
-          '''
+          old = '      else {\n        cleanupStarted = false;\n        probe.setFrame(drawFrame());\n'
+          new = '      else {\n        cleanupStarted = false;\n        try { window.padWebResumePushSurface?.(); } catch (_) {}\n        probe.setFrame(drawFrame());\n'
           if old not in s:
               raise SystemExit('connect resume anchor missing')
           s = s.replace(old, new, 1)
 
-          old = '''      const pushOutputs = window.padWebGetPushMidiOutputs?.() || [];
-                // Desktop clears the visible pad paint first, then performs the exhaustive
-          '''
-          new = '''      const pushOutputs = window.padWebGetPushMidiOutputs?.() || [];
-                try { window.padWebBeginPushShutdown?.(); } catch (_) {}
-                // Desktop clears the visible pad paint first, then performs the exhaustive
-          '''
+          old = '      const pushOutputs = window.padWebGetPushMidiOutputs?.() || [];\n      // Desktop clears the visible pad paint first, then performs the exhaustive\n'
+          new = '      const pushOutputs = window.padWebGetPushMidiOutputs?.() || [];\n      try { window.padWebBeginPushShutdown?.(); } catch (_) {}\n      // Desktop clears the visible pad paint first, then performs the exhaustive\n'
           if old not in s:
               raise SystemExit('cleanup begin anchor missing')
           s = s.replace(old, new, 1)
           p.write_text(s)
 
-          # Force a fresh browser module graph for this hardware test.
           token_old = 'webusb-20260911-5'
           token_new = 'webusb-20260911-6'
-          p = Path('index.html')
-          s = p.read_text()
-          if token_old not in s:
-              raise SystemExit('index cache token missing')
-          p.write_text(s.replace(token_old, token_new))
-
-          p = Path('push-display-webusb-app.js')
-          s = p.read_text()
-          if token_old not in s:
-              raise SystemExit('module import cache token missing')
-          p.write_text(s.replace(token_old, token_new))
-
-          p = Path('sw.js')
-          s = p.read_text()
-          if token_old not in s:
-              raise SystemExit('service worker cache token missing')
-          p.write_text(s.replace(token_old, token_new))
+          for path in ['index.html', 'push-display-webusb-app.js', 'sw.js']:
+              p = Path(path)
+              s = p.read_text()
+              if token_old not in s:
+                  raise SystemExit(f'cache token missing in {path}')
+              p.write_text(s.replace(token_old, token_new))
           PY
 
           cat > tests/unit/push-led-shutdown-guard.test.js <<'JS'
