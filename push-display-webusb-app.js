@@ -3,11 +3,12 @@ import {
   HEIGHT,
   PushWebUsbDisplay,
   encodePushDisplayFrame,
-} from './push-display-webusb.js?v=webusb-20260911-7';
+} from './push-display-webusb.js?v=webusb-20260911-10';
 import { fastClearPushPads, hardClearPushMidiOutputs } from './push-surface-cleanup.js?v=webusb-20260911-7';
 
-const params = new URLSearchParams(window.location.search);
-const enabled = params.has('webusb') && !window.IS_DESKTOP_MODE;
+// v1.8.0: Push display is a standard optional/manual WebUSB feature.
+// The user still explicitly presses Push Display; only Desktop mode hides this browser control.
+const enabled = !window.IS_DESKTOP_MODE;
 
 const GLYPHS = Object.freeze({
   A:[0x7e,0x11,0x11,0x11,0x7e], B:[0x7f,0x49,0x49,0x49,0x36], C:[0x3e,0x41,0x41,0x41,0x22],
@@ -45,7 +46,7 @@ if (enabled) {
     button.id = 'push-webusb-display-btn';
     button.type = 'button';
     button.textContent = 'Push Display';
-    button.title = 'Connect Push 3 display via WebUSB (Chrome)';
+    button.title = 'Connect Push 2 / Push 3 display via WebUSB (Chrome)';
     button.style.cssText = 'font-size:0.6rem;padding:2px 6px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:4px;cursor:pointer;';
 
     const status = document.createElement('span');
@@ -241,10 +242,8 @@ if (enabled) {
     }
 
     // WebUSB display is opt-in and independent from automatic Web MIDI pad/CC ownership.
-    // Hiding the tab may release only the display transport; it must never clear pad LEDs.
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) void probe.stop('Push display paused because this tab was hidden.');
-    }, { capture: true });
+    // Do not intentionally stop merely because the tab becomes hidden: the Push display
+    // needs its keepalive stream and visibility changes must not tear down a live session.
     // Actual page teardown still clears both transports best-effort.
     window.addEventListener('pagehide', () => cleanupPushSurface(), { capture: true });
     window.addEventListener('beforeunload', () => cleanupPushSurface(), { capture: true });

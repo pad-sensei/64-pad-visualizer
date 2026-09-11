@@ -839,9 +839,10 @@ document.addEventListener('click', function(e) {
 })();
 </script>
 
-<!-- HPS members: hide all affiliate links for ad-free experience -->
+<!-- Paid Desktop stays affiliate-free; legacy ?hps links remain compatible. -->
 <script>
-if (new URLSearchParams(window.location.search).has('hps')) {
+var _affiliateParams = new URLSearchParams(window.location.search);
+if (window.IS_DESKTOP_MODE || _affiliateParams.has('hps')) {
   var _aff = document.querySelectorAll('#affiliate-section, .ja-affiliate');
   for (var _j = 0; _j < _aff.length; _j++) _aff[_j].style.display = 'none';
 }
@@ -874,6 +875,7 @@ if (new URLSearchParams(window.location.search).has('hps')) {
      pad-core / theory / MIDI / render still run, only sound is absent.
      document.write is used during parsing to preserve synchronous load order. -->
 <script>
+window.APP_VERSION = '6.7.61';
 if (window.AUDIO_ENABLED) {
   var _audioScripts = [
     'host-adapter.js',
@@ -892,7 +894,7 @@ if (window.AUDIO_ENABLED) {
     'audio-ui-binding.js'
   ];
   _audioScripts.forEach(function(src) {
-    document.write('<script src="' + src + '?v=6.7.52"><\/script>');
+    document.write('<script src="' + src + '?v=' + window.APP_VERSION + '"><\/script>');
   });
 } else {
   // Silent mode: stub audio APIs that non-audio code calls, so pads/UI don't crash.
@@ -937,9 +939,12 @@ if (window.AUDIO_ENABLED) {
 <script src="perform.js?v=6.7.52"></script>
 <script src="builder.js?v=6.7.52"></script>
 <script src="midi-input-state.js?v=6.7.52"></script>
-<script src="midi.js?v=6.7.53"></script>
+<script src="push-midi-port-contract.js?v=1.8.0-liveport3"></script>
+<script src="push-midi-cc-map.js?v=1.8.0"></script>
+<script src="push-web-control.js?v=1.8.0-led1"></script>
+<script src="midi.js?v=6.7.60"></script>
 <script src="main.js?v=6.7.55"></script>
-<script type="module" src="push-display-webusb-app.js?v=webusb-20260911-8"></script>
+<script type="module" src="push-display-webusb-app.js?v=webusb-20260912-11"></script>
 <script src="tutorial-data.js?v=6.7.52"></script>
 <script src="tutorial.js?v=6.7.52"></script>
 <script>
@@ -956,28 +961,42 @@ if (window.IS_DESKTOP_MODE) {
 </script>
 <script>
 if ('serviceWorker' in navigator) {
-  // Clean up old ?v= registrations (they create zombie SWs)
-  navigator.serviceWorker.getRegistrations().then(function(regs) {
-    regs.forEach(function(r) {
-      if (r.active && r.active.scriptURL.includes('sw.js?v=')) r.unregister();
+  var _is64PadDevDeploy = location.pathname.indexOf('/64-pad-dev/') !== -1;
+  if (_is64PadDevDeploy) {
+    // Real-hardware dev gates must never be interrupted by a newly deployed SW.
+    // Remove the dev registration and escape an already controlling worker once.
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+      return Promise.all(regs.map(function(r) { return r.unregister(); }));
+    }).then(function() {
+      if (navigator.serviceWorker.controller && !sessionStorage.getItem('64pad-dev-sw-cleared')) {
+        sessionStorage.setItem('64pad-dev-sw-cleared', '1');
+        location.reload();
+      }
     });
-  });
-  // Only reload on SW UPDATE, not first install (first install reload wipes version notice)
-  var _hadSWController = !!navigator.serviceWorker.controller;
-  // Register without ?v= query. updateViaCache:'none' bypasses HTTP cache for SW checks.
-  // Version lives inside sw.js (CACHE_NAME). Content change → browser detects update.
-  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function(reg) {
-    reg.addEventListener('updatefound', function() {
-      var w = reg.installing;
-      if (!w) return;
-      w.addEventListener('statechange', function() {
-        if (w.state === 'activated' && _hadSWController) {
-          try { localStorage.setItem('64pad-just-updated', '1'); } catch(_) {}
-          location.reload();
-        }
+  } else {
+    // Clean up old ?v= registrations (they create zombie SWs)
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+      regs.forEach(function(r) {
+        if (r.active && r.active.scriptURL.includes('sw.js?v=')) r.unregister();
       });
     });
-  });
+    // Only reload on SW UPDATE, not first install (first install reload wipes version notice)
+    var _hadSWController = !!navigator.serviceWorker.controller;
+    // Register without ?v= query. updateViaCache:'none' bypasses HTTP cache for SW checks.
+    // Version lives inside sw.js (CACHE_NAME). Content change → browser detects update.
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function(reg) {
+      reg.addEventListener('updatefound', function() {
+        var w = reg.installing;
+        if (!w) return;
+        w.addEventListener('statechange', function() {
+          if (w.state === 'activated' && _hadSWController) {
+            try { localStorage.setItem('64pad-just-updated', '1'); } catch(_) {}
+            location.reload();
+          }
+        });
+      });
+    });
+  }
 }
 </script>
 </body>

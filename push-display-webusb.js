@@ -1,8 +1,22 @@
 export const WIDTH = 960;
 export const HEIGHT = 160;
 export const FRAME_BYTES = 160 * 2048;
-export const FILTER = Object.freeze({ vendorId: 0x2982, productId: 0x1969 });
+export const VENDOR_ID = 0x2982;
+export const PUSH2_PRODUCT_ID = 0x1967;
+export const PUSH3_PRODUCT_ID = 0x1969;
+export const PUSH2_FILTER = Object.freeze({ vendorId: VENDOR_ID, productId: PUSH2_PRODUCT_ID });
+export const PUSH3_FILTER = Object.freeze({ vendorId: VENDOR_ID, productId: PUSH3_PRODUCT_ID });
+// Backwards-compatible default: native Desktop also probes Push 3 first.
+export const FILTER = PUSH3_FILTER;
+export const FILTERS = Object.freeze([PUSH3_FILTER, PUSH2_FILTER]);
 export const HEADER = Object.freeze([255, 204, 170, 136, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+export function pushModelName(device) {
+  if (!device || device.vendorId !== VENDOR_ID) return null;
+  if (device.productId === PUSH2_PRODUCT_ID) return 'Push 2';
+  if (device.productId === PUSH3_PRODUCT_ID) return 'Push 3';
+  return null;
+}
 
 export function encodePushDisplayFrame(rgba) {
   if (!rgba || rgba.length !== WIDTH * HEIGHT * 4) {
@@ -29,8 +43,9 @@ export function blackPushDisplayFrame() {
 }
 
 export function pushDisplayConfiguration(device) {
-  if (!device || device.vendorId !== FILTER.vendorId || device.productId !== FILTER.productId) {
-    throw new Error('This WebUSB display path accepts Push 3 only.');
+  const model = pushModelName(device);
+  if (!model) {
+    throw new Error('This WebUSB display path accepts Push 2 or Push 3 only.');
   }
   const candidates = (device.configurations || []).filter(config => {
     const iface = (config.interfaces || []).find(item => item.interfaceNumber === 0);
@@ -40,10 +55,10 @@ export function pushDisplayConfiguration(device) {
       endpoint.type === 'bulk' && endpoint.packetSize === 512);
   });
   if (candidates.length !== 1) {
-    throw new Error('Expected Push 3 display interface 0 / alt 0 / bulk OUT 1 / 512 bytes.');
+    throw new Error(`Expected ${model} display interface 0 / alt 0 / bulk OUT 1 / 512 bytes.`);
   }
   if (device.configuration && device.configuration.configurationValue !== candidates[0].configurationValue) {
-    throw new Error('The active USB configuration does not match the Push display interface.');
+    throw new Error(`The active USB configuration does not match the ${model} display interface.`);
   }
   return candidates[0].configurationValue;
 }
@@ -59,7 +74,7 @@ function withDeadline(promise, milliseconds, label) {
 }
 
 export class PushWebUsbDisplay {
-  constructor(usb, frame, onStatus = () => {}, { intervalMs = 250, timeoutMs = 5000, maxRecoveries = 4 } = {}) {
+  constructor(usb, frame, onStatus = () => {}, { intervalMs = 250, timeoutMs = 5000, maxRecoveries = 12 } = {}) {
     if (!(frame instanceof Uint8Array) || frame.length !== FRAME_BYTES) {
       throw new Error('Invalid Push display frame.');
     }
@@ -73,7 +88,10 @@ export class PushWebUsbDisplay {
     this.maxRecoveries = Math.max(1, maxRecoveries);
     this.session = null;
     this.disconnect = event => {
-      if (event.device === this.session?.device) void this.stop('Push 3 USB disconnected.');
+      if (event.device === this.session?.device) {
+        const model = this.session?.model || 'Push';
+        void this.stop(`${model} USB disconnected.`);
+      }
     };
     usb?.addEventListener?.('disconnect', this.disconnect);
   }
@@ -87,6 +105,7 @@ export class PushWebUsbDisplay {
 
   async prepareDevice(session) {
     const configuration = pushDisplayConfiguration(session.device);
+    session.model = pushModelName(session.device) || 'Push';
     if (!session.device.opened) await session.device.open();
     if (session.stopped) return false;
     if (!session.device.configuration) await session.device.selectConfiguration(configuration);
@@ -103,22 +122,22 @@ export class PushWebUsbDisplay {
     if (this.session) return false;
     if (!this.usb?.requestDevice) throw new Error('WebUSB is unavailable.');
     const session = {
-      device: null, stopped: false, connecting: true, frames: 0,
+      device: null, model: null, stopped: false, connecting: true, frames: 0,
       timer: null, closing: null, claimed: false, recovering: false,
       recoveries: 0,
     };
     this.session = session;
-    this.onStatus('connecting', 'Select Push 3 in the Chrome USB chooser.');
+    this.onStatus('connecting', 'Select Push 2 or Push 3 in the Chrome USB chooser.');
     try {
-      session.device = await this.usb.requestDevice({ filters: [{ ...FILTER }] });
+      session.device = await this.usb.requestDevice({ filters: FILTERS.map(filter => ({ ...filter })) });
       if (session.stopped) return false;
       if (!await this.prepareDevice(session)) return false;
-      this.onStatus('running', 'Push 3 display connected.');
+      this.onStatus('running', `${session.model} display connected.`);
       void this.sendFrame(session);
       return true;
     } catch (error) {
       if (!session.stopped) {
-        await this.stop(error?.name === 'NotFoundError' ? 'No Push 3 selected.' : String(error?.message || error));
+        await this.stop(error?.name === 'NotFoundError' ? 'No Push selected.' : String(error?.message || error));
       }
       return false;
     } finally {
@@ -131,7 +150,8 @@ export class PushWebUsbDisplay {
     if (session.stopped || this.session !== session || session.recovering) return false;
     session.recovering = true;
     session.recoveries += 1;
-    this.onStatus('recovering', `Push display retry ${session.recoveries}/${this.maxRecoveries}: ${String(cause?.message || cause)}`);
+    const model = session.model || 'Push';
+    this.onStatus('recovering', `${model} display retry ${session.recoveries}/${this.maxRecoveries}: ${String(cause?.message || cause)}`);
     try {
       clearTimeout(session.timer);
       session.claimed = false;
@@ -142,12 +162,12 @@ export class PushWebUsbDisplay {
       if (session.stopped || this.session !== session) return false;
       if (!await this.prepareDevice(session)) return false;
       session.recoveries = 0;
-      this.onStatus('running', 'Push display recovered.');
+      this.onStatus('running', `${session.model || 'Push'} display recovered.`);
       session.timer = setTimeout(() => void this.sendFrame(session), this.intervalMs);
       return true;
     } catch (error) {
       if (session.recoveries >= this.maxRecoveries) {
-        await this.stop(`Push display recovery failed: ${String(error?.message || error)}`);
+        await this.stop(`${model} display recovery failed: ${String(error?.message || error)}`);
         return false;
       }
       session.timer = setTimeout(() => void this.recover(session, error), this.intervalMs);
@@ -171,7 +191,8 @@ export class PushWebUsbDisplay {
       if (session.stopped || this.session !== session) return;
       session.frames += 1;
       session.recoveries = 0;
-      this.onStatus('running', `Push display: ${session.frames} frame${session.frames === 1 ? '' : 's'} sent.`);
+      const model = session.model || 'Push';
+      this.onStatus('running', `${model} display: ${session.frames} frame${session.frames === 1 ? '' : 's'} sent.`);
       session.timer = setTimeout(() => void this.sendFrame(session), this.intervalMs);
     } catch (error) {
       if (!session.stopped) await this.recover(session, error);
