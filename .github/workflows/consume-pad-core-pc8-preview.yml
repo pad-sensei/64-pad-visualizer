@@ -22,10 +22,10 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Pin tested pad-core chord semantics and bust Web cache
+      - name: Pin audited pad-core and align Web consumer regressions
         run: |
           set -euo pipefail
-          target=55cb226a7b1e5e0d374f9d9c399b57c576953f0c
+          target=eded0b6f1108a75f889b5e62ac8198e2b27de3d0
           git -C pad-core fetch origin "$target"
           git -C pad-core checkout --detach "$target"
           test "$(git -C pad-core rev-parse HEAD)" = "$target"
@@ -33,6 +33,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
+          # Web cache / script pins
           replacements = {
               'pad-core/data.js?v=6.7.52': 'pad-core/data.js?v=6.7.54',
               'pad-core/theory.js?v=6.7.52': 'pad-core/theory.js?v=6.7.54',
@@ -48,21 +49,40 @@ jobs:
 
           p = Path('sw.js')
           s = p.read_text()
-          old = "64pad-v6.7.52-webusb-20260911-6"
-          # Current branch may already carry a later WebUSB cache suffix.
-          if old in s:
-              s = s.replace(old, '64pad-v6.7.52-webusb-20260911-7-pc8-1')
-          elif 'pc8-1' not in s:
-              import re
-              s2, n = re.subn(r"(var CACHE_NAME = '[^']+)(?=')", r"\1-pc8-1", s, count=1)
+          import re
+          if 'pc8-2' not in s:
+              s2, n = re.subn(r"(var CACHE_NAME = '[^']+)(?=')", r"\1-pc8-2", s, count=1)
               if n != 1:
                   raise SystemExit('CACHE_NAME anchor missing')
               s = s2
           p.write_text(s)
+
+          # Consumer tests must mirror pad-core SSOT instead of preserving the
+          # discarded AI-era addb13/hard-suppression assumptions.
+          p = Path('tests/unit/detectChord.test.js')
+          s = p.read_text()
+          old = "      expect(detectChord([60, 64, 67, 68])[0].name).toBe('Caddb13');\n"
+          new = "      expect(detectChord([60, 64, 67, 68])[0].name).toBe('C(b6)');\n"
+          if old not in s and new not in s:
+              raise SystemExit('Caddb13 Web fixture anchor missing')
+          s = s.replace(old, new)
+
+          old = "      expect(results.some(r => r.name === 'Bm7(b13)')).toBe(false);\n"
+          new = "      const altered = results.find(r => r.name === 'Bm7(b13)');\n      expect(altered).toBeDefined();\n      expect(altered.score).toBeLessThan(results[0].score);\n"
+          if old not in s and new not in s:
+              raise SystemExit('Bm7(b13) hard suppression Web fixture anchor missing')
+          s = s.replace(old, new)
+
+          anchor = "    it('recognizes jazz half-diminished omit3 voicings', () => {\n"
+          regression = "    it('prefers BbMaj7 / D over the D-minor b6 color', () => {\n      const results = detectChord([62, 65, 69, 70]);\n      expect(results.length).toBeGreaterThan(0);\n      expect(results[0].name).toBe('BbMaj7 / D');\n      const lower = results.find(r => r.name === 'Dm(b6)');\n      expect(lower).toBeDefined();\n      expect(lower.score).toBeLessThan(results[0].score);\n    });\n\n"
+          if regression not in s:
+              if anchor not in s:
+                  raise SystemExit('inversion regression insertion anchor missing')
+              s = s.replace(anchor, regression + anchor, 1)
+          p.write_text(s)
           PY
 
           git diff --check
-          git diff -- index.html sw.js
           git status --short
 
       - name: Verify pad-core exact inversion behavior
@@ -77,6 +97,7 @@ jobs:
         run: |
           set -euo pipefail
           npm ci
+          npx vitest run tests/unit/detectChord.test.js
           npm test
           ./tools/sw-assets-check.sh
 
@@ -85,7 +106,7 @@ jobs:
           set -euo pipefail
           git config user.name 'daikainozaki-cyber'
           git config user.email 'daikainozaki@gmail.com'
-          git add pad-core index.html sw.js
+          git add pad-core index.html sw.js tests/unit/detectChord.test.js
           git commit -m 'fix(theory): consume pc8 inversion semantics in Web [pc8-web-consume]'
           git push origin HEAD:codex/web-push3-webusb-display-preview
 
