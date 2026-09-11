@@ -41,6 +41,14 @@ jobs:
           if old not in s:
               raise SystemExit('Push diagnostic browser guard anchor missing')
           p.write_text(s.replace(old, new, 1))
+
+          p = Path('tests/unit/push-web-cc-integration.test.js')
+          s = p.read_text()
+          old = "padWebPushPortContract.initializePush3PedalMode(access, _pushLedOutputs)"
+          new = "padWebPushPortContract.initializePush3PedalMode(access, _pushSetupOutputs)"
+          if old not in s:
+              raise SystemExit('Pedal integration assertion anchor missing')
+          p.write_text(s.replace(old, new, 1))
           PY
 
       - name: Verify
