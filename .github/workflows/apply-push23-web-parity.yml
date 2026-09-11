@@ -27,11 +27,14 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           def replace_one(path, old, new):
               p = Path(path)
               s = p.read_text()
-              if old not in s and new not in s:
+              if new in s:
+                  return
+              if old not in s:
                   raise SystemExit(f'anchor missing in {path}: {old}')
               p.write_text(s.replace(old, new, 1))
 
@@ -41,14 +44,12 @@ jobs:
           replace_one('push-display-webusb-app.js',
                       "button.title = 'Connect Push 3 display via WebUSB (Chrome)';",
                       "button.title = 'Connect Push 2 / Push 3 display via WebUSB (Chrome)';")
-
           replace_one('index.html',
                       '<script type="module" src="push-display-webusb-app.js?v=webusb-20260911-8"></script>',
                       '<script type="module" src="push-display-webusb-app.js?v=webusb-20260911-9"></script>')
 
           p = Path('sw.js')
           s = p.read_text()
-          import re
           s = re.sub(r"var CACHE_NAME = '[^']+';", "var CACHE_NAME = '64pad-v180-preview-20260911-push23-1';", s, count=1)
           s = s.replace("'push-display-webusb.js?v=webusb-20260911-7'", "'push-display-webusb.js?v=webusb-20260911-9'")
           s = s.replace("'push-display-webusb-app.js?v=webusb-20260911-8'", "'push-display-webusb-app.js?v=webusb-20260911-9'")
@@ -67,17 +68,18 @@ jobs:
 
           p = Path('tests/unit/push-midi-cc-map.test.js')
           s = p.read_text()
-          anchor = "      expect(codes(58, 127, { inputName: 'Ableton Push 3 Live Port' })).toEqual([[1, 0]]);\n"
-          extra = anchor + "      expect(codes(58, 127, { inputName: 'Ableton Push 2 Live Port' })).toEqual([[1, 0]]);\n"
-          if anchor not in s and extra not in s:
-              raise SystemExit('Push MIDI generation parity test anchor missing')
-          s = s.replace(anchor, extra, 1)
+          anchor = "    expect(codes(58, 127, { inputName: 'Ableton Push 3 Live Port' })).toEqual([[1, 0]]);\n"
+          extra_line = "    expect(codes(58, 127, { inputName: 'Ableton Push 2 Live Port' })).toEqual([[1, 0]]);\n"
+          if extra_line not in s:
+              if anchor not in s:
+                  raise SystemExit('Push MIDI generation parity test anchor missing')
+              s = s.replace(anchor, anchor + extra_line, 1)
           p.write_text(s)
 
           p = Path('tests/unit/push-web-cc-integration.test.js')
           s = p.read_text()
-          insert_anchor = "            it('keeps Web MIDI LED/CC standard and retires query-string hps gates', () => {\n"
-          test = "            it('keeps Push detection generation-neutral for Push 2 and Push 3 MIDI names', () => {\n              expect(midi).toContain('function padWebIsPushMidiPortName(name)');\n              expect(midi).toContain('return /push/i.test(n)');\n              expect(midi).toContain('supported Push 2 / Push 3 MIDI port');\n            });\n\n"
+          insert_anchor = "  it('keeps Web MIDI LED/CC standard and retires query-string hps gates', () => {\n"
+          test = "  it('keeps Push detection generation-neutral for Push 2 and Push 3 MIDI names', () => {\n    expect(midi).toContain('function padWebIsPushMidiPortName(name)');\n    expect(midi).toContain('return /push/i.test(n)');\n    expect(midi).toContain('supported Push 2 / Push 3 MIDI port');\n  });\n\n"
           if test not in s:
               if insert_anchor not in s:
                   raise SystemExit('integration test insertion anchor missing')
