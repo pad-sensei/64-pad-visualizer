@@ -1,0 +1,88 @@
+name: Refresh WebUSB preview cache keys
+
+on:
+  push:
+    branches:
+      - codex/web-push3-webusb-display-preview
+
+permissions:
+  contents: write
+
+jobs:
+  apply-test-deploy:
+    if: ${{ !contains(github.event.head_commit.message, '[webusb-cache-v5]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/web-push3-webusb-display-preview
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Version WebUSB preview modules
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          token = 'webusb-20260911-5'
+
+          p = Path('index.html')
+          s = p.read_text()
+          old = '<script type="module" src="push-display-webusb-app.js"></script>'
+          new = f'<script type="module" src="push-display-webusb-app.js?v={token}"></script>'
+          if old not in s:
+              raise SystemExit('index WebUSB module tag anchor missing')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('push-display-webusb-app.js')
+          s = p.read_text()
+          s = s.replace("} from './push-display-webusb.js';", f"}} from './push-display-webusb.js?v={token}';", 1)
+          old = "from './push-surface-cleanup.js';"
+          new = f"from './push-surface-cleanup.js?v={token}';"
+          if old not in s:
+              raise SystemExit('cleanup import anchor missing')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          p = Path('sw.js')
+          s = p.read_text()
+          s = s.replace("var CACHE_NAME = '64pad-v6.7.52';", f"var CACHE_NAME = '64pad-v6.7.52-{token}';", 1)
+          for asset in ['push-display-webusb.js', 'push-surface-cleanup.js', 'push-display-webusb-app.js']:
+              old = f"  '{asset}',"
+              new = f"  '{asset}?v={token}',"
+              if old not in s:
+                  raise SystemExit(f'sw asset anchor missing: {asset}')
+              s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+          git diff --check
+          git diff -- index.html push-display-webusb-app.js sw.js
+      - name: Verify
+        run: |
+          npm ci
+          node --check push-display-webusb-app.js
+          node --check push-display-webusb.js
+          node --check push-surface-cleanup.js
+          npx vitest run tests/unit/push-surface-cleanup.test.js tests/unit/push-display-webusb.test.js
+          npm test
+          ./tools/sw-assets-check.sh
+      - name: Commit
+        run: |
+          git config user.name 'daikainozaki-cyber'
+          git config user.email 'daikainozaki@gmail.com'
+          git add index.html push-display-webusb-app.js sw.js
+          git commit -m 'chore(web): refresh WebUSB preview cache keys [webusb-cache-v5]'
+          git push origin HEAD:codex/web-push3-webusb-display-preview
+      - name: Deploy dev preview
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avz --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md'
+          path: ./
+          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-dev/
+          remote_host: xs071284.xsrv.jp
+          remote_port: 10022
+          remote_user: xs071284
+          remote_key: ${{ secrets.XSERVER_SSH_KEY }}
