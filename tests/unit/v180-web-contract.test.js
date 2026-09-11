@@ -14,6 +14,11 @@ describe('v1.8.0 Web product contract', () => {
     expect(main).not.toContain('_lpHpsUnlocked');
   });
 
+  it('keeps paid Desktop affiliate-free without using hps as a feature gate', () => {
+    expect(html).toContain("window.IS_DESKTOP_MODE || _affiliateParams.has('hps')");
+    expect(html).toContain("document.querySelectorAll('#affiliate-section, .ja-affiliate')");
+  });
+
   it('shows one product version for Web', () => {
     expect(html).toContain('<span class="version-tag">v1.8.0</span>');
     expect(html).toContain('"softwareVersion":"1.8.0"');

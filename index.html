@@ -839,9 +839,10 @@ document.addEventListener('click', function(e) {
 })();
 </script>
 
-<!-- HPS members: hide all affiliate links for ad-free experience -->
+<!-- Paid Desktop stays affiliate-free; legacy ?hps links remain compatible. -->
 <script>
-if (new URLSearchParams(window.location.search).has('hps')) {
+var _affiliateParams = new URLSearchParams(window.location.search);
+if (window.IS_DESKTOP_MODE || _affiliateParams.has('hps')) {
   var _aff = document.querySelectorAll('#affiliate-section, .ja-affiliate');
   for (var _j = 0; _j < _aff.length; _j++) _aff[_j].style.display = 'none';
 }

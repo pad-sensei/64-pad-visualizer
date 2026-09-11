@@ -1,4 +1,4 @@
-var CACHE_NAME = '64pad-v180-preview-20260911-push23-1';
+var CACHE_NAME = '64pad-v180-preview-20260911-push23-2';
 var ASSETS = [
   './',
   'index.html',
