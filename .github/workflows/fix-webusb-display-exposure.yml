@@ -30,7 +30,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          EXPECTED_PARENT=d3cbaf7aa93b7a079b951ed42cc999e9d7959d71
+          EXPECTED_PARENT=1f16b34b5f27cb72d000d780f84ee6feef761a60
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
           test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/fix-webusb-display-exposure.yml"
           python3 - <<'PY'
