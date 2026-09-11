@@ -240,12 +240,12 @@ if (enabled) {
       try { void probe.stop(message); } catch (_) {}
     }
 
-    // Chrome does not wait for async WebUSB work once pagehide/beforeunload has
-    // committed to destroying the page. visibilitychange fires earlier, while
-    // USB/MIDI ownership is still usable, so cleanup begins there as well.
+    // WebUSB display is opt-in and independent from automatic Web MIDI pad/CC ownership.
+    // Hiding the tab may release only the display transport; it must never clear pad LEDs.
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) cleanupPushSurface('Push display stopped because this tab was hidden.');
+      if (document.hidden) void probe.stop('Push display paused because this tab was hidden.');
     }, { capture: true });
+    // Actual page teardown still clears both transports best-effort.
     window.addEventListener('pagehide', () => cleanupPushSurface(), { capture: true });
     window.addEventListener('beforeunload', () => cleanupPushSurface(), { capture: true });
   }

@@ -5,9 +5,9 @@
 loadAppSettings();
 if (!AppState.showBadges) document.body.classList.add('hide-badges');
 
-// TASTY Mode: HPS auth + data loading
-TastyState.hpsUnlocked = new URLSearchParams(window.location.search).has('hps');
-if (TastyState.hpsUnlocked) {
+// TASTY Mode: standard 64 Pad Explorer feature (legacy ?hps gate retired in v1.8.0)
+TastyState.hpsUnlocked = true;
+{
   fetch('data/tasty-recipes.json').then(function(r) { return r.json(); }).then(function(data) {
     TastyState.recipes = data;
     updateTastyUI();
@@ -19,25 +19,24 @@ if (TastyState.hpsUnlocked) {
   }).catch(function() {});
 }
 
-// Stock Voicing: same HPS gate
-StockState.hpsUnlocked = new URLSearchParams(window.location.search).has('hps');
-if (StockState.hpsUnlocked) {
+// Stock Voicing: standard 64 Pad Explorer feature
+StockState.hpsUnlocked = true;
+{
   fetch('data/stock-voicings.json?v=6.5.0').then(function(r) { return r.json(); }).then(function(data) {
     StockState.data = data;
     updateStockUI();
   }).catch(function() {});
 }
 var _hpsEngineAnchor = document.getElementById('hps-engine-anchor');
-if (_hpsEngineAnchor) _hpsEngineAnchor.style.display = (TastyState.hpsUnlocked || StockState.hpsUnlocked) ? 'block' : 'none';
+if (_hpsEngineAnchor) _hpsEngineAnchor.style.display = 'block';
 
-// Launchpad LED: same HPS gate
-_lpHpsUnlocked = new URLSearchParams(window.location.search).has('hps');
+// Push/Launchpad LED is standard controller behavior in v1.8.0.
+_lpHpsUnlocked = true;
 
-// Genre Preset: HPS-only UI (Desktop paid version always has ?hps)
+// Genre Preset is standard UI in v1.8.0.
 (function() {
-  var hps = new URLSearchParams(window.location.search).has('hps');
   var sel = document.getElementById('genre-preset-select');
-  if (sel && hps) {
+  if (sel) {
     sel.style.display = '';
     if (_presetParam && GENRE_WEIGHTS[_presetParam]) sel.value = _presetParam;
   }
