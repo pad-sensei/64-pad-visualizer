@@ -875,6 +875,7 @@ if (window.IS_DESKTOP_MODE || _affiliateParams.has('hps')) {
      pad-core / theory / MIDI / render still run, only sound is absent.
      document.write is used during parsing to preserve synchronous load order. -->
 <script>
+window.APP_VERSION = '6.7.61';
 if (window.AUDIO_ENABLED) {
   var _audioScripts = [
     'host-adapter.js',
@@ -893,7 +894,7 @@ if (window.AUDIO_ENABLED) {
     'audio-ui-binding.js'
   ];
   _audioScripts.forEach(function(src) {
-    document.write('<script src="' + src + '?v=6.7.61"><\/script>');
+    document.write('<script src="' + src + '?v=' + window.APP_VERSION + '"><\/script>');
   });
 } else {
   // Silent mode: stub audio APIs that non-audio code calls, so pads/UI don't crash.

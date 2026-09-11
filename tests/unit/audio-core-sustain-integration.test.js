@@ -3,22 +3,50 @@ import fs from 'fs';
 
 const index = fs.readFileSync('index.html', 'utf8');
 const sw = fs.readFileSync('sw.js', 'utf8');
+const workletEngine = fs.readFileSync('audio-core/epiano-worklet-engine.js', 'utf8');
+const epianoEngine = fs.readFileSync('audio-core/epiano-engine.js', 'utf8');
+
+function appVersion() {
+  return index.match(/window\.APP_VERSION\s*=\s*'([\d.]+)'/)?.[1] || null;
+}
+
+function dynamicAudioScripts() {
+  const block = index.match(/var _audioScripts = \[(.*?)\];/s)?.[1] || '';
+  return [...block.matchAll(/'([^']+\.js)'/g)].map((m) => m[1]);
+}
 
 describe('audited audio-core sustain integration', () => {
-  it('cache-busts the dynamically injected audio script set', () => {
-    expect(index).toContain("document.write('<script src=\"' + src + '?v=6.7.61\"><\\/script>');");
+  it('uses one parent-owned audio version for dynamic runtime requests', () => {
+    const version = appVersion();
+    expect(version).toBeTruthy();
+    expect(index).toContain("document.write('<script src=\"' + src + '?v=' + window.APP_VERSION + '\"><\\/script>');");
     expect(index).not.toContain("document.write('<script src=\"' + src + '?v=6.7.52\'><\\/script>');");
   });
 
-  it('pre-caches the exact new audio identity and retires the old voice asset identity', () => {
-    expect(sw).toContain("var CACHE_NAME = '64pad-v180-preview-20260911-audio-sustain-1';");
-    expect(sw).toContain("'audio-core/audio-voice.js?v=6.7.61'");
-    expect(sw).toContain("'audio-core/audio-sampler.js?v=6.7.61'");
-    expect(sw).toContain("'audio-core/epiano-worklet-engine.js?v=6.7.61'");
-    expect(sw).toContain("'host-adapter.js?v=6.7.61'");
-    expect(sw).toContain("'master-tail.js?v=6.7.61'");
-    expect(sw).toContain("'audio-ui-binding.js?v=6.7.61'");
+  it('pre-caches every dynamically injected audio script at the runtime version', () => {
+    const version = appVersion();
+    const scripts = dynamicAudioScripts();
+    expect(version).toBeTruthy();
+    expect(scripts.length).toBeGreaterThan(10);
+    for (const src of scripts) {
+      expect(sw, `missing precache identity for ${src}`).toContain(`'${src}?v=${version}'`);
+    }
     expect(sw).not.toContain("'audio-core/audio-voice.js?v=6.7.52'");
+  });
+
+  it('aligns worklet processor precache identities with their actual runtime URLs', () => {
+    const version = appVersion();
+    expect(workletEngine).toContain("'epiano-worklet-processor.js?v=' + (window.APP_VERSION || Date.now())");
+    expect(sw).toContain(`'audio-core/epiano-worklet-processor.js?v=${version}'`);
+
+    // Spring reverb currently requests the processor with no query string; cache that exact URL.
+    expect(epianoEngine).toContain("_scoreBase + 'spring-reverb-processor.js'");
+    expect(sw).toContain("'audio-core/spring-reverb-processor.js'");
+    expect(sw).not.toMatch(/audio-core\/spring-reverb-processor\.js\?v=/);
+  });
+
+  it('bumps the service-worker cache identity for this follow-up', () => {
+    expect(sw).toContain("var CACHE_NAME = '64pad-v180-preview-20260912-audio-sustain-2';");
   });
 
   it('ships the permanent behavioral sustain regression test with the pinned dependency', () => {

@@ -1,4 +1,4 @@
-var CACHE_NAME = '64pad-v180-preview-20260911-audio-sustain-1';
+var CACHE_NAME = '64pad-v180-preview-20260912-audio-sustain-2';
 var ASSETS = [
   './',
   'index.html',
@@ -59,8 +59,8 @@ var ASSETS = [
   'lang-it.js?v=6.7.52',
   'audio-core/epiano-engine.js?v=6.7.61',
   'audio-core/epiano-worklet-engine.js?v=6.7.61',
-  'audio-core/epiano-worklet-processor.js?v=6.7.52',
-  'audio-core/spring-reverb-processor.js?v=6.7.52',
+  'audio-core/epiano-worklet-processor.js?v=6.7.61',
+  'audio-core/spring-reverb-processor.js',
   'data/tasty-recipes.json?v=6.7.52',
   'favicon.svg',
   'img/icon-192.png',

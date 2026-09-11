@@ -34,7 +34,7 @@ describe('browser MIDI ownership bootstrap', () => {
   });
 
   it('precaches parser-time audio assets at the dynamically injected audio cache version', () => {
-    const audioVersion = index.match(/document\.write\('<script src="' \+ src \+ '\?v=([\d.]+)"/)?.[1];
+    const audioVersion = index.match(/window\.APP_VERSION\s*=\s*'([\d.]+)'/)?.[1];
     const dynamicMasterTail = index.indexOf("'master-tail.js'");
     const dynamicAudioBinding = index.indexOf("'audio-ui-binding.js'");
     const swPath = path.resolve(here, '../../sw.js');
