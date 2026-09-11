@@ -1,0 +1,196 @@
+name: Guard Push LED shutdown from repaint
+
+on:
+  push:
+    branches:
+      - codex/web-push3-webusb-display-preview
+
+permissions:
+  contents: write
+
+jobs:
+  implement-test-deploy:
+    if: ${{ !contains(github.event.head_commit.message, '[led-shutdown-guard]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/web-push3-webusb-display-preview
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Stop LED repaint before clear
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('midi.js')
+          s = p.read_text()
+          anchor = '''function padWebResetPushMidiRuntimeState() {
+          '''
+          helper = '''var _pushWebShuttingDown = false;
+
+          function padWebBeginPushShutdown() {
+            _pushWebShuttingDown = true;
+            // Freeze the normal LED renderer before the shutdown clear. Without
+            // this, a late render()/MIDI callback can repaint the scale after the
+            // 64 zero-velocity messages have already been sent.
+            _lpOutputActive = false;
+            _lpProgrammerMode = false;
+            _lastLEDState = null;
+            _pushColorPickPaletteVisible = false;
+            _pushColorPickReadyAt = 0;
+          }
+
+          function padWebResumePushSurface() {
+            _pushWebShuttingDown = false;
+            if (_isPush && midiOutput) {
+              _lpOutputActive = true;
+              _lpProgrammerMode = true;
+              for (var i = 0; i < 64; i++) _prevLEDState[i] = -1;
+              try { if (typeof render === 'function') render(); } catch (_) {}
+            }
+          }
+
+          '''
+          if helper not in s:
+              if anchor not in s:
+                  raise SystemExit('runtime reset anchor missing')
+              s = s.replace(anchor, helper + anchor, 1)
+
+          old = '''function updateLaunchpadLEDs(state) {
+            _lastLEDState = state;
+          '''
+          new = '''function updateLaunchpadLEDs(state) {
+            if (_pushWebShuttingDown) return;
+            _lastLEDState = state;
+          '''
+          if old not in s:
+              raise SystemExit('updateLaunchpadLEDs anchor missing')
+          s = s.replace(old, new, 1)
+
+          old = '''function refreshLaunchpadLEDs() {
+            if (_isPush && _pushIsColorPickActive()) return;
+          '''
+          new = '''function refreshLaunchpadLEDs() {
+            if (_pushWebShuttingDown) return;
+            if (_isPush && _pushIsColorPickActive()) return;
+          '''
+          if old not in s:
+              raise SystemExit('refreshLaunchpadLEDs anchor missing')
+          s = s.replace(old, new, 1)
+
+          old = '''  window.padWebGetPushMidiOutputs = padWebGetPushMidiOutputs;
+            window.padWebResetPushMidiRuntimeState = padWebResetPushMidiRuntimeState;
+          '''
+          new = '''  window.padWebGetPushMidiOutputs = padWebGetPushMidiOutputs;
+            window.padWebBeginPushShutdown = padWebBeginPushShutdown;
+            window.padWebResumePushSurface = padWebResumePushSurface;
+            window.padWebResetPushMidiRuntimeState = padWebResetPushMidiRuntimeState;
+          '''
+          if old not in s:
+              raise SystemExit('window export anchor missing')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          p = Path('push-display-webusb-app.js')
+          s = p.read_text()
+          old = '''      else {
+                cleanupStarted = false;
+                probe.setFrame(drawFrame());
+          '''
+          new = '''      else {
+                cleanupStarted = false;
+                try { window.padWebResumePushSurface?.(); } catch (_) {}
+                probe.setFrame(drawFrame());
+          '''
+          if old not in s:
+              raise SystemExit('connect resume anchor missing')
+          s = s.replace(old, new, 1)
+
+          old = '''      const pushOutputs = window.padWebGetPushMidiOutputs?.() || [];
+                // Desktop clears the visible pad paint first, then performs the exhaustive
+          '''
+          new = '''      const pushOutputs = window.padWebGetPushMidiOutputs?.() || [];
+                try { window.padWebBeginPushShutdown?.(); } catch (_) {}
+                // Desktop clears the visible pad paint first, then performs the exhaustive
+          '''
+          if old not in s:
+              raise SystemExit('cleanup begin anchor missing')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          # Force a fresh browser module graph for this hardware test.
+          token_old = 'webusb-20260911-5'
+          token_new = 'webusb-20260911-6'
+          p = Path('index.html')
+          s = p.read_text()
+          if token_old not in s:
+              raise SystemExit('index cache token missing')
+          p.write_text(s.replace(token_old, token_new))
+
+          p = Path('push-display-webusb-app.js')
+          s = p.read_text()
+          if token_old not in s:
+              raise SystemExit('module import cache token missing')
+          p.write_text(s.replace(token_old, token_new))
+
+          p = Path('sw.js')
+          s = p.read_text()
+          if token_old not in s:
+              raise SystemExit('service worker cache token missing')
+          p.write_text(s.replace(token_old, token_new))
+          PY
+
+          cat > tests/unit/push-led-shutdown-guard.test.js <<'JS'
+          import { describe, it, expect } from 'vitest';
+          import fs from 'node:fs';
+
+          describe('Push Web LED shutdown guard', () => {
+            const midiSource = fs.readFileSync(new URL('../../midi.js', import.meta.url), 'utf8');
+            const appSource = fs.readFileSync(new URL('../../push-display-webusb-app.js', import.meta.url), 'utf8');
+
+            it('freezes normal LED repaint before hardware clear', () => {
+              expect(midiSource).toContain('function padWebBeginPushShutdown()');
+              expect(midiSource).toContain('_lpOutputActive = false;');
+              expect(midiSource).toContain('_lpProgrammerMode = false;');
+              expect(midiSource).toContain('function updateLaunchpadLEDs(state) {\n  if (_pushWebShuttingDown) return;');
+              expect(appSource.indexOf('padWebBeginPushShutdown')).toBeLessThan(appSource.indexOf('fastClearPushPads'));
+            });
+
+            it('can re-enable the Push MIDI surface after an intentional hidden-tab shutdown', () => {
+              expect(midiSource).toContain('function padWebResumePushSurface()');
+              expect(appSource).toContain('window.padWebResumePushSurface?.()');
+            });
+          });
+          JS
+
+          git diff --check
+      - name: Verify
+        run: |
+          npm ci
+          node --check push-display-webusb-app.js
+          npx vitest run tests/unit/push-led-shutdown-guard.test.js tests/unit/push-surface-cleanup.test.js tests/unit/push-display-webusb.test.js
+          npm test
+          ./tools/sw-assets-check.sh
+      - name: Commit product change
+        run: |
+          git config user.name 'daikainozaki-cyber'
+          git config user.email 'daikainozaki@gmail.com'
+          git add midi.js push-display-webusb-app.js index.html sw.js tests/unit/push-led-shutdown-guard.test.js
+          git commit -m 'fix(push): prevent Web LED repaint during shutdown [led-shutdown-guard]'
+          git push origin HEAD:codex/web-push3-webusb-display-preview
+      - name: Deploy dev preview
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avz --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md'
+          path: ./
+          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-dev/
+          remote_host: xs071284.xsrv.jp
+          remote_port: 10022
+          remote_user: xs071284
+          remote_key: ${{ secrets.XSERVER_SSH_KEY }}
