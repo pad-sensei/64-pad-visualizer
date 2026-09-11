@@ -3,7 +3,7 @@ import {
   HEIGHT,
   PushWebUsbDisplay,
   encodePushDisplayFrame,
-} from './push-display-webusb.mjs';
+} from './push-display-webusb.js';
 
 const params = new URLSearchParams(window.location.search);
 const enabled = params.has('webusb') && !window.IS_DESKTOP_MODE;

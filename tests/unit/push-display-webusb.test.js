@@ -8,7 +8,7 @@ import {
   PushWebUsbDisplay,
   encodePushDisplayFrame,
   pushDisplayConfiguration,
-} from '../../push-display-webusb.mjs';
+} from '../../push-display-webusb.js';
 
 function fixture() {
   const calls = [];
