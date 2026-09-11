@@ -1,4 +1,4 @@
-var CACHE_NAME = '64pad-v180-preview-20260911-liveport-2';
+var CACHE_NAME = '64pad-v180-preview-20260911-buttonled-1';
 var ASSETS = [
   './',
   'index.html',
@@ -37,8 +37,8 @@ var ASSETS = [
   'midi-input-state.js?v=6.7.52',
   'push-midi-port-contract.js?v=1.8.0-liveport2',
   'push-midi-cc-map.js?v=1.8.0',
-  'push-web-control.js?v=1.8.0',
-  'midi.js?v=6.7.58',
+  'push-web-control.js?v=1.8.0-led1',
+  'midi.js?v=6.7.59',
   'push-display-webusb.js?v=webusb-20260911-10',
   'push-surface-cleanup.js?v=webusb-20260911-7',
   'push-display-webusb-app.js?v=webusb-20260911-10',

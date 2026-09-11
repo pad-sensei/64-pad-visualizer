@@ -936,6 +936,10 @@ function initWebMIDI() {
             } catch(_) {}
           }
           render();
+          if (_isPush && typeof window !== 'undefined') {
+            try { if (typeof window.padWebResetPushButtonLedState === 'function') window.padWebResetPushButtonLedState(); } catch (_) {}
+            try { if (typeof window.padWebSyncPushButtonLeds === 'function') window.padWebSyncPushButtonLeds(); } catch (_) {}
+          }
         }
       }
 
@@ -1285,6 +1289,28 @@ function padWebSendPushLedMessage(message) {
   });
 }
 
+function padWebSendPushButtonLed(cc, state, colorPaletteLed) {
+  cc = Number(cc) | 0;
+  if (cc < 0 || cc > 127) return;
+  var desired = state || 'off';
+  if (desired === 'blink') {
+    // Desktop-proven Push LED protocol: normal channel clears the old state,
+    // channel 10 requests firmware blink/pulse for this controller.
+    padWebSendPushLedMessage([0xb0, cc, 0]);
+    padWebSendPushLedMessage([0xb9, cc, 127]);
+    return;
+  }
+
+  var value = 0;
+  if (desired === 'weak' || desired === 'action') value = colorPaletteLed ? 122 : 21;
+  else if (desired === 'white-weak') value = 124;
+  else if (desired === 'red-soft') value = 1;
+  else if (desired === 'strong') value = 127;
+  padWebSendPushLedMessage([0xb0, cc, value]);
+}
+
+if (typeof window !== 'undefined') window.padWebSendPushButtonLed = padWebSendPushButtonLed;
+
 function padWebHardClearPushOutputs(outputs) {
   // Exact Gate-0 sequence proven in 64PE Desktop: app-visible pads first,
   // then explicit NoteOff for every pad on every channel, then CC=0.
@@ -1337,6 +1363,8 @@ function padWebResumePushSurface() {
     _lpProgrammerMode = true;
     for (var i = 0; i < 64; i++) _prevLEDState[i] = -1;
     try { if (typeof render === 'function') render(); } catch (_) {}
+    try { if (typeof window !== 'undefined' && typeof window.padWebResetPushButtonLedState === 'function') window.padWebResetPushButtonLedState(); } catch (_) {}
+    try { if (typeof window !== 'undefined' && typeof window.padWebSyncPushButtonLeds === 'function') window.padWebSyncPushButtonLeds(); } catch (_) {}
   }
 }
 

@@ -25,4 +25,12 @@ describe('Push Web MIDI output routing parity', () => {
     expect(source).toContain('output.send([0x80 | channel, serialNote, 0])');
     expect(source).toContain('output.send([0xb0, cc, 0])');
   });
+
+  it('routes Push button feedback and blink protocol through the same Live-only transport', () => {
+    expect(source).toContain('function padWebSendPushButtonLed(cc, state, colorPaletteLed)');
+    expect(source).toContain('padWebSendPushLedMessage([0xb0, cc, value])');
+    expect(source).toContain('padWebSendPushLedMessage([0xb9, cc, 127])');
+    expect(source).toContain('window.padWebSyncPushButtonLeds');
+    expect(source).not.toContain('_pushSetupOutputs.forEach(function(output) { output.send([0xb0');
+  });
 });

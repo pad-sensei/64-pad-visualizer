@@ -14,6 +14,7 @@
     setupActive: false,
     setupField: 0,
     lastRawByKey: Object.create(null),
+    buttonLedState: Object.create(null),
   };
 
   function wrap(value, len) {
@@ -27,6 +28,162 @@
     return fn.apply(global, Array.prototype.slice.call(arguments, 1));
   }
 
+  function sendButtonLed(key, cc, state, colorPaletteLed) {
+    if (global.IS_DESKTOP_MODE || typeof global.padWebSendPushButtonLed !== 'function') return;
+    var desired = state || 'off';
+    var previous = controlState.buttonLedState[key];
+    if (previous === desired) return;
+    controlState.buttonLedState[key] = desired;
+
+    // Desktop's proven blink contract uses channel 10 after explicitly clearing
+    // channel 1. Reset channel 1 before leaving blink so firmware mode cannot leak.
+    if (previous === 'blink' && desired !== 'blink') {
+      global.padWebSendPushButtonLed(cc, 'off', !!colorPaletteLed);
+    }
+    global.padWebSendPushButtonLed(cc, desired, !!colorPaletteLed);
+  }
+
+  function resetButtonLedState() {
+    controlState.buttonLedState = Object.create(null);
+  }
+
+  function domButtonActive(id, fallback) {
+    if (typeof document !== 'undefined') {
+      var el = document.getElementById(id);
+      if (el && el.classList) return el.classList.contains('active');
+    }
+    return !!fallback;
+  }
+
+  function keySectionVisible() {
+    try {
+      if (global.localStorage) {
+        var saved = JSON.parse(global.localStorage.getItem('64pad-sections') || '{}');
+        return saved.key !== false;
+      }
+    } catch (_) {}
+    return true;
+  }
+
+  function completedChord() {
+    return currentMode() === 'chord' && global.BuilderState
+      && global.BuilderState.root !== null && global.BuilderState.root !== undefined
+      && !!global.BuilderState.quality;
+  }
+
+  function performBankContext() {
+    return currentMode() === 'input' && global.memoryViewMode === 'perform';
+  }
+
+  function upperButtonStates() {
+    if (controlState.entryStep) {
+      var list = controlState.entryStep === 'root' ? new Array(12).fill(true) : qualityList().map(function() { return true; });
+      var activeIndex = controlState.entryStep === 'root'
+        ? (controlState.entryRoot === null || controlState.entryRoot === undefined ? -1 : controlState.entryRoot)
+        : controlState.entryQualityIndex;
+      return new Array(8).fill(null).map(function(_, i) {
+        if (i >= list.length) return null;
+        return i === activeIndex;
+      });
+    }
+
+    var scaleName = '';
+    try {
+      scaleName = global.SCALES && global.AppState && global.SCALES[global.AppState.scaleIdx]
+        ? String(global.SCALES[global.AppState.scaleIdx].name || '').toLowerCase() : '';
+    } catch (_) {}
+    var minorScale = scaleName.indexOf('minor') !== -1 || scaleName.indexOf('aeolian') !== -1;
+
+    // Assigned-but-inactive buttons are white; selected state uses the accent.
+    return [
+      false,
+      !!(global.TastyState && global.TastyState.enabled),
+      !!(global.StockState && global.StockState.enabled),
+      false,
+      false,
+      !!controlState.tensionMode,
+      keySectionVisible(),
+      minorScale,
+    ];
+  }
+
+  function lowerButtonStates() {
+    if (performBankContext()) return [false, false, false, false, false, false, null, null];
+    var app = global.AppState || {};
+    return [
+      domButtonActive('inst-toggle-link', global.linkMode),
+      domButtonActive('inst-toggle-guitar', global.showGuitar),
+      domButtonActive('inst-toggle-bass', global.showBass),
+      domButtonActive('inst-toggle-piano', global.showPiano),
+      !!app.showMinorVariants,
+      !!app.showParallelKey,
+      !!app.showSecDom,
+      !!app.showParentScales,
+    ];
+  }
+
+  function syncButtonLeds() {
+    if (global.IS_DESKTOP_MODE || typeof global.padWebSendPushButtonLed !== 'function') return;
+
+    var upper = upperButtonStates();
+    var lower = lowerButtonStates();
+    for (var i = 0; i < 8; i++) {
+      var up = upper[i];
+      var lo = lower[i];
+      sendButtonLed('u' + i, 102 + i, up === null ? 'off' : (up ? 'weak' : 'white-weak'), true);
+      sendButtonLed('l' + i, 20 + i, lo === null ? 'off' : (lo ? 'weak' : 'white-weak'), true);
+    }
+
+    var mode = currentMode();
+    var app = global.AppState || {};
+    var setupOrPick = !!controlState.setupActive || !!global.__pushLedColorPickRole;
+    var chordNav = completedChord();
+    var navContext = setupOrPick || !!controlState.entryStep || chordNav;
+    var bankContext = performBankContext();
+    var bankCount = 0;
+    try { bankCount = global.BankState && Array.isArray(global.BankState.banks) ? global.BankState.banks.length : 0; } catch (_) {}
+
+    sendButtonLed('setup', 30, setupOrPick ? 'strong' : 'weak', false);
+    sendButtonLed('layout', 31, mode === 'input' ? 'strong' : 'weak', false);
+    sendButtonLed('add', 32, bankContext ? 'weak' : 'off', false);
+    sendButtonLed('swap', 33, mode === 'chord' ? (app.showAllPositions === true ? 'strong' : 'white-weak') : 'off', false);
+    sendButtonLed('dpad-left', 44, navContext ? 'white-weak' : 'off', false);
+    sendButtonLed('dpad-right', 45, navContext ? 'white-weak' : 'off', false);
+    sendButtonLed('dpad-up', 46, navContext ? 'white-weak' : 'off', false);
+    sendButtonLed('dpad-down', 47, navContext ? 'white-weak' : 'off', false);
+    sendButtonLed('page-left', 62, bankContext && bankCount > 1 ? 'weak' : 'off', true);
+    sendButtonLed('page-right', 63, bankContext && bankCount > 1 ? 'weak' : 'off', true);
+    sendButtonLed('shift', 49, 'weak', false);
+    sendButtonLed('duplicate', 88, bankContext ? (controlState.duplicateHeld ? 'strong' : 'weak') : 'off', false);
+    sendButtonLed('dpad-center', 91, navContext ? 'white-weak' : 'off', false);
+    sendButtonLed('jog-press', 94, navContext ? 'white-weak' : 'off', false);
+    sendButtonLed('delete', 118, controlState.deleteHeld ? 'strong' : 'weak', false);
+    sendButtonLed('undo', 119, 'weak', false);
+    sendButtonLed('oct-down', 54, 'weak', false);
+    sendButtonLed('oct-up', 55, 'weak', false);
+    sendButtonLed('scale', 58, mode === 'scale' ? 'strong' : 'weak', false);
+    sendButtonLed('play', 85, 'weak', true);
+
+    var captureEnabled = mode === 'input';
+    try {
+      if (!captureEnabled && typeof global.getCurrentChordPlaybackMidiNotes === 'function') {
+        var playbackNotes = global.getCurrentChordPlaybackMidiNotes();
+        captureEnabled = !!(playbackNotes && playbackNotes.length);
+      } else if (!captureEnabled && typeof global.getCurrentChordMidiNotes === 'function') {
+        var notes = global.getCurrentChordMidiNotes();
+        captureEnabled = !!(notes && notes.length);
+      }
+    } catch (_) {}
+    sendButtonLed('capture', 65, captureEnabled ? 'weak' : 'off', true);
+    sendButtonLed('sets', 80, 'weak', false);
+    sendButtonLed('learn', 81, 'weak', false);
+    sendButtonLed('save', 82, 'weak', false);
+    sendButtonLed('lock', 83, app.padCFixed === true ? 'red-soft' : 'white-weak', false);
+    // Browser has no native plug-in device picker: keep the physical button dark.
+    sendButtonLed('device', 110, 'off', false);
+    sendButtonLed('record', 86, mode === 'input' ? 'strong' : 'weak', true);
+  }
+
   function refresh() {
     try { if (typeof global.updateChordDisplay === 'function') global.updateChordDisplay(); } catch (_) {}
     try { if (typeof global.updatePlainDisplay === 'function' && global.AppState && global.AppState.mode === 'input') global.updatePlainDisplay(); } catch (_) {}
@@ -35,6 +192,7 @@
     try { if (typeof global.updateBankUI === 'function') global.updateBankUI(); } catch (_) {}
     try { if (typeof global.saveAppSettings === 'function') global.saveAppSettings(); } catch (_) {}
     try { if (typeof global.refreshLaunchpadLEDs === 'function') global.refreshLaunchpadLEDs(); } catch (_) {}
+    try { syncButtonLeds(); } catch (_) {}
   }
 
   function currentMode() {
@@ -517,6 +675,9 @@
       mpeMode: !!meta.mpeMode,
     }, controlState.cc);
     (result.events || []).forEach(function(e) { handleLogical(e.code, e.value); });
+    if (result.handled) {
+      try { syncButtonLeds(); } catch (_) {}
+    }
     return !!result.handled;
   }
 
@@ -524,8 +685,15 @@
   global.padWebHandlePushMidiCc = handleMidiCc;
   global.padWebPushControlWillHandlePad = handlePad;
   global.padWebPushControlState = controlState;
+  global.padWebSyncPushButtonLeds = syncButtonLeds;
+  global.padWebResetPushButtonLedState = resetButtonLedState;
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { handleLogical: handleLogical, slotFromRawPad: slotFromRawPad };
+    module.exports = {
+      handleLogical: handleLogical,
+      slotFromRawPad: slotFromRawPad,
+      syncButtonLeds: syncButtonLeds,
+      resetButtonLedState: resetButtonLedState,
+    };
   }
 })(typeof window !== 'undefined' ? window : globalThis);
