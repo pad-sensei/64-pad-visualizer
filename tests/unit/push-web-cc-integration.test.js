@@ -13,11 +13,11 @@ describe('Web Push control integration contract', () => {
   it('loads the CC mapper/dispatcher before midi.js and precaches both', () => {
     expect(html.indexOf('push-midi-port-contract.js?v=1.8.0-liveport3')).toBeGreaterThan(0);
     expect(html.indexOf('push-midi-cc-map.js?v=1.8.0')).toBeGreaterThan(html.indexOf('push-midi-port-contract.js?v=1.8.0-liveport3'));
-    expect(html.indexOf('push-web-control.js?v=1.8.0-led1')).toBeGreaterThan(html.indexOf('push-midi-cc-map.js?v=1.8.0'));
-    expect(html.indexOf('midi.js?v=6.7.60')).toBeGreaterThan(html.indexOf('push-web-control.js?v=1.8.0-led1'));
+    expect(html.indexOf('push-web-control.js?v=1.8.0-parity2')).toBeGreaterThan(html.indexOf('push-midi-cc-map.js?v=1.8.0'));
+    expect(html.indexOf('midi.js?v=1.8.0-parity2')).toBeGreaterThan(html.indexOf('push-web-control.js?v=1.8.0-parity2'));
     expect(sw).toContain("'push-midi-port-contract.js?v=1.8.0-liveport3'");
     expect(sw).toContain("'push-midi-cc-map.js?v=1.8.0'");
-    expect(sw).toContain("'push-web-control.js?v=1.8.0-led1'");
+    expect(sw).toContain("'push-web-control.js?v=1.8.0-parity2'");
   });
 
   it('routes Push CC through parity mapper after sustain and before pad-note handling', () => {
@@ -47,9 +47,8 @@ describe('Web Push control integration contract', () => {
     expect(host).not.toContain("has('hps')");
   });
 
-  it('preserves Push WYSIWYG octave editing in Input/Perform', () => {
-    expect(control).toContain("currentMode() === 'input' && global.memoryViewMode === 'perform'");
-    expect(control).toContain("call('performOctaveEdit', value)");
+  it('uses physical held-slot ownership for octave edits, never a latched screen buffer', () => {
+    expect(control).toContain('if (heldSlotActive()) return editHeldSlot(value * 12, false)');
     expect(control).toContain("call('shiftOctave', value)");
   });
 

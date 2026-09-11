@@ -71,14 +71,15 @@ function midiSourceMetadataForInput(input, status, rawNote, mappedMidi, isPush) 
   };
 }
 
-function releaseAllMidiHeldSources() {
+function releaseAllMidiHeldSources(preserveSustain) {
+  if (typeof window.padWebResetPushInputState === 'function' && !window.IS_DESKTOP_MODE) window.padWebResetPushInputState();
   var released = midiHeldState ? midiHeldState.clearAll() : Array.from(midiActiveNotes);
   midiActiveNotes.clear();
   released.forEach(function(note) {
     try { noteOff(note); } catch (_) {}
   });
-  if (typeof _cancelSustainDebounce === 'function') _cancelSustainDebounce();
-  if (typeof _midiSustainOn !== 'undefined' && _midiSustainOn) {
+  if (!preserveSustain && typeof _cancelSustainDebounce === 'function') _cancelSustainDebounce();
+  if (!preserveSustain && typeof _midiSustainOn !== 'undefined' && _midiSustainOn) {
     _midiSustainOn = false;
     if (typeof setSustain === 'function') {
       try { setSustain(false); } catch (_) {}
@@ -156,6 +157,12 @@ function padWebRenderPushMidiDiag() {
     'last=' + String(d.lastEvent || '-'),
     'lastCC=' + String(d.lastCC || '-'),
     'lastPedal=' + String(d.lastPedal || '-'),
+    'sustain midi/audio/worklet=' + String(typeof _midiSustainOn !== 'undefined' && _midiSustainOn)
+      + '/' + String(typeof _sustainOn !== 'undefined' && _sustainOn)
+      + '/' + String(typeof _epw_sustainOn !== 'undefined' && _epw_sustainOn),
+    'engine=' + (typeof AudioState !== 'undefined' && AudioState.instrument
+      ? (AudioState.instrument.epiano || AudioState.instrument.sampler || 'WebAudioFont') : '-')
+      + ' workletReady=' + String(typeof _epw_initialized !== 'undefined' && _epw_initialized),
     'held=' + String(d.heldNotes || 0),
     'error=' + String(d.lastError || '-'),
   ].join('\n');
@@ -787,6 +794,7 @@ function initWebMIDI() {
                 _sustainDebounceTimer = setTimeout(_resolveSustainOff, SUSTAIN_OFF_DEBOUNCE_MS);
               }
             }
+            padWebRenderPushMidiDiag();
             return;
           }
           // Push control-surface CC: raw mapping is the same contract used by
@@ -796,7 +804,7 @@ function initWebMIDI() {
               inputName: input.name || '',
               inputId: input.id || '',
               nowMs: (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(),
-              padIsHeld: midiActiveNotes.size > 0 || (typeof PlainState !== 'undefined' && PlainState.activeNotes && PlainState.activeNotes.size > 0),
+              padIsHeld: midiActiveNotes.size > 0 || (typeof window.padWebPushHeldSlotActive === 'function' && window.padWebPushHeldSlotActive()),
               padPlaybackBlocked: false,
               mpeMode: (typeof window.mpeMode !== 'undefined' && window.mpeMode === true)
                 || (typeof AppState !== 'undefined' && AppState.mpeMode === true)
@@ -811,7 +819,7 @@ function initWebMIDI() {
             if (window.padWebPushControlWillHandlePad(rawNote, _pushPadDown)) return;
           }
           // Push perform mode: serial 4x4 → slots directly (bypass fourths conversion)
-          if (isPush && memoryViewMode === 'perform' && cmd === 0x90 && velocity > 0) {
+          if (isPush && typeof window.padWebPushSlotLayoutActive !== 'function' && memoryViewMode === 'perform' && cmd === 0x90 && velocity > 0) {
             var si = rawNote - PUSH_SERIAL_BASE;
             if (si >= 0 && si < 64) {
               var sRow = Math.floor(si / 8);
@@ -978,6 +986,10 @@ function initWebMIDI() {
 // palette (for example 5=brown, 9=yellow-green). Validate on hardware first.
 function _padColorToLP(state, row, col) {
   if (_lpLEDMode === 'off') return 0;
+  if (_isPush && typeof window.padWebPushSlotPadColor === 'function') {
+    var slotColor = window.padWebPushSlotPadColor(row, col);
+    if (slotColor !== null) return slotColor;
+  }
 
   var bm = baseMidi();
   var midi = bm + row * ROW_INTERVAL + col;
@@ -1371,6 +1383,7 @@ function padWebResumePushSurface() {
 }
 
 function padWebResetPushMidiRuntimeState() {
+  if (typeof window.padWebResetPushInputState === 'function' && !window.IS_DESKTOP_MODE) window.padWebResetPushInputState();
   try { if (typeof _cancelSustainDebounce === 'function') _cancelSustainDebounce(); } catch (_) {}
   try {
     if (typeof _midiSustainOn !== 'undefined') _midiSustainOn = false;
@@ -1385,6 +1398,8 @@ function padWebGetPushDisplaySnapshot() {
   var payload = (typeof padWebGetLatestObservedShellUstPayload === 'function')
     ? padWebGetLatestObservedShellUstPayload() : null;
   var notes = Array.from(midiActiveNotes).sort(function(a, b) { return a - b; });
+  var pushHeldSlot = typeof window.padWebPushHeldSlotActive === 'function' && window.padWebPushHeldSlotActive();
+  if (pushHeldSlot) notes = Array.from(PlainState.activeNotes).sort(function(a, b) { return a - b; });
   var noteNames = notes.map(function(note) {
     try { return pcName(((note % 12) + 12) % 12); }
     catch (_) { return String(note); }
@@ -1396,6 +1411,10 @@ function padWebGetPushDisplaySnapshot() {
     scale = (SCALES[AppState.scaleIdx] && SCALES[AppState.scaleIdx].name) || '';
   } catch (_) {}
   var chord = payload && payload.chord && payload.chord.name || '';
+  if (pushHeldSlot && window.padWebPushControlState) {
+    var heldSlot = PlainState.memory[window.padWebPushControlState.heldSlot];
+    chord = heldSlot ? heldSlot.chordName : '';
+  }
   if (!chord) {
     var detect = document.getElementById('midi-detect');
     var first = detect && detect.firstElementChild;
@@ -1486,7 +1505,8 @@ function updateLaunchpadLEDs(state) {
   if (!midiOutput || !_lpOutputActive || !_lpProgrammerMode) return;
   // urinami 2026-04-14: PUSH は楽器としての scale 表示に徹する。render.js で
   // padApplyScaleOnlyOverride を通した state が渡ってくるので、ここでは
-  // mode 分岐は行わない（常に scale 面が光る）。
+  // 通常の音階パッドは維持。明示的な Memory/Perform slot layout だけは
+  // _padColorToLP が同じ controller state を参照して16スロットを描く。
   for (var row = 0; row < ROWS; row++) {
     for (var col = 0; col < COLS; col++) {
       var idx = row * COLS + col;

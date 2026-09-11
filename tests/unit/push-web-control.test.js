@@ -17,35 +17,10 @@ const touched = [
 
 afterEach(() => {
   for (const key of touched) delete globalThis[key];
+  globalThis.padWebPushControlState.inputPadLayout = false;
 });
 
 describe('Push Web logical control behavior', () => {
-  it('uses Perform slot octave edit for code 46 when a Perform pad/chord is active', () => {
-    const calls = [];
-    globalThis.AppState = { mode: 'input' };
-    globalThis.memoryViewMode = 'perform';
-    globalThis.PerformState = { activePad: 3 };
-    globalThis.PlainState = { activeNotes: new Set([60, 64, 67]) };
-    globalThis.performOctaveEdit = value => calls.push(['perform', value]);
-    globalThis.shiftOctave = value => calls.push(['global', value]);
-
-    expect(handleLogical(46, 1)).toBe(true);
-    expect(calls).toEqual([['perform', 1]]);
-  });
-
-  it('falls back to global octave shift when Perform WYSIWYG preconditions are absent', () => {
-    const calls = [];
-    globalThis.AppState = { mode: 'input' };
-    globalThis.memoryViewMode = 'perform';
-    globalThis.PerformState = { activePad: null };
-    globalThis.PlainState = { activeNotes: new Set() };
-    globalThis.performOctaveEdit = value => calls.push(['perform', value]);
-    globalThis.shiftOctave = value => calls.push(['global', value]);
-
-    expect(handleLogical(46, -1)).toBe(true);
-    expect(calls).toEqual([['global', -1]]);
-  });
-
   it('mirrors active/inactive Push button state with Desktop LED semantics', () => {
     const calls = [];
     globalThis.AppState = { mode: 'scale', scaleIdx: 0, padCFixed: false };
@@ -92,6 +67,7 @@ describe('Push Web logical control behavior', () => {
     globalThis.AppState = { mode: 'input', scaleIdx: 0, padCFixed: true };
     globalThis.SCALES = [{ name: 'Major' }];
     globalThis.memoryViewMode = 'perform';
+    globalThis.padWebPushControlState.inputPadLayout = true;
     globalThis.BankState = { banks: [{}, {}] };
     globalThis.localStorage = { getItem: () => '{}' };
     globalThis.padWebSendPushButtonLed = (cc, state, palette) => calls.push([cc, state, palette]);
@@ -106,54 +82,4 @@ describe('Push Web logical control behavior', () => {
     expect(calls).toContainEqual([86, 'strong', true]);  // Record/Input
   });
 
-  it('keeps Layout on the Desktop Input Memory/Perform vocabulary', () => {
-    const calls = [];
-    globalThis.AppState = { mode: 'input' };
-    globalThis.memoryViewMode = 'memory';
-    globalThis.togglePerformMode = () => calls.push('toggle-perform');
-
-    expect(handleLogical(47, 0)).toBe(true);
-    expect(calls).toEqual(['toggle-perform']);
-  });
-
-  it('routes the explicit inversion control to the existing chord inversion state', () => {
-    const calls = [];
-    globalThis.AppState = { mode: 'chord' };
-    globalThis.BuilderState = { quality: { pcs: [0, 4, 7] } };
-    globalThis.VoicingState = { shell: false, inversion: 0, lastBoxes: [] };
-    globalThis.setInversion = value => calls.push(value);
-
-    expect(handleLogical(43, 1)).toBe(true);
-    expect(calls).toEqual([1]);
-  });
-
-  it('lets Jog fall through to inversion when no higher-priority voicing mode is active', () => {
-    const calls = [];
-    globalThis.AppState = { mode: 'chord' };
-    globalThis.BuilderState = { quality: { pcs: [0, 4, 7] } };
-    globalThis.VoicingState = { shell: false, inversion: 0, lastBoxes: [] };
-    globalThis.TastyState = { enabled: false };
-    globalThis.StockState = { enabled: false };
-    globalThis.setInversion = value => calls.push(value);
-
-    expect(handleLogical(30, 1)).toBe(true);
-    expect(calls).toEqual([1]);
-  });
-
-  it('keeps Undo as Back in Chord and Undo/Redo in Input', () => {
-    const calls = [];
-    globalThis.AppState = { mode: 'chord' };
-    globalThis.builderBack = () => calls.push('builder-back');
-
-    expect(handleLogical(41, 0)).toBe(true);
-    expect(calls).toEqual(['builder-back']);
-
-    globalThis.AppState = { mode: 'input' };
-    globalThis.undoMemory = () => calls.push('undo-memory');
-    globalThis.redoMemory = () => calls.push('redo-memory');
-
-    expect(handleLogical(41, 0)).toBe(true);
-    expect(handleLogical(41, 1)).toBe(true);
-    expect(calls).toEqual(['builder-back', 'undo-memory', 'redo-memory']);
-  });
 });

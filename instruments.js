@@ -58,6 +58,7 @@ function toggleSoundExpand() {
 
 function toggleMemoryView(mode) {
   memoryViewMode = mode;
+  if (typeof window.padWebPushMemoryViewChanged === 'function') window.padWebPushMemoryViewChanged(mode);
   // Single Perform toggle: lit in Perform (play-only) view, off in Memory (edit) view.
   var tgl = document.getElementById('mem-perform-toggle');
   if (tgl) tgl.classList.toggle('active', mode === 'perform');

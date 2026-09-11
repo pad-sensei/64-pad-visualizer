@@ -1,6 +1,30 @@
 (function(global) {
   'use strict';
 
+  // Classic-script const/let bindings are NOT window properties. Read the live
+  // application state, including later reassignment of memoryViewMode, rather
+  // than maintaining a second controller-owned copy. Node fixtures may supply
+  // window properties when the application's scripts are not loaded.
+  var runtime = {
+    get AppState() { return typeof AppState !== 'undefined' ? AppState : global.AppState; },
+    get BuilderState() { return typeof BuilderState !== 'undefined' ? BuilderState : global.BuilderState; },
+    get VoicingState() { return typeof VoicingState !== 'undefined' ? VoicingState : global.VoicingState; },
+    get PlainState() { return typeof PlainState !== 'undefined' ? PlainState : global.PlainState; },
+    get PerformState() { return typeof PerformState !== 'undefined' ? PerformState : global.PerformState; },
+    get TastyState() { return typeof TastyState !== 'undefined' ? TastyState : global.TastyState; },
+    get StockState() { return typeof StockState !== 'undefined' ? StockState : global.StockState; },
+    get BankState() { return typeof BankState !== 'undefined' ? BankState : global.BankState; },
+    get GuitarPositionState() { return typeof GuitarPositionState !== 'undefined' ? GuitarPositionState : global.GuitarPositionState; },
+    get SCALES() { return typeof SCALES !== 'undefined' ? SCALES : global.SCALES; },
+    get BUILDER_QUALITIES() { return typeof BUILDER_QUALITIES !== 'undefined' ? BUILDER_QUALITIES : global.BUILDER_QUALITIES; },
+    get memoryViewMode() { return typeof memoryViewMode !== 'undefined' ? memoryViewMode : global.memoryViewMode; },
+    get linkMode() { return typeof linkMode !== 'undefined' ? linkMode : global.linkMode; },
+    get showGuitar() { return typeof showGuitar !== 'undefined' ? showGuitar : global.showGuitar; },
+    get showBass() { return typeof showBass !== 'undefined' ? showBass : global.showBass; },
+    get showPiano() { return typeof showPiano !== 'undefined' ? showPiano : global.showPiano; },
+    get TutorialEngine() { return typeof TutorialEngine !== 'undefined' ? TutorialEngine : global.TutorialEngine; },
+  };
+
   var controlState = {
     cc: typeof global.padWebCreatePushCcState === 'function' ? global.padWebCreatePushCcState() : {},
     deleteHeld: false,
@@ -11,6 +35,11 @@
     entryRoot: null,
     entryQualityIndex: 0,
     tensionMode: false,
+    inputPadLayout: false,
+    changingLayout: false,
+    heldSlot: null,
+    heldNotes: [],
+    ownedPads: new Set(),
     setupActive: false,
     setupField: 0,
     lastRawByKey: Object.create(null),
@@ -66,13 +95,13 @@
   }
 
   function completedChord() {
-    return currentMode() === 'chord' && global.BuilderState
-      && global.BuilderState.root !== null && global.BuilderState.root !== undefined
-      && !!global.BuilderState.quality;
+    return currentMode() === 'chord' && runtime.BuilderState
+      && runtime.BuilderState.root !== null && runtime.BuilderState.root !== undefined
+      && !!runtime.BuilderState.quality;
   }
 
   function performBankContext() {
-    return currentMode() === 'input' && global.memoryViewMode === 'perform';
+    return currentMode() === 'input' && runtime.memoryViewMode === 'perform';
   }
 
   function upperButtonStates() {
@@ -89,16 +118,16 @@
 
     var scaleName = '';
     try {
-      scaleName = global.SCALES && global.AppState && global.SCALES[global.AppState.scaleIdx]
-        ? String(global.SCALES[global.AppState.scaleIdx].name || '').toLowerCase() : '';
+      scaleName = runtime.SCALES && runtime.AppState && runtime.SCALES[runtime.AppState.scaleIdx]
+        ? String(runtime.SCALES[runtime.AppState.scaleIdx].name || '').toLowerCase() : '';
     } catch (_) {}
     var minorScale = scaleName.indexOf('minor') !== -1 || scaleName.indexOf('aeolian') !== -1;
 
     // Assigned-but-inactive buttons are white; selected state uses the accent.
     return [
       false,
-      !!(global.TastyState && global.TastyState.enabled),
-      !!(global.StockState && global.StockState.enabled),
+      !!(runtime.TastyState && runtime.TastyState.enabled),
+      !!(runtime.StockState && runtime.StockState.enabled),
       false,
       false,
       !!controlState.tensionMode,
@@ -120,12 +149,12 @@
       });
     }
     if (performBankContext()) return [false, false, false, false, false, false, null, null];
-    var app = global.AppState || {};
+    var app = runtime.AppState || {};
     return [
-      domButtonActive('inst-toggle-link', global.linkMode),
-      domButtonActive('inst-toggle-guitar', global.showGuitar),
-      domButtonActive('inst-toggle-bass', global.showBass),
-      domButtonActive('inst-toggle-piano', global.showPiano),
+      domButtonActive('inst-toggle-link', runtime.linkMode),
+      domButtonActive('inst-toggle-guitar', runtime.showGuitar),
+      domButtonActive('inst-toggle-bass', runtime.showBass),
+      domButtonActive('inst-toggle-piano', runtime.showPiano),
       !!app.showMinorVariants,
       !!app.showParallelKey,
       !!app.showSecDom,
@@ -146,13 +175,13 @@
     }
 
     var mode = currentMode();
-    var app = global.AppState || {};
+    var app = runtime.AppState || {};
     var setupOrPick = !!controlState.setupActive || !!global.__pushLedColorPickRole;
     var chordNav = completedChord();
-    var navContext = setupOrPick || !!controlState.entryStep || chordNav;
-    var bankContext = performBankContext();
+    var navContext = setupOrPick || !!controlState.entryStep || chordNav || heldSlotActive();
+    var bankContext = slotLayoutActive();
     var bankCount = 0;
-    try { bankCount = global.BankState && Array.isArray(global.BankState.banks) ? global.BankState.banks.length : 0; } catch (_) {}
+    try { bankCount = runtime.BankState && Array.isArray(runtime.BankState.banks) ? runtime.BankState.banks.length : 0; } catch (_) {}
 
     sendButtonLed('setup', 30, setupOrPick ? 'strong' : 'weak', false);
     sendButtonLed('layout', 31, mode === 'input' ? 'strong' : 'weak', false);
@@ -197,7 +226,7 @@
 
   function refresh() {
     try { if (typeof global.updateChordDisplay === 'function') global.updateChordDisplay(); } catch (_) {}
-    try { if (typeof global.updatePlainDisplay === 'function' && global.AppState && global.AppState.mode === 'input') global.updatePlainDisplay(); } catch (_) {}
+    try { if (typeof global.updatePlainDisplay === 'function' && runtime.AppState && runtime.AppState.mode === 'input') global.updatePlainDisplay(); } catch (_) {}
     try { if (typeof global.render === 'function') global.render(); } catch (_) {}
     try { if (typeof global.updateMemorySlotUI === 'function') global.updateMemorySlotUI(); } catch (_) {}
     try { if (typeof global.updateBankUI === 'function') global.updateBankUI(); } catch (_) {}
@@ -207,7 +236,7 @@
   }
 
   function currentMode() {
-    return global.AppState && global.AppState.mode ? global.AppState.mode : '';
+    return runtime.AppState && runtime.AppState.mode ? runtime.AppState.mode : '';
   }
 
   function setMode(mode) {
@@ -216,18 +245,18 @@
   }
 
   function setScaleRootDelta(delta) {
-    if (!global.AppState) return false;
-    global.AppState.key = wrap((global.AppState.key || 0) + (delta < 0 ? -1 : 1), 12);
+    if (!runtime.AppState) return false;
+    runtime.AppState.key = wrap((runtime.AppState.key || 0) + (delta < 0 ? -1 : 1), 12);
     if (typeof global.onKeyChanged === 'function') global.onKeyChanged();
     else refresh();
     return true;
   }
 
   function setScaleIndexDelta(delta) {
-    if (!global.AppState || !Array.isArray(global.SCALES) || !global.SCALES.length) return false;
-    global.AppState.scaleIdx = wrap((global.AppState.scaleIdx || 0) + (delta < 0 ? -1 : 1), global.SCALES.length);
+    if (!runtime.AppState || !Array.isArray(runtime.SCALES) || !runtime.SCALES.length) return false;
+    runtime.AppState.scaleIdx = wrap((runtime.AppState.scaleIdx || 0) + (delta < 0 ? -1 : 1), runtime.SCALES.length);
     var sel = document.getElementById('scale-select');
-    if (sel) sel.value = String(global.AppState.scaleIdx);
+    if (sel) sel.value = String(runtime.AppState.scaleIdx);
     if (typeof global.renderDiatonicBar === 'function') global.renderDiatonicBar();
     if (typeof global.updateScaleKeyDisplay === 'function') global.updateScaleKeyDisplay();
     refresh();
@@ -235,14 +264,14 @@
   }
 
   function nudgeChordRoot(delta) {
-    if (!global.BuilderState || global.BuilderState.root === null || global.BuilderState.root === undefined) return false;
-    var next = wrap(global.BuilderState.root + (delta < 0 ? -1 : 1), 12);
+    if (!runtime.BuilderState || runtime.BuilderState.root === null || runtime.BuilderState.root === undefined) return false;
+    var next = wrap(runtime.BuilderState.root + (delta < 0 ? -1 : 1), 12);
     if (typeof global.selectRoot === 'function') {
       global.selectRoot(next);
     } else {
-      global.BuilderState.root = next;
-      if (global.BuilderState.bass !== null && global.BuilderState.bass !== undefined) {
-        global.BuilderState.bass = wrap(global.BuilderState.bass + (delta < 0 ? -1 : 1), 12);
+      runtime.BuilderState.root = next;
+      if (runtime.BuilderState.bass !== null && runtime.BuilderState.bass !== undefined) {
+        runtime.BuilderState.bass = wrap(runtime.BuilderState.bass + (delta < 0 ? -1 : 1), 12);
       }
     }
     refresh();
@@ -250,20 +279,20 @@
   }
 
   function cycleInversion(delta) {
-    if (!global.AppState || global.AppState.mode !== 'chord' || !global.BuilderState || !global.BuilderState.quality) return false;
+    if (!runtime.AppState || runtime.AppState.mode !== 'chord' || !runtime.BuilderState || !runtime.BuilderState.quality) return false;
     if (typeof global.chordBasicFormActive === 'function' && global.chordBasicFormActive()
         && typeof global.stepBasicFormInversion === 'function') {
       global.stepBasicFormInversion(delta < 0 ? -1 : 1);
       refresh();
       return true;
     }
-    if (global.VoicingState && global.VoicingState.shell) return false;
-    var pcs = typeof global.getBuilderPCS === 'function' ? global.getBuilderPCS() : (global.BuilderState.quality.pcs || []);
+    if (runtime.VoicingState && runtime.VoicingState.shell) return false;
+    var pcs = typeof global.getBuilderPCS === 'function' ? global.getBuilderPCS() : (runtime.BuilderState.quality.pcs || []);
     var maxInv = Math.min(3, Math.max(0, (pcs ? pcs.length : 1) - 1));
-    var inv = global.VoicingState ? (global.VoicingState.inversion || 0) : 0;
+    var inv = runtime.VoicingState ? (runtime.VoicingState.inversion || 0) : 0;
     inv = delta > 0 ? (inv < maxInv ? inv + 1 : 0) : (inv > 0 ? inv - 1 : maxInv);
     if (typeof global.setInversion === 'function') global.setInversion(inv);
-    else if (global.VoicingState) global.VoicingState.inversion = inv;
+    else if (runtime.VoicingState) runtime.VoicingState.inversion = inv;
     refresh();
     return true;
   }
@@ -291,17 +320,17 @@
   }
 
   function cycleActiveVoicing(delta, alternative) {
-    if (global.TastyState && global.TastyState.enabled && typeof global.cycleTasty === 'function') {
+    if (runtime.TastyState && runtime.TastyState.enabled && typeof global.cycleTasty === 'function') {
       global.cycleTasty(delta < 0); refresh(); return true;
     }
-    if (global.StockState && global.StockState.enabled && typeof global.cycleStock === 'function') {
+    if (runtime.StockState && runtime.StockState.enabled && typeof global.cycleStock === 'function') {
       global.cycleStock(delta < 0); refresh(); return true;
     }
     if (typeof global.isGuitarEngineActive === 'function' && global.isGuitarEngineActive()) {
-      if (alternative && global.GuitarPositionState && Array.isArray(global.GuitarPositionState.groups)
-          && global.GuitarPositionState.groups.length > 1 && typeof global.setGuitarEngineGroup === 'function') {
-        var gi = global.GuitarPositionState.currentGroupIdx || 0;
-        global.setGuitarEngineGroup(wrap(gi + (delta < 0 ? -1 : 1), global.GuitarPositionState.groups.length));
+      if (alternative && runtime.GuitarPositionState && Array.isArray(runtime.GuitarPositionState.groups)
+          && runtime.GuitarPositionState.groups.length > 1 && typeof global.setGuitarEngineGroup === 'function') {
+        var gi = runtime.GuitarPositionState.currentGroupIdx || 0;
+        global.setGuitarEngineGroup(wrap(gi + (delta < 0 ? -1 : 1), runtime.GuitarPositionState.groups.length));
       } else if (typeof global.cycleGuitarEngine === 'function') {
         global.cycleGuitarEngine(delta < 0);
       }
@@ -311,16 +340,16 @@
         && typeof global.cycleBasicFormPosition === 'function') {
       global.cycleBasicFormPosition(); refresh(); return true;
     }
-    if (global.VoicingState && Array.isArray(global.VoicingState.lastBoxes) && global.VoicingState.lastBoxes.length) {
-      var idx = global.VoicingState.selectedBoxIdx;
+    if (runtime.VoicingState && Array.isArray(runtime.VoicingState.lastBoxes) && runtime.VoicingState.lastBoxes.length) {
+      var idx = runtime.VoicingState.selectedBoxIdx;
       if (idx === null || idx === undefined) idx = 0;
       if (alternative) {
-        var box = global.VoicingState.lastBoxes[idx];
+        var box = runtime.VoicingState.lastBoxes[idx];
         if (box && Array.isArray(box.alternatives) && box.alternatives.length > 1 && typeof global.selectVoicingBox === 'function') {
           global.selectVoicingBox(idx); refresh(); return true;
         }
       } else {
-        var next = wrap(idx + (delta < 0 ? -1 : 1), global.VoicingState.lastBoxes.length);
+        var next = wrap(idx + (delta < 0 ? -1 : 1), runtime.VoicingState.lastBoxes.length);
         if (typeof global.selectVoicingBox === 'function') global.selectVoicingBox(next);
         refresh(); return true;
       }
@@ -330,20 +359,21 @@
 
   function qualityList() {
     var out = [];
-    if (!Array.isArray(global.BUILDER_QUALITIES)) return out;
-    global.BUILDER_QUALITIES.forEach(function(row) { (row || []).forEach(function(q) { if (q) out.push(q); }); });
+    if (!Array.isArray(runtime.BUILDER_QUALITIES)) return out;
+    runtime.BUILDER_QUALITIES.forEach(function(row) { (row || []).forEach(function(q) { if (q) out.push(q); }); });
     return out;
   }
 
   function beginEntry(step) {
+    controlState.tensionMode = false;
     if (currentMode() !== 'chord') setMode('chord');
     controlState.entryStep = step === 'quality' ? 'quality' : 'root';
-    controlState.entryRoot = global.BuilderState && global.BuilderState.root !== null && global.BuilderState.root !== undefined
-      ? global.BuilderState.root : (global.AppState ? global.AppState.key : 0);
+    controlState.entryRoot = runtime.BuilderState && runtime.BuilderState.root !== null && runtime.BuilderState.root !== undefined
+      ? runtime.BuilderState.root : (runtime.AppState ? runtime.AppState.key : 0);
     var list = qualityList();
     controlState.entryQualityIndex = 0;
-    if (global.BuilderState && global.BuilderState.quality) {
-      for (var i = 0; i < list.length; i++) if (list[i].name === global.BuilderState.quality.name) controlState.entryQualityIndex = i;
+    if (runtime.BuilderState && runtime.BuilderState.quality) {
+      for (var i = 0; i < list.length; i++) if (list[i].name === runtime.BuilderState.quality.name) controlState.entryQualityIndex = i;
     }
     if (typeof global.setBuilderStep === 'function') global.setBuilderStep(1);
     return true;
@@ -373,7 +403,7 @@
     var list = qualityList();
     var qi = index === undefined ? controlState.entryQualityIndex : index;
     if (!list[qi]) return true;
-    if (global.BuilderState && (global.BuilderState.root === null || global.BuilderState.root === undefined)
+    if (runtime.BuilderState && (runtime.BuilderState.root === null || runtime.BuilderState.root === undefined)
         && typeof global.selectRoot === 'function') global.selectRoot(controlState.entryRoot || 0);
     if (typeof global.selectQuality === 'function') global.selectQuality(list[qi]);
     controlState.entryQualityIndex = qi;
@@ -383,10 +413,10 @@
   }
 
   function toggleMajorMinorScale() {
-    if (!global.AppState || !Array.isArray(global.SCALES)) return false;
-    var current = global.SCALES[global.AppState.scaleIdx] ? String(global.SCALES[global.AppState.scaleIdx].name || '').toLowerCase() : '';
-    global.AppState.scaleIdx = (current.indexOf('minor') !== -1 || current.indexOf('aeolian') !== -1) ? 0 : 5;
-    var sel = document.getElementById('scale-select'); if (sel) sel.value = String(global.AppState.scaleIdx);
+    if (!runtime.AppState || !Array.isArray(runtime.SCALES)) return false;
+    var current = runtime.SCALES[runtime.AppState.scaleIdx] ? String(runtime.SCALES[runtime.AppState.scaleIdx].name || '').toLowerCase() : '';
+    runtime.AppState.scaleIdx = (current.indexOf('minor') !== -1 || current.indexOf('aeolian') !== -1) ? 0 : 5;
+    var sel = document.getElementById('scale-select'); if (sel) sel.value = String(runtime.AppState.scaleIdx);
     refresh(); return true;
   }
 
@@ -401,7 +431,7 @@
   }
 
   function lowerSwitch(index) {
-    var perform = currentMode() === 'input' && global.memoryViewMode === 'perform';
+    var perform = currentMode() === 'input' && runtime.memoryViewMode === 'perform';
     if (perform) {
       if (index === 0) call('playMemorySlots');
       else if (index === 1) call('exportPlainMidi');
@@ -430,7 +460,7 @@
     if (index === 4) return beginEntry('quality');
     if (index === 5) {
       if (currentMode() !== 'chord') setMode('chord');
-      if (global.BuilderState && global.BuilderState.quality && typeof global.setBuilderStep === 'function') {
+      if (runtime.BuilderState && runtime.BuilderState.quality && typeof global.setBuilderStep === 'function') {
         global.setBuilderStep(2); controlState.tensionMode = true; refresh();
       }
       return true;
@@ -479,7 +509,7 @@
   function setupConfirm() {
     var field = setupFields[controlState.setupField];
     if (field === 'close') { controlState.setupActive = false; call('closeViewSetupPanel'); return true; }
-    if (field === 'reset') { if (global.TutorialEngine && typeof global.TutorialEngine.reset === 'function') global.TutorialEngine.reset(); return true; }
+    if (field === 'reset') { if (runtime.TutorialEngine && typeof runtime.TutorialEngine.reset === 'function') runtime.TutorialEngine.reset(); return true; }
     return setupChange(1);
   }
 
@@ -504,8 +534,18 @@
 
   function backCurrent(redo) {
     if (currentMode() === 'input') {
+      stopHeldSlot();
       if (redo) call('redoMemory'); else call('undoMemory');
-    } else if (currentMode() === 'chord' && !redo) call('builderBack');
+    } else if (currentMode() === 'chord') {
+      // Standalone Back first deselects a position; only the next Back unwinds
+      // the builder. Redo/left side tap in Chord still follows builderBack.
+      if (!redo && runtime.VoicingState && runtime.VoicingState.selectedBoxIdx != null) {
+        runtime.VoicingState.selectedBoxIdx = null;
+      } else {
+        controlState.tensionMode = false;
+        call('builderBack');
+      }
+    }
     refresh();
   }
 
@@ -522,44 +562,174 @@
     return (3 - row) * 4 + col;
   }
 
-  function handlePad(rawNote, isDown) {
-    if (!controlState.deleteHeld && !controlState.duplicateHeld) return false;
-    var slot = slotFromRawPad(rawNote);
-    if (slot === null) return false;
-    if (!isDown) return true;
-    if (!global.PlainState || !Array.isArray(global.PlainState.memory)) return true;
+  function slotLayoutActive() {
+    return currentMode() === 'input' && controlState.inputPadLayout;
+  }
 
+  function heldSlotActive() {
+    return slotLayoutActive() && controlState.heldSlot !== null;
+  }
+
+  function stopHeldSlot(preserveBuffer) {
+    var hadSlot = controlState.heldSlot !== null;
+    // Use ordinary note release. A layout change is NOT a physical pedal-up:
+    // never emit artificial CC64 or change the browser's physical sustain state.
+    controlState.heldNotes.forEach(function(note) { call('noteOff', note); });
+    controlState.heldNotes = [];
+    controlState.heldSlot = null;
+    if (hadSlot && runtime.PerformState) runtime.PerformState.activePad = null;
+    if (hadSlot && !preserveBuffer && runtime.PlainState) runtime.PlainState.activeNotes.clear();
+  }
+
+  function beforeModeChange() {
+    if (global.IS_DESKTOP_MODE || controlState.changingLayout) return;
+    // Preserve Input's chord buffer for the existing Input -> Chord transfer.
+    stopHeldSlot(true);
+    controlState.inputPadLayout = false;
+    controlState.entryStep = null;
+    controlState.tensionMode = false;
+  }
+
+  function onMemoryViewChange(mode) {
+    if (global.IS_DESKTOP_MODE || controlState.changingLayout) return;
+    stopHeldSlot();
+    // The on-screen Perform switch remains authoritative. Turning it off returns
+    // to musical Input; the separate physical Layout button visits Memory slots.
+    controlState.inputPadLayout = currentMode() === 'input' && mode === 'perform';
+    refresh();
+  }
+
+  function setInputLayout(view, useSlots) {
+    stopHeldSlot();
+    // A NoteOff arriving after the switch will belong to the slot dispatcher.
+    // Release the old musical owners first, without pretending the pedal lifted.
+    call('releaseAllMidiHeldSources', true);
+    controlState.entryStep = null;
+    controlState.tensionMode = false;
+    controlState.changingLayout = true;
+    try {
+      setMode('input');
+      call('toggleMemoryView', view);
+      controlState.inputPadLayout = !!useSlots;
+    } finally { controlState.changingLayout = false; }
+    refresh();
+  }
+
+  function cycleInputLayout() {
+    // Standalone: musical Input -> Memory slots -> Perform slots -> musical Input.
+    var wasSlots = slotLayoutActive();
+    var wasPerform = runtime.memoryViewMode === 'perform';
+    setInputLayout(wasSlots && !wasPerform ? 'perform' : 'memory', !wasSlots || !wasPerform);
+    return true;
+  }
+
+  function voicingEngineActive() {
+    return !!((runtime.TastyState && runtime.TastyState.enabled)
+      || (runtime.StockState && runtime.StockState.enabled)
+      || call('isGuitarEngineActive'));
+  }
+
+  function editHeldSlot(delta, rotate) {
+    if (!delta || !heldSlotActive() || !runtime.PlainState) return true;
+    var slot = runtime.PlainState.memory[controlState.heldSlot];
+    if (!slot || !controlState.heldNotes.length || (rotate && controlState.heldNotes.length < 2)) return true;
+    var notes = controlState.heldNotes.slice().sort(function(a, b) { return a - b; });
+    if (rotate) {
+      if (delta > 0) notes.push(notes.shift() + 12);
+      else notes.unshift(notes.pop() - 12);
+    } else notes = notes.map(function(note) { return note + delta; });
+    notes = notes.map(function(note) { return Math.max(0, Math.min(127, note)); });
+    call('pushUndoState');
+    controlState.heldNotes.forEach(function(note) { call('noteOff', note); });
+    controlState.heldNotes = notes;
+    notes.forEach(function(note) { call('noteOn', note, 0.8); });
+    runtime.PlainState.activeNotes = new Set(notes);
+    if (runtime.PerformState) runtime.PerformState.activePad = controlState.heldSlot;
+    var candidates = call('detectChord', notes) || [];
+    var name = candidates.length ? candidates[0].name : slot.chordName;
+    runtime.PlainState.memory[controlState.heldSlot] = call('makeMemorySlot', notes, name, null);
+    call('syncMemoryToActiveBank');
+    refresh();
+    return true;
+  }
+
+  function slotPadColor(row, col) {
+    if (!slotLayoutActive()) return null;
+    if (row < 0 || row > 3 || col < 0 || col > 3) return 0;
+    var slot = (3 - row) * 4 + col;
+    var app = runtime.AppState || {};
+    if (runtime.memoryViewMode === 'perform' && controlState.heldSlot === slot) return app.pushPerformActiveColor || 9;
+    return runtime.PlainState && runtime.PlainState.memory[slot] ? (app.pushMemorySlotColor || 45) : 3;
+  }
+
+  function resetInputState() {
+    stopHeldSlot();
+    controlState.ownedPads.clear();
+    controlState.deleteHeld = false;
+    controlState.deletePadUsed = false;
+    controlState.duplicateHeld = false;
+    controlState.duplicateSource = null;
+    controlState.cc = call('padWebCreatePushCcState') || {};
+    controlState.lastRawByKey = Object.create(null);
+    refresh();
+  }
+
+  function handlePad(rawNote, isDown) {
+    if (global.IS_DESKTOP_MODE) return false;
+    var slot = slotFromRawPad(rawNote);
+    // Consume releases even after leaving the layout or releasing a modifier.
+    if (!isDown && controlState.ownedPads.has(rawNote)) {
+      controlState.ownedPads.delete(rawNote);
+      if (slot === controlState.heldSlot) stopHeldSlot();
+      refresh(); return true;
+    }
+    if (!slotLayoutActive()) return false;
+    if (!isDown) return true;
+    if (controlState.ownedPads.has(rawNote)) return true;
+    controlState.ownedPads.add(rawNote);
+    // Slot layout owns the whole grid; the other 48 pads must not play raw notes.
+    if (slot === null || !runtime.PlainState) return true;
+    var memory = runtime.PlainState.memory;
     if (controlState.deleteHeld) {
       controlState.deletePadUsed = true;
-      if (global.PlainState.memory[slot]) {
-        call('pushUndoState');
-        global.PlainState.memory[slot] = null;
-        call('syncMemoryToActiveBank');
-        refresh();
+      if (memory[slot]) {
+        if (controlState.heldSlot === slot) stopHeldSlot();
+        call('pushUndoState'); memory[slot] = null;
+        call('syncMemoryToActiveBank'); refresh();
       }
       return true;
     }
-
     if (controlState.duplicateHeld) {
       if (controlState.duplicateSource === null) {
-        if (global.PlainState.memory[slot]) controlState.duplicateSource = slot;
+        if (memory[slot]) controlState.duplicateSource = slot;
       } else {
-        var src = global.PlainState.memory[controlState.duplicateSource];
-        if (src) {
-          call('pushUndoState');
-          global.PlainState.memory[slot] = typeof global.cloneMemorySlot === 'function' ? global.cloneMemorySlot(src) : JSON.parse(JSON.stringify(src));
-          call('syncMemoryToActiveBank');
-          refresh();
+        var src = memory[controlState.duplicateSource];
+        if (src && slot !== controlState.duplicateSource) {
+          call('pushUndoState'); memory[slot] = call('cloneMemorySlot', src);
+          runtime.PlainState.currentSlot = slot;
+          call('syncMemoryToActiveBank'); refresh();
         }
         controlState.duplicateSource = null;
       }
       return true;
     }
-    return false;
+    if (!memory[slot] || !memory[slot].midiNotes.length) return true;
+    stopHeldSlot();
+    controlState.heldSlot = slot;
+    controlState.heldNotes = memory[slot].midiNotes.slice();
+    runtime.PlainState.activeNotes = new Set(controlState.heldNotes);
+    if (runtime.memoryViewMode === 'perform') runtime.PerformState.activePad = slot;
+    else runtime.PlainState.currentSlot = slot;
+    call('ensureAudioResumed');
+    controlState.heldNotes.forEach(function(note) { call('noteOn', note, 0.8); });
+    refresh();
+    return true;
   }
 
   function handleLogical(code, value) {
     code |= 0; value |= 0;
+
+    if (global.IS_DESKTOP_MODE) return false;
 
     if (controlState.setupActive && code !== 70) {
       if (code === 30 || code === 33) return setupMove(value || 1);
@@ -572,8 +742,8 @@
 
     if (code === 70) return setupToggle();
     if (code === 1) { controlState.entryStep = null; setMode(currentMode() === 'scale' ? 'chord' : 'scale'); return true; }
-    if (code === 3) { controlState.entryStep = null; setMode('input'); return true; }
-    if (code === 47) { call('togglePerformMode'); refresh(); return true; }
+    if (code === 3) { setInputLayout('memory', false); return true; }
+    if (code === 47) return cycleInputLayout();
 
     if (controlState.entryStep) {
       if (code === 20) return applyEntry(8 + value);
@@ -587,6 +757,7 @@
     if (code === 20) return lowerSwitch(value);
     if (code === 21) return upperSwitch(value);
     if (code === 30) {
+      if (heldSlotActive()) return editHeldSlot(value, true);
       if (currentMode() === 'scale') {
         if (typeof global.doubleStopActive === 'function' && global.doubleStopActive() && typeof global.cycleDoubleStopDegree === 'function') {
           global.cycleDoubleStopDegree(value); refresh(); return true;
@@ -594,27 +765,36 @@
         return setScaleIndexDelta(value);
       }
       if (currentMode() === 'chord') {
-        if (controlState.tensionMode) return cycleTension(value);
-        if (cycleActiveVoicing(value, false)) return true;
+        if (controlState.tensionMode && runtime.BuilderState && runtime.BuilderState.step === 2) return cycleTension(value);
+        if (voicingEngineActive()) return cycleActiveVoicing(value, false);
         return cycleInversion(value);
       }
       return true;
     }
     if (code === 33) { backCurrent(value < 0); return true; }
     if (code === 34) {
+      if (heldSlotActive()) {
+        runtime.PlainState.currentSlot = controlState.heldSlot;
+        call('saveAppSettings'); refresh(); return true;
+      }
+      if (currentMode() === 'input') return true;
       if (currentMode() === 'scale' && typeof global.cycleDoubleStopPosition === 'function') { global.cycleDoubleStopPosition(); refresh(); return true; }
       return cycleActiveVoicing(1, true) || true;
     }
     if (code === 35) {
+      if (heldSlotActive()) return editHeldSlot(value, false);
+      if (currentMode() === 'scale' && call('doubleStopActive') && typeof global.cycleDoubleStopDegree === 'function') {
+        call('cycleDoubleStopDegree', value); refresh(); return true;
+      }
       if (currentMode() === 'chord') return nudgeChordRoot(value);
       if (currentMode() === 'scale') return setScaleRootDelta(value);
       return true;
     }
-    if (code === 36) { if (currentMode() === 'input' && global.memoryViewMode === 'perform') call('switchBank', value < 0 ? -1 : 1); refresh(); return true; }
+    if (code === 36) { if (performBankContext()) { stopHeldSlot(); call('switchBank', value < 0 ? -1 : 1); } refresh(); return true; }
     if (code >= 50 && code <= 57) {
       var enc = code - 50;
-      if (enc === 1 && global.TastyState && global.TastyState.enabled) { call('cycleTasty', value < 0); refresh(); return true; }
-      if (enc === 2 && global.StockState && global.StockState.enabled) { call('cycleStock', value < 0); refresh(); return true; }
+      if (enc === 1 && runtime.TastyState && runtime.TastyState.enabled) { call('cycleTasty', value < 0); refresh(); return true; }
+      if (enc === 2 && runtime.StockState && runtime.StockState.enabled) { call('cycleStock', value < 0); refresh(); return true; }
       if (enc === 3 && typeof global.isGuitarEngineActive === 'function' && global.isGuitarEngineActive()) { call('cycleGuitarEngine', value < 0); refresh(); return true; }
       if (enc === 5) return cycleTension(value);
       if (enc === 6) return currentMode() === 'chord' ? nudgeChordRoot(value) : setScaleRootDelta(value);
@@ -634,29 +814,21 @@
     if (code === 41) { backCurrent(value > 0); return true; }
     if (code === 42) { playCurrent(); return true; }
     if (code === 44) { captureCurrent(); return true; }
-    if (code === 45) { if (global.TutorialEngine && typeof global.TutorialEngine.showSelector === 'function') global.TutorialEngine.showSelector(); return true; }
+    if (code === 45) { if (runtime.TutorialEngine && typeof runtime.TutorialEngine.showSelector === 'function') runtime.TutorialEngine.showSelector(); return true; }
     if (code === 71) { toggleHelp(); return true; }
-    if (code === 72) { if (global.AppState) call('toggleCFixed', !(global.AppState.padCFixed === true)); refresh(); return true; }
+    if (code === 72) { if (runtime.AppState) call('toggleCFixed', !(runtime.AppState.padCFixed === true)); refresh(); return true; }
     if (code === 73) return true; // Native plug-in device picker has no browser equivalent.
-    if (code === 74) { if (global.AppState) call('toggleShowAllPositions', !(global.AppState.showAllPositions === true)); refresh(); return true; }
+    if (code === 74) { if (runtime.AppState) call('toggleShowAllPositions', !(runtime.AppState.showAllPositions === true)); refresh(); return true; }
     if (code === 75) { if (controlState.deleteHeld) call('deleteBank'); else call('addBank'); refresh(); return true; }
     if (code === 48) { call('saveAppSettings'); call('showSaveToast'); return true; }
     if (code === 46) {
-      // Preserve the owner-ruling Push WYSIWYG gesture: in Input/Perform with a held
-      // slot/chord, octave moves that slot and saves it instead of transposing the grid.
-      if (currentMode() === 'input' && global.memoryViewMode === 'perform'
-          && global.PerformState && global.PerformState.activePad !== null
-          && global.PlainState && global.PlainState.activeNotes
-          && global.PlainState.activeNotes.size > 0) {
-        call('performOctaveEdit', value);
-        refresh();
-        return true;
-      }
+      if (heldSlotActive()) return editHeldSlot(value * 12, false);
       call('shiftOctave', value);
       refresh();
       return true;
     }
     if (code === 43) {
+      if (heldSlotActive()) return editHeldSlot(value, true);
       if (currentMode() === 'scale' && typeof global.doubleStopActive === 'function' && global.doubleStopActive() && typeof global.cycleDoubleStopInterval === 'function') {
         global.cycleDoubleStopInterval(value); refresh(); return true;
       }
@@ -681,8 +853,8 @@
     var result = global.padWebMapPushCc(cc, value, {
       inputName: meta.inputName,
       nowMs: nowMs,
-      padIsHeld: !!meta.padIsHeld,
-      padPlaybackBlocked: !!meta.padPlaybackBlocked,
+      padIsHeld: !!meta.padIsHeld || heldSlotActive(),
+      padPlaybackBlocked: !!meta.padPlaybackBlocked || slotLayoutActive(),
       mpeMode: !!meta.mpeMode,
     }, controlState.cc);
     (result.events || []).forEach(function(e) { handleLogical(e.code, e.value); });
@@ -692,6 +864,12 @@
     return !!result.handled;
   }
 
+  global.padWebPushBeforeModeChange = beforeModeChange;
+  global.padWebPushMemoryViewChanged = onMemoryViewChange;
+  global.padWebPushSlotLayoutActive = slotLayoutActive;
+  global.padWebPushHeldSlotActive = heldSlotActive;
+  global.padWebPushSlotPadColor = slotPadColor;
+  global.padWebResetPushInputState = resetInputState;
   global.padWebHandlePushControl = handleLogical;
   global.padWebHandlePushMidiCc = handleMidiCc;
   global.padWebPushControlWillHandlePad = handlePad;
