@@ -61,6 +61,29 @@ describe('Push Web logical control behavior', () => {
     expect(calls).toContainEqual([86, 'weak', true]);        // Record assigned, not Input
   });
 
+  it('uses both display rows for root-entry LED choices', () => {
+    const calls = [];
+    globalThis.AppState = { mode: 'chord', scaleIdx: 0, padCFixed: false };
+    globalThis.SCALES = [{ name: 'Major' }];
+    globalThis.localStorage = { getItem: () => '{}' };
+    globalThis.BUILDER_QUALITIES = [];
+    globalThis.padWebSendPushButtonLed = (cc, state, palette) => calls.push([cc, state, palette]);
+
+    globalThis.padWebPushControlState.entryStep = 'root';
+    globalThis.padWebPushControlState.entryRoot = 10;
+    resetButtonLedState();
+    syncButtonLeds();
+
+    expect(calls).toContainEqual([20, 'white-weak', true]); // root index 8 assigned on lower row
+    expect(calls).toContainEqual([21, 'white-weak', true]); // root index 9 assigned on lower row
+    expect(calls).toContainEqual([22, 'weak', true]);       // selected root index 10
+    expect(calls).toContainEqual([23, 'white-weak', true]); // root index 11 assigned
+    expect(calls).toContainEqual([24, 'off', true]);        // no root index 12
+
+    globalThis.padWebPushControlState.entryStep = null;
+    globalThis.padWebPushControlState.entryRoot = null;
+  });
+
   it('lights Input/Perform navigation and C-fixed state from screen truth', () => {
     const calls = [];
     globalThis.AppState = { mode: 'input', scaleIdx: 0, padCFixed: true };

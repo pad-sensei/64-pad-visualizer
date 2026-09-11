@@ -108,6 +108,17 @@
   }
 
   function lowerButtonStates() {
+    if (controlState.entryStep) {
+      var list = controlState.entryStep === 'root' ? new Array(12).fill(true) : qualityList().map(function() { return true; });
+      var activeIndex = controlState.entryStep === 'root'
+        ? (controlState.entryRoot === null || controlState.entryRoot === undefined ? -1 : controlState.entryRoot)
+        : controlState.entryQualityIndex;
+      return new Array(8).fill(null).map(function(_, i) {
+        var index = 8 + i;
+        if (index >= list.length) return null;
+        return index === activeIndex;
+      });
+    }
     if (performBankContext()) return [false, false, false, false, false, false, null, null];
     var app = global.AppState || {};
     return [
