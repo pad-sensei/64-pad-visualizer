@@ -59,7 +59,7 @@ function withDeadline(promise, milliseconds, label) {
 }
 
 export class PushWebUsbDisplay {
-  constructor(usb, frame, onStatus = () => {}, { intervalMs = 250, timeoutMs = 1500 } = {}) {
+  constructor(usb, frame, onStatus = () => {}, { intervalMs = 250, timeoutMs = 5000, maxRecoveries = 4 } = {}) {
     if (!(frame instanceof Uint8Array) || frame.length !== FRAME_BYTES) {
       throw new Error('Invalid Push display frame.');
     }
@@ -67,7 +67,10 @@ export class PushWebUsbDisplay {
     this.frame = frame.slice();
     this.onStatus = onStatus;
     this.intervalMs = Math.max(250, intervalMs);
-    this.timeoutMs = timeoutMs;
+    // Chrome/WebUSB can occasionally take longer than 1.5 s after an idle period.
+    // Treat that as recoverable transport drift rather than ending the surface session.
+    this.timeoutMs = Math.max(1500, timeoutMs);
+    this.maxRecoveries = Math.max(1, maxRecoveries);
     this.session = null;
     this.disconnect = event => {
       if (event.device === this.session?.device) void this.stop('Push 3 USB disconnected.');
@@ -82,29 +85,34 @@ export class PushWebUsbDisplay {
     this.frame = frame.slice();
   }
 
+  async prepareDevice(session) {
+    const configuration = pushDisplayConfiguration(session.device);
+    if (!session.device.opened) await session.device.open();
+    if (session.stopped) return false;
+    if (!session.device.configuration) await session.device.selectConfiguration(configuration);
+    if (session.stopped) return false;
+    pushDisplayConfiguration(session.device);
+    await session.device.claimInterface(0);
+    if (session.stopped) return false;
+    await session.device.selectAlternateInterface(0, 0);
+    session.claimed = true;
+    return !session.stopped;
+  }
+
   async connect() {
     if (this.session) return false;
     if (!this.usb?.requestDevice) throw new Error('WebUSB is unavailable.');
     const session = {
       device: null, stopped: false, connecting: true, frames: 0,
-      timer: null, closing: null, claimed: false,
+      timer: null, closing: null, claimed: false, recovering: false,
+      recoveries: 0,
     };
     this.session = session;
     this.onStatus('connecting', 'Select Push 3 in the Chrome USB chooser.');
     try {
       session.device = await this.usb.requestDevice({ filters: [{ ...FILTER }] });
       if (session.stopped) return false;
-      const configuration = pushDisplayConfiguration(session.device);
-      await session.device.open();
-      if (session.stopped) return false;
-      if (!session.device.configuration) await session.device.selectConfiguration(configuration);
-      if (session.stopped) return false;
-      pushDisplayConfiguration(session.device);
-      await session.device.claimInterface(0);
-      if (session.stopped) return false;
-      await session.device.selectAlternateInterface(0, 0);
-      session.claimed = true;
-      if (session.stopped) return false;
+      if (!await this.prepareDevice(session)) return false;
       this.onStatus('running', 'Push 3 display connected.');
       void this.sendFrame(session);
       return true;
@@ -119,8 +127,38 @@ export class PushWebUsbDisplay {
     }
   }
 
+  async recover(session, cause) {
+    if (session.stopped || this.session !== session || session.recovering) return false;
+    session.recovering = true;
+    session.recoveries += 1;
+    this.onStatus('recovering', `Push display retry ${session.recoveries}/${this.maxRecoveries}: ${String(cause?.message || cause)}`);
+    try {
+      clearTimeout(session.timer);
+      session.claimed = false;
+      session.closing = null;
+      if (session.device?.opened) {
+        try { await withDeadline(session.device.close(), this.timeoutMs, 'USB recovery close'); } catch (_) {}
+      }
+      if (session.stopped || this.session !== session) return false;
+      if (!await this.prepareDevice(session)) return false;
+      session.recoveries = 0;
+      this.onStatus('running', 'Push display recovered.');
+      session.timer = setTimeout(() => void this.sendFrame(session), this.intervalMs);
+      return true;
+    } catch (error) {
+      if (session.recoveries >= this.maxRecoveries) {
+        await this.stop(`Push display recovery failed: ${String(error?.message || error)}`);
+        return false;
+      }
+      session.timer = setTimeout(() => void this.recover(session, error), this.intervalMs);
+      return false;
+    } finally {
+      session.recovering = false;
+    }
+  }
+
   async sendFrame(session) {
-    if (session.stopped || this.session !== session) return;
+    if (session.stopped || this.session !== session || session.recovering) return;
     try {
       const frameForThisWrite = this.frame;
       for (const bytes of [new Uint8Array(HEADER), frameForThisWrite]) {
@@ -132,25 +170,26 @@ export class PushWebUsbDisplay {
       }
       if (session.stopped || this.session !== session) return;
       session.frames += 1;
+      session.recoveries = 0;
       this.onStatus('running', `Push display: ${session.frames} frame${session.frames === 1 ? '' : 's'} sent.`);
       session.timer = setTimeout(() => void this.sendFrame(session), this.intervalMs);
     } catch (error) {
-      if (!session.stopped) await this.stop(String(error?.message || error));
+      if (!session.stopped) await this.recover(session, error);
     }
   }
 
   async sendFinalBlackFrame(session) {
-  if (!session.device?.opened || !session.claimed) return;
-  const black = blackPushDisplayFrame();
-  try {
-    for (const bytes of [new Uint8Array(HEADER), black]) {
-      const result = await withDeadline(session.device.transferOut(1, bytes), this.timeoutMs, 'USB shutdown transfer');
-      if (result.status !== 'ok' || result.bytesWritten !== bytes.length) break;
+    if (!session.device?.opened || !session.claimed) return;
+    const black = blackPushDisplayFrame();
+    try {
+      for (const bytes of [new Uint8Array(HEADER), black]) {
+        const result = await withDeadline(session.device.transferOut(1, bytes), this.timeoutMs, 'USB shutdown transfer');
+        if (result.status !== 'ok' || result.bytesWritten !== bytes.length) break;
+      }
+    } catch (_) {
+      // Best effort during page teardown: closing USB still takes priority.
     }
-  } catch (_) {
-    // Best effort during page teardown: closing USB still takes priority.
   }
-}
 
   async close(session) {
     if (!session.device?.opened) return;
