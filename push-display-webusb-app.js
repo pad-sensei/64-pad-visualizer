@@ -3,8 +3,8 @@ import {
   HEIGHT,
   PushWebUsbDisplay,
   encodePushDisplayFrame,
-} from './push-display-webusb.js';
-import { fastClearPushPads, hardClearPushMidiOutputs } from './push-surface-cleanup.js';
+} from './push-display-webusb.js?v=webusb-20260911-5';
+import { fastClearPushPads, hardClearPushMidiOutputs } from './push-surface-cleanup.js?v=webusb-20260911-5';
 
 const params = new URLSearchParams(window.location.search);
 const enabled = params.has('webusb') && !window.IS_DESKTOP_MODE;
