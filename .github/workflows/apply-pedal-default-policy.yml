@@ -45,8 +45,8 @@ jobs:
             tests/unit/v180-web-contract.test.js
           npm test
           ./tools/sw-assets-check.sh
-          if grep -R "initializePush3PedalMode\|0x37, 0x26, 0x50" push-midi-port-contract.js midi.js tests/unit; then
-            echo 'forbidden Push Pedal/CV configuration write remains' >&2
+          if grep -E "initializePush3PedalMode|0x37, 0x26, 0x50" push-midi-port-contract.js midi.js; then
+            echo 'forbidden Push Pedal/CV configuration write remains in runtime source' >&2
             exit 1
           fi
           git diff --check
