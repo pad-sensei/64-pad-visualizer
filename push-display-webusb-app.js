@@ -3,7 +3,7 @@ import {
   HEIGHT,
   PushWebUsbDisplay,
   encodePushDisplayFrame,
-} from './push-display-webusb.js?v=webusb-20260911-9';
+} from './push-display-webusb.js?v=webusb-20260911-10';
 import { fastClearPushPads, hardClearPushMidiOutputs } from './push-surface-cleanup.js?v=webusb-20260911-7';
 
 const params = new URLSearchParams(window.location.search);
@@ -241,10 +241,8 @@ if (enabled) {
     }
 
     // WebUSB display is opt-in and independent from automatic Web MIDI pad/CC ownership.
-    // Hiding the tab may release only the display transport; it must never clear pad LEDs.
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) void probe.stop('Push display paused because this tab was hidden.');
-    }, { capture: true });
+    // Do not intentionally stop merely because the tab becomes hidden: the Push display
+    // needs its keepalive stream and visibility changes must not tear down a live session.
     // Actual page teardown still clears both transports best-effort.
     window.addEventListener('pagehide', () => cleanupPushSurface(), { capture: true });
     window.addEventListener('beforeunload', () => cleanupPushSurface(), { capture: true });

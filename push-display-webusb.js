@@ -74,7 +74,7 @@ function withDeadline(promise, milliseconds, label) {
 }
 
 export class PushWebUsbDisplay {
-  constructor(usb, frame, onStatus = () => {}, { intervalMs = 250, timeoutMs = 5000, maxRecoveries = 4 } = {}) {
+  constructor(usb, frame, onStatus = () => {}, { intervalMs = 250, timeoutMs = 5000, maxRecoveries = 12 } = {}) {
     if (!(frame instanceof Uint8Array) || frame.length !== FRAME_BYTES) {
       throw new Error('Invalid Push display frame.');
     }

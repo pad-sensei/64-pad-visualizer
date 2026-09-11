@@ -612,7 +612,7 @@ function _resolveSustainOff() {
 
 function initWebMIDI() {
   if (!navigator.requestMIDIAccess) return;
-  navigator.requestMIDIAccess().then(access => {
+  padWebPushPortContract.requestMidiAccess(navigator).then(access => {
     midiAccess = access;
     const statusEl = document.getElementById('midi-status');
     statusEl.style.display = '';
@@ -623,6 +623,7 @@ function initWebMIDI() {
       const prev = select.value;
       select.innerHTML = '<option value="all">' + t('midi.all_devices') + '</option>';
       for (const input of access.inputs.values()) {
+        if (input.state === 'disconnected') continue;
         const opt = document.createElement('option');
         opt.value = input.id;
         opt.textContent = input.name;
@@ -655,13 +656,23 @@ function initWebMIDI() {
       if (midiPortBindings) midiPortBindings.beginGeneration();
 
       const selectedId = select.value;
-      let connected = false;
-      let connectedName = '';
+      const inputCluster = padWebPushPortContract.collectInputCluster(access, selectedId);
+      const inputIds = new Set(inputCluster.map(function(input) { return input.id; }));
+      const pushInputs = inputCluster.filter(function(input) { return padWebIsPushMidiPortName(input.name); });
+      let connected = inputCluster.length > 0;
+      let connectedName = pushInputs.length > 0 ? (pushInputs[0].name || '')
+        : (inputCluster.length > 0 ? (inputCluster[0].name || '') : '');
+      try {
+        window.__64PE_PUSH_MIDI_DIAG__ = {
+          selectedId: selectedId,
+          boundInputs: inputCluster.map(function(input) { return input.name || input.id || ''; }),
+          pushInputs: pushInputs.map(function(input) { return input.name || input.id || ''; }),
+          sysexEnabled: access.sysexEnabled === true,
+        };
+      } catch (_) {}
 
       for (const input of access.inputs.values()) {
-        if (selectedId !== 'all' && input.id !== selectedId) continue;
-        connected = true;
-        connectedName = input.name;
+        if (!inputIds.has(input.id)) continue;
         // Per-input Push detection: シリアル→4度変換をデバイス単位で適用
         const isPush = padWebIsPushMidiPortName(input.name);
         const inputHandler = (e) => {
@@ -770,7 +781,7 @@ function initWebMIDI() {
       // Per-input remap handles Push now; global remap no longer needed
       midiNoteRemap = null;
 
-      // Auto-match MIDI output for LED control (HPS exclusive)
+      // Auto-match MIDI output for standard Push LED/control ownership
       _exitLaunchpadProgrammerMode();
       midiOutput = null;
       midiOutputDAW = null;
@@ -787,7 +798,7 @@ function initWebMIDI() {
         console.log('[64PE LED] Output port:', output.name, output.id);
       }
       if (_controllerLedEnabled && connected && connectedName) {
-        var isPush = padWebIsPushMidiPortName(connectedName);
+        var isPush = pushInputs.length > 0;
         var isLaunchpad = /launchpad/i.test(connectedName);
         console.log('[64PE LED] isPush:', isPush, 'isLaunchpad:', isLaunchpad);
         if (isPush) {
@@ -797,6 +808,8 @@ function initWebMIDI() {
           _isPush = true;
           var pushOutputs = padWebCollectPushMidiOutputs(access);
           _pushLedOutputs = pushOutputs.slice();
+          var pedalInit = padWebPushPortContract.initializePush3PedalMode(access, _pushLedOutputs);
+          try { window.__64PE_PUSH_MIDI_DIAG__.pedalMode = pedalInit; } catch (_) {}
           var pushLivePort = pushOutputs.find(function(output) { return /live/i.test(output.name || ''); }) || null;
           var pushUserPort = pushOutputs.find(function(output) { return /user/i.test(output.name || ''); }) || null;
           midiOutput = pushLivePort || pushUserPort || pushOutputs[0] || null;
@@ -863,7 +876,11 @@ function initWebMIDI() {
 
     refreshDeviceList();
     connectInputs();
+    let _midiTopologySignature = padWebPushPortContract.topologySignature(access);
     access.onstatechange = () => {
+      const nextSignature = padWebPushPortContract.topologySignature(access);
+      if (nextSignature === _midiTopologySignature) return;
+      _midiTopologySignature = nextSignature;
       refreshDeviceList();
       connectInputs();
     };
@@ -871,7 +888,7 @@ function initWebMIDI() {
 }
 
 // ======== LAUNCHPAD LED CONTROL ========
-// HPS exclusive feature (?hps gate): Push LED control without Ableton
+// Standard Push LED control without Ableton (v1.8.0)
 // - Scale pads keep the long-standing 64PE look: root orange, scale white.
 // - Ableton不要でPushをスケール練習デバイスとして使える
 // Map 64PE pad state to device palette indices (0-127).
@@ -1168,24 +1185,13 @@ if (typeof window !== 'undefined') {
 }
 
 function padWebIsPushMidiPortName(name) {
-  var n = String(name || '').trim();
-  var lower = n.toLowerCase();
-  // Pad Sensei Keys standalone evidence: CoreMIDI may expose Push ports
-  // only as Live/User/External Port without an Ableton/Push prefix.
-  return /push/i.test(n)
-    || /ableton/i.test(n)
-    || lower === 'live port'
-    || lower === 'user port'
-    || lower === 'external port';
+  return !!(window.padWebPushPortContract && window.padWebPushPortContract.isPushPortName(name));
 }
 
 function padWebCollectPushMidiOutputs(access) {
-  var outputs = [];
-  if (!access || !access.outputs) return outputs;
-  for (const output of access.outputs.values()) {
-    if (padWebIsPushMidiPortName(output.name)) outputs.push(output);
-  }
-  return outputs;
+  return window.padWebPushPortContract
+    ? window.padWebPushPortContract.collectPushOutputs(access)
+    : [];
 }
 
 function padWebUniquePushOutputs(outputs) {
