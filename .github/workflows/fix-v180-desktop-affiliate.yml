@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   fix-test-deploy:
-    if: "${{ !contains(github.event.head_commit.message, '[desktop-affiliate-v180]') }}"
+    if: ${{ !contains(github.event.head_commit.message, '[desktop-affiliate-v180]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,28 +27,13 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-
           p = Path('index.html')
           s = p.read_text()
-          old = """<!-- HPS members: hide all affiliate links for ad-free experience -->
-<script>
-if (new URLSearchParams(window.location.search).has('hps')) {
-  var _aff = document.querySelectorAll('#affiliate-section, .ja-affiliate');
-  for (var _j = 0; _j < _aff.length; _j++) _aff[_j].style.display = 'none';
-}
-</script>"""
-          new = """<!-- Paid Desktop stays affiliate-free; legacy ?hps links remain compatible. -->
-<script>
-var _affiliateParams = new URLSearchParams(window.location.search);
-if (window.IS_DESKTOP_MODE || _affiliateParams.has('hps')) {
-  var _aff = document.querySelectorAll('#affiliate-section, .ja-affiliate');
-  for (var _j = 0; _j < _aff.length; _j++) _aff[_j].style.display = 'none';
-}
-</script>"""
+          old = "<!-- HPS members: hide all affiliate links for ad-free experience -->\n<script>\nif (new URLSearchParams(window.location.search).has('hps')) {\n  var _aff = document.querySelectorAll('#affiliate-section, .ja-affiliate');\n  for (var _j = 0; _j < _aff.length; _j++) _aff[_j].style.display = 'none';\n}\n</script>"
+          new = "<!-- Paid Desktop stays affiliate-free; legacy ?hps links remain compatible. -->\n<script>\nvar _affiliateParams = new URLSearchParams(window.location.search);\nif (window.IS_DESKTOP_MODE || _affiliateParams.has('hps')) {\n  var _aff = document.querySelectorAll('#affiliate-section, .ja-affiliate');\n  for (var _j = 0; _j < _aff.length; _j++) _aff[_j].style.display = 'none';\n}\n</script>"
           if old not in s:
               raise SystemExit('affiliate gate anchor missing')
           p.write_text(s.replace(old, new, 1))
-
           p = Path('sw.js')
           s = p.read_text()
           old = "var CACHE_NAME = '64pad-v180-preview-20260911-push23-1';"
@@ -56,16 +41,10 @@ if (window.IS_DESKTOP_MODE || _affiliateParams.has('hps')) {
           if old not in s:
               raise SystemExit('cache name anchor missing')
           p.write_text(s.replace(old, new, 1))
-
           p = Path('tests/unit/v180-web-contract.test.js')
           s = p.read_text()
           anchor = "  it('shows one product version for Web', () => {"
-          extra = """  it('keeps paid Desktop affiliate-free without using hps as a feature gate', () => {
-    expect(html).toContain("window.IS_DESKTOP_MODE || _affiliateParams.has('hps')");
-    expect(html).toContain("document.querySelectorAll('#affiliate-section, .ja-affiliate')");
-  });
-
-"""
+          extra = "  it('keeps paid Desktop affiliate-free without using hps as a feature gate', () => {\n    expect(html).toContain(\"window.IS_DESKTOP_MODE || _affiliateParams.has('hps')\");\n    expect(html).toContain(\"document.querySelectorAll('#affiliate-section, .ja-affiliate')\");\n  });\n\n"
           if anchor not in s:
               raise SystemExit('v180 contract insertion anchor missing')
           p.write_text(s.replace(anchor, extra + anchor, 1))
