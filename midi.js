@@ -1162,6 +1162,80 @@ if (typeof window !== 'undefined') {
   window._pushSetLedColorRole = _pushSetLedColorRole;
 }
 
+function padWebGetPushMidiOutputs() {
+  var outputs = [];
+  var add = function(output) {
+    if (!output || outputs.indexOf(output) >= 0) return;
+    outputs.push(output);
+  };
+  add(midiOutput);
+  add(midiOutputDAW);
+  if (midiAccess && midiAccess.outputs) {
+    for (const output of midiAccess.outputs.values()) {
+      if (/push/i.test(output.name || '')) add(output);
+    }
+  }
+  return outputs;
+}
+
+function padWebResetPushMidiRuntimeState() {
+  try { if (typeof _cancelSustainDebounce === 'function') _cancelSustainDebounce(); } catch (_) {}
+  try {
+    if (typeof _midiSustainOn !== 'undefined') _midiSustainOn = false;
+    if (typeof setSustain === 'function') setSustain(false);
+  } catch (_) {}
+  try { if (midiHeldState) midiHeldState.clearAll(); } catch (_) {}
+  try { midiActiveNotes.clear(); } catch (_) {}
+  for (var i = 0; i < 64; i++) _prevLEDState[i] = -1;
+}
+
+function padWebGetPushDisplaySnapshot() {
+  var payload = (typeof padWebGetLatestObservedShellUstPayload === 'function')
+    ? padWebGetLatestObservedShellUstPayload() : null;
+  var notes = Array.from(midiActiveNotes).sort(function(a, b) { return a - b; });
+  var noteNames = notes.map(function(note) {
+    try { return pcName(((note % 12) + 12) % 12); }
+    catch (_) { return String(note); }
+  });
+  var key = '';
+  var scale = '';
+  try {
+    key = pcName(AppState.key, AppState.key);
+    scale = (SCALES[AppState.scaleIdx] && SCALES[AppState.scaleIdx].name) || '';
+  } catch (_) {}
+  var chord = payload && payload.chord && payload.chord.name || '';
+  if (!chord) {
+    var detect = document.getElementById('midi-detect');
+    var first = detect && detect.firstElementChild;
+    chord = (first && first.textContent || '').replace(/UST:.*/, '').trim();
+  }
+  var shell = payload && payload.shell && Array.isArray(payload.shell.degrees)
+    ? payload.shell.degrees.join(' ') : '';
+  var ust = '';
+  if (payload && payload.ust) {
+    ust = payload.ust.name || '';
+    if (payload.ust.base) ust += ' / ' + payload.ust.base;
+  }
+  var tensions = payload && Array.isArray(payload.tensions)
+    ? payload.tensions.map(function(item) { return item.label; }).filter(Boolean).join(' ') : '';
+  return {
+    mode: (typeof AppState !== 'undefined' && AppState.mode) || '',
+    key: key,
+    scale: scale,
+    chord: chord,
+    notes: noteNames,
+    shell: shell,
+    ust: ust,
+    tensions: tensions,
+  };
+}
+
+if (typeof window !== 'undefined') {
+  window.padWebGetPushMidiOutputs = padWebGetPushMidiOutputs;
+  window.padWebResetPushMidiRuntimeState = padWebResetPushMidiRuntimeState;
+  window.padWebGetPushDisplaySnapshot = padWebGetPushDisplaySnapshot;
+}
+
 function setLEDMode(mode) {
   _lpLEDMode = mode;
   // Force full re-send by resetting prev state

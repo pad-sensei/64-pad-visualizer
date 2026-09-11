@@ -7,6 +7,7 @@ import {
   HEADER,
   PushWebUsbDisplay,
   encodePushDisplayFrame,
+  blackPushDisplayFrame,
   pushDisplayConfiguration,
 } from '../../push-display-webusb.js';
 
@@ -93,6 +94,19 @@ describe('Push 3 WebUSB display transport', () => {
     expect(writes(f)[1][2]).toEqual(replacement);
     await f.probe.stop();
   });
+
+  it('sends a black frame before closing a claimed display session', async () => {
+  const f = fixture();
+  await f.probe.connect();
+  await tick();
+  const beforeStop = writes(f).length;
+  await f.probe.stop();
+  const shutdownWrites = writes(f).slice(beforeStop);
+  expect(shutdownWrites.length).toBe(2);
+  expect(Array.from(shutdownWrites[0][2])).toEqual(HEADER);
+  expect(shutdownWrites[1][2]).toEqual(blackPushDisplayFrame());
+  expect(f.calls.at(-1)).toBe('close');
+});
 
   it('rejects an already-active incompatible USB configuration before claim', async () => {
     const f = fixture();

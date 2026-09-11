@@ -24,6 +24,10 @@ export function encodePushDisplayFrame(rgba) {
   return frame;
 }
 
+export function blackPushDisplayFrame() {
+  return encodePushDisplayFrame(new Uint8Array(WIDTH * HEIGHT * 4));
+}
+
 export function pushDisplayConfiguration(device) {
   if (!device || device.vendorId !== FILTER.vendorId || device.productId !== FILTER.productId) {
     throw new Error('This WebUSB display path accepts Push 3 only.');
@@ -83,7 +87,7 @@ export class PushWebUsbDisplay {
     if (!this.usb?.requestDevice) throw new Error('WebUSB is unavailable.');
     const session = {
       device: null, stopped: false, connecting: true, frames: 0,
-      timer: null, closing: null,
+      timer: null, closing: null, claimed: false,
     };
     this.session = session;
     this.onStatus('connecting', 'Select Push 3 in the Chrome USB chooser.');
@@ -99,6 +103,7 @@ export class PushWebUsbDisplay {
       await session.device.claimInterface(0);
       if (session.stopped) return false;
       await session.device.selectAlternateInterface(0, 0);
+      session.claimed = true;
       if (session.stopped) return false;
       this.onStatus('running', 'Push 3 display connected.');
       void this.sendFrame(session);
@@ -134,6 +139,19 @@ export class PushWebUsbDisplay {
     }
   }
 
+  async sendFinalBlackFrame(session) {
+  if (!session.device?.opened || !session.claimed) return;
+  const black = blackPushDisplayFrame();
+  try {
+    for (const bytes of [new Uint8Array(HEADER), black]) {
+      const result = await withDeadline(session.device.transferOut(1, bytes), this.timeoutMs, 'USB shutdown transfer');
+      if (result.status !== 'ok' || result.bytesWritten !== bytes.length) break;
+    }
+  } catch (_) {
+    // Best effort during page teardown: closing USB still takes priority.
+  }
+}
+
   async close(session) {
     if (!session.device?.opened) return;
     session.closing ??= withDeadline(session.device.close(), this.timeoutMs, 'USB close');
@@ -154,6 +172,7 @@ export class PushWebUsbDisplay {
     clearTimeout(session.timer);
     this.onStatus('stopping', 'Stopping Push display output...');
     try {
+      await this.sendFinalBlackFrame(session);
       await this.close(session);
       if (this.session === session && !session.connecting) {
         this.session = null;

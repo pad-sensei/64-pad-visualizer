@@ -37,6 +37,7 @@ var ASSETS = [
   'midi-input-state.js?v=6.7.52',
   'midi.js?v=6.7.52',
   'push-display-webusb.js',
+  'push-surface-cleanup.js',
   'push-display-webusb-app.js',
   'plain.js?v=6.7.52',
   'perform.js?v=6.7.52',

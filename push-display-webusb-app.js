@@ -4,6 +4,7 @@ import {
   PushWebUsbDisplay,
   encodePushDisplayFrame,
 } from './push-display-webusb.js';
+import { hardClearPushMidiOutputs } from './push-surface-cleanup.js';
 
 const params = new URLSearchParams(window.location.search);
 const enabled = params.has('webusb') && !window.IS_DESKTOP_MODE;
@@ -31,46 +32,52 @@ if (enabled) {
     canvas.height = HEIGHT;
     const context = canvas.getContext('2d', { willReadFrequently: true });
 
-    function appSnapshotText() {
+    function fallbackSnapshot() {
       const detect = document.getElementById('midi-detect');
       const detected = (detect?.textContent || '').replace(/\s+/g, ' ').trim();
-      if (detected) return detected.slice(0, 72);
-      if (document.getElementById('mode-scale')?.classList.contains('active')) return 'Scale mode';
-      if (document.getElementById('mode-chord')?.classList.contains('active')) return 'Chord mode';
-      if (document.getElementById('mode-input')?.classList.contains('active')) return 'Input mode';
-      return '64 Pad Explorer';
+      return { chord: detected.slice(0, 48), notes: [], shell: '', ust: '', tensions: '', key: '', scale: '', mode: '' };
+    }
+
+    function currentSnapshot() {
+      try { return window.padWebGetPushDisplaySnapshot?.() || fallbackSnapshot(); }
+      catch (_) { return fallbackSnapshot(); }
+    }
+
+    function fitText(text, maxWidth) {
+      let value = String(text || '');
+      while (value && context.measureText(value).width > maxWidth) value = value.slice(0, -1);
+      return value;
+    }
+
+    function drawLabel(text, x, y, size, color, weight = 500, maxWidth = 400) {
+      if (!text) return;
+      context.fillStyle = color;
+      context.font = `${weight} ${size}px "M PLUS 1 Code", ui-monospace, monospace`;
+      context.fillText(fitText(text, maxWidth), x, y);
     }
 
     function drawFrame() {
-      context.fillStyle = '#0b1013';
+      const snap = currentSnapshot();
+      context.fillStyle = '#0d1114';
       context.fillRect(0, 0, WIDTH, HEIGHT);
+      context.fillStyle = '#e6a024';
+      context.fillRect(0, 0, WIDTH, 5);
+      context.fillStyle = '#449eb4';
+      context.fillRect(0, HEIGHT - 5, WIDTH, 5);
 
-      context.fillStyle = '#6aa89d';
-      context.fillRect(0, 0, WIDTH, 8);
-      context.fillStyle = '#b8e1d7';
-      context.font = '600 24px system-ui, sans-serif';
-      context.fillText('64 PAD EXPLORER · WEBUSB', 28, 44);
+      drawLabel(snap.chord, 32, 49, 38, '#ffdb5c', 700, 365);
+      drawLabel(snap.notes.length ? `NOTE: ${snap.notes.join(' ')}` : '', 36, 84, 15, '#ccdae0', 500, 360);
 
-      context.fillStyle = '#ffffff';
-      context.font = '700 34px system-ui, sans-serif';
-      let label = appSnapshotText();
-      while (context.measureText(label).width > WIDTH - 56 && label.length > 8) {
-        label = label.slice(0, -2);
-      }
-      context.fillText(label, 28, 96);
+      const detailX = 430;
+      drawLabel(snap.ust ? `UST: ${snap.ust}` : '', detailX, 72, 17, '#ffdb5c', 600, 390);
+      drawLabel(snap.shell ? `Shell: ${snap.shell}` : '', detailX, 100, 15, '#ccdae0', 500, 390);
+      drawLabel(snap.tensions ? `Tension ${snap.tensions}` : '', detailX, 121, 15, '#ffb848', 500, 390);
 
-      context.fillStyle = '#9aa9ad';
-      context.font = '18px system-ui, sans-serif';
-      context.fillText('Chrome → WebUSB → Push 3 display', 28, 132);
-
-      context.fillStyle = '#e36d5b';
-      context.fillRect(720, 24, 44, 104);
-      context.fillStyle = '#74b87a';
-      context.fillRect(776, 24, 44, 104);
-      context.fillStyle = '#638bd8';
-      context.fillRect(832, 24, 44, 104);
-      context.fillStyle = '#d8dde0';
-      context.fillRect(888, 24, 44, 104);
+      drawLabel('Key', 720, 16, 11, '#9aa9ad', 500, 90);
+      drawLabel(snap.key, 720, 34, 17, '#ffdb5c', 700, 90);
+      drawLabel('Scale', 810, 16, 11, '#9aa9ad', 500, 130);
+      drawLabel(snap.scale, 810, 34, 15, '#ffdb5c', 600, 130);
+      drawLabel((snap.mode || '').toUpperCase(), 850, 145, 11, '#ff6084', 600, 90);
 
       return encodePushDisplayFrame(context.getImageData(0, 0, WIDTH, HEIGHT).data);
     }
@@ -91,32 +98,33 @@ if (enabled) {
 
     button.addEventListener('click', async () => {
       const state = button.dataset.state;
-      if (state === 'running') {
-        await probe.stop();
-      } else {
+      if (state === 'running') await probe.stop();
+      else {
         probe.setFrame(drawFrame());
         await probe.connect();
       }
     });
 
+    const refreshFrame = () => {
+      try { probe.setFrame(drawFrame()); } catch (_) {}
+    };
     const detect = document.getElementById('midi-detect');
     if (detect && typeof MutationObserver !== 'undefined') {
-      new MutationObserver(() => {
-        try { probe.setFrame(drawFrame()); } catch (_) {}
-      }).observe(detect, { childList: true, subtree: true, characterData: true });
+      new MutationObserver(refreshFrame).observe(detect, { childList: true, subtree: true, characterData: true });
     }
-
     ['mode-scale', 'mode-chord', 'mode-input'].forEach(id => {
-      document.getElementById(id)?.addEventListener('click', () => {
-        setTimeout(() => {
-          try { probe.setFrame(drawFrame()); } catch (_) {}
-        }, 0);
-      });
+      document.getElementById(id)?.addEventListener('click', () => setTimeout(refreshFrame, 0));
     });
 
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) void probe.stop('Push display stopped because this tab was hidden.');
-    });
-    window.addEventListener('pagehide', () => void probe.stop());
+    let cleanupStarted = false;
+    function cleanupPushSurface() {
+      if (cleanupStarted) return;
+      cleanupStarted = true;
+      try { window.padWebResetPushMidiRuntimeState?.(); } catch (_) {}
+      try { hardClearPushMidiOutputs(window.padWebGetPushMidiOutputs?.() || []); } catch (_) {}
+      try { void probe.stop('Push display stopped. Surface cleared.'); } catch (_) {}
+    }
+    window.addEventListener('pagehide', cleanupPushSurface, { capture: true });
+    window.addEventListener('beforeunload', cleanupPushSurface, { capture: true });
   }
 }
