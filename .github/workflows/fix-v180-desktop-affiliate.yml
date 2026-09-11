@@ -1,0 +1,97 @@
+name: Preserve paid Desktop affiliate-free behavior
+
+on:
+  push:
+    branches:
+      - codex/web-v180-push-cc-parity
+
+permissions:
+  contents: write
+
+jobs:
+  fix-test-deploy:
+    if: ${{ !contains(github.event.head_commit.message, '[desktop-affiliate-v180]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/web-v180-push-cc-parity
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Preserve paid Desktop behavior and add regression
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('index.html')
+          s = p.read_text()
+          old = """<!-- HPS members: hide all affiliate links for ad-free experience -->
+<script>
+if (new URLSearchParams(window.location.search).has('hps')) {
+  var _aff = document.querySelectorAll('#affiliate-section, .ja-affiliate');
+  for (var _j = 0; _j < _aff.length; _j++) _aff[_j].style.display = 'none';
+}
+</script>"""
+          new = """<!-- Paid Desktop stays affiliate-free; legacy ?hps links remain compatible. -->
+<script>
+var _affiliateParams = new URLSearchParams(window.location.search);
+if (window.IS_DESKTOP_MODE || _affiliateParams.has('hps')) {
+  var _aff = document.querySelectorAll('#affiliate-section, .ja-affiliate');
+  for (var _j = 0; _j < _aff.length; _j++) _aff[_j].style.display = 'none';
+}
+</script>"""
+          if old not in s:
+              raise SystemExit('affiliate gate anchor missing')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('sw.js')
+          s = p.read_text()
+          old = "var CACHE_NAME = '64pad-v180-preview-20260911-push23-1';"
+          new = "var CACHE_NAME = '64pad-v180-preview-20260911-push23-2';"
+          if old not in s:
+              raise SystemExit('cache name anchor missing')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('tests/unit/v180-web-contract.test.js')
+          s = p.read_text()
+          anchor = "  it('shows one product version for Web', () => {"
+          extra = """  it('keeps paid Desktop affiliate-free without using hps as a feature gate', () => {
+    expect(html).toContain("window.IS_DESKTOP_MODE || _affiliateParams.has('hps')");
+    expect(html).toContain("document.querySelectorAll('#affiliate-section, .ja-affiliate')");
+  });
+
+"""
+          if anchor not in s:
+              raise SystemExit('v180 contract insertion anchor missing')
+          p.write_text(s.replace(anchor, extra + anchor, 1))
+          PY
+      - name: Verify Web contract and full suite
+        run: |
+          set -euo pipefail
+          npm ci
+          npx vitest run tests/unit/v180-web-contract.test.js tests/unit/push-web-control.test.js tests/unit/push-web-cc-integration.test.js tests/unit/push-display-webusb.test.js
+          npm test
+          ./tools/sw-assets-check.sh
+      - name: Deploy exact tested candidate to dev
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avz --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md'
+          path: ./
+          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-dev/
+          remote_host: xs071284.xsrv.jp
+          remote_port: 10022
+          remote_user: xs071284
+          remote_key: ${{ secrets.XSERVER_SSH_KEY }}
+      - name: Commit product/test fix
+        run: |
+          set -euo pipefail
+          git config user.name 'daikainozaki-cyber'
+          git config user.email 'daikainozaki@gmail.com'
+          git add index.html sw.js tests/unit/v180-web-contract.test.js
+          git commit -m 'fix(desktop): preserve affiliate-free paid target [desktop-affiliate-v180]'
+          git push origin HEAD:codex/web-v180-push-cc-parity
