@@ -113,6 +113,7 @@ function chordPracticeDisplayLocked() {
 // Launchpad LED output (HPS exclusive — gated by ?hps URL parameter)
 let midiOutput = null;       // Output port for LED Note-On
 let midiOutputDAW = null;    // DAW port for SysEx (may be same as midiOutput)
+let _pushLedOutputs = [];  // all Push LED outputs, mirroring Keys standalone fan-out
 let _lpOutputActive = false;
 let _lpHpsUnlocked = false;  // set in main.js from ?hps
 let _lpProgrammerMode = false; // true when Launchpad is in Programmer mode
@@ -662,7 +663,7 @@ function initWebMIDI() {
         connected = true;
         connectedName = input.name;
         // Per-input Push detection: シリアル→4度変換をデバイス単位で適用
-        const isPush = /Push/i.test(input.name);
+        const isPush = padWebIsPushMidiPortName(input.name);
         const inputHandler = (e) => {
           if (e.data.length < 3) return;
           const [status, rawNote, velocity] = e.data;
@@ -769,6 +770,7 @@ function initWebMIDI() {
       _exitLaunchpadProgrammerMode();
       midiOutput = null;
       midiOutputDAW = null;
+      _pushLedOutputs = [];
       _lpOutputActive = false;
       _lpProgrammerMode = false;
       var ledSel = document.getElementById('led-mode');
@@ -781,29 +783,28 @@ function initWebMIDI() {
         console.log('[64PE LED] Output port:', output.name, output.id);
       }
       if (_lpHpsUnlocked && connected && connectedName) {
-        var isPush = /push/i.test(connectedName) || /ableton/i.test(connectedName);
+        var isPush = padWebIsPushMidiPortName(connectedName);
         var isLaunchpad = /launchpad/i.test(connectedName);
         console.log('[64PE LED] isPush:', isPush, 'isLaunchpad:', isLaunchpad);
         if (isPush) {
-          // Push 3 User Mode: Note On with velocity=color, no SysEx needed
-          // Push serial note = 36 + row*8 + col
+          // Match the standalone products: enumerate every Push output, including
+          // CoreMIDI's prefix-less Live/User/External Port names. Keep Live Port
+          // as the primary compatibility handle, but fan LED writes to all of them.
           _isPush = true;
-          // Push 3: try both Live Port (LED control) and User Port
-          var pushLivePort = null;
-          var pushUserPort = null;
-          for (const output of access.outputs.values()) {
-            console.log('[64PE LED] Checking output:', output.name);
-            if (/push/i.test(output.name) || /ableton/i.test(output.name)) {
-              if (/live/i.test(output.name)) pushLivePort = output;
-              else if (/user/i.test(output.name)) pushUserPort = output;
-            }
-          }
-          // LED control via Live Port (proven in standalone), fallback to User Port
-          midiOutput = pushLivePort || pushUserPort;
+          var pushOutputs = padWebCollectPushMidiOutputs(access);
+          _pushLedOutputs = pushOutputs.slice();
+          var pushLivePort = pushOutputs.find(function(output) { return /live/i.test(output.name || ''); }) || null;
+          var pushUserPort = pushOutputs.find(function(output) { return /user/i.test(output.name || ''); }) || null;
+          midiOutput = pushLivePort || pushUserPort || pushOutputs[0] || null;
           if (midiOutput) {
+            // 64PE Desktop explicitly clears a stale previous owner at acquisition.
+            // Do the same before painting the Web state so a crash/old tab cannot
+            // leave an apparently immortal pad colour behind.
+            padWebHardClearPushOutputs(_pushLedOutputs);
             _lpOutputActive = true;
             _lpProgrammerMode = true;
-            console.log('[64PE LED] Push LED output:', midiOutput.name);
+            console.log('[64PE LED] Push primary output:', midiOutput.name,
+                        'fan-out:', _pushLedOutputs.map(function(output) { return output.name; }));
           }
         } else if (false && isLaunchpad) {
           // Launchpad: disabled until physical device testing
@@ -1162,6 +1163,61 @@ if (typeof window !== 'undefined') {
   window._pushSetLedColorRole = _pushSetLedColorRole;
 }
 
+function padWebIsPushMidiPortName(name) {
+  var n = String(name || '').trim();
+  var lower = n.toLowerCase();
+  // Pad Sensei Keys standalone evidence: CoreMIDI may expose Push ports
+  // only as Live/User/External Port without an Ableton/Push prefix.
+  return /push/i.test(n)
+    || /ableton/i.test(n)
+    || lower === 'live port'
+    || lower === 'user port'
+    || lower === 'external port';
+}
+
+function padWebCollectPushMidiOutputs(access) {
+  var outputs = [];
+  if (!access || !access.outputs) return outputs;
+  for (const output of access.outputs.values()) {
+    if (padWebIsPushMidiPortName(output.name)) outputs.push(output);
+  }
+  return outputs;
+}
+
+function padWebUniquePushOutputs(outputs) {
+  var unique = [];
+  (outputs || []).forEach(function(output) {
+    if (output && unique.indexOf(output) < 0) unique.push(output);
+  });
+  return unique;
+}
+
+function padWebSendPushLedMessage(message) {
+  var outputs = _pushLedOutputs.length ? _pushLedOutputs : [midiOutput];
+  padWebUniquePushOutputs(outputs).forEach(function(output) {
+    try { output.send(message); } catch (_) {}
+  });
+}
+
+function padWebHardClearPushOutputs(outputs) {
+  // Exact Gate-0 sequence proven in 64PE Desktop: app-visible pads first,
+  // then explicit NoteOff for every pad on every channel, then CC=0.
+  padWebUniquePushOutputs(outputs).forEach(function(output) {
+    try { output.clear?.(); } catch (_) {}
+    for (var note = 36; note <= 99; note++) {
+      try { output.send([0x90, note, 0]); } catch (_) {}
+    }
+    for (var channel = 0; channel < 16; channel++) {
+      for (var serialNote = 36; serialNote <= 99; serialNote++) {
+        try { output.send([0x80 | channel, serialNote, 0]); } catch (_) {}
+      }
+    }
+    for (var cc = 0; cc <= 127; cc++) {
+      try { output.send([0xb0, cc, 0]); } catch (_) {}
+    }
+  });
+}
+
 function padWebGetPushMidiOutputs() {
   var outputs = [];
   var add = function(output) {
@@ -1170,9 +1226,10 @@ function padWebGetPushMidiOutputs() {
   };
   add(midiOutput);
   add(midiOutputDAW);
+  _pushLedOutputs.forEach(add);
   if (midiAccess && midiAccess.outputs) {
     for (const output of midiAccess.outputs.values()) {
-      if (/push/i.test(output.name || '')) add(output);
+      if (padWebIsPushMidiPortName(output.name)) add(output);
     }
   }
   return outputs;
@@ -1334,7 +1391,8 @@ function updateLaunchpadLEDs(state) {
           note = baseMidi() + row * ROW_INTERVAL + col;
         }
         if (note >= 0 && note <= 127) {
-          midiOutput.send([0x90, note, color]);
+          if (_isPush) padWebSendPushLedMessage([0x90, note, color]);
+          else midiOutput.send([0x90, note, color]);
         }
         _prevLEDState[idx] = color;
       }
@@ -1364,7 +1422,8 @@ function clearLaunchpadLEDs() {
         note = baseMidi() + row * ROW_INTERVAL + col;
       }
       if (note >= 0 && note <= 127) {
-        midiOutput.send([0x90, note, 0]);
+        if (_isPush) padWebSendPushLedMessage([0x90, note, 0]);
+        else midiOutput.send([0x90, note, 0]);
       }
     }
     _prevLEDState[i] = -1;
