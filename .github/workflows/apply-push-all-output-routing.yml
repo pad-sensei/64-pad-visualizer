@@ -37,23 +37,12 @@ jobs:
                   raise SystemExit('midi output declaration anchor missing')
               s = s.replace(anchor, anchor + "let _pushLedOutputs = [];  // all Push LED outputs, mirroring Keys standalone fan-out\n", 1)
 
-          old_get = '''function padWebGetPushMidiOutputs() {
-            var outputs = [];
-            var add = function(output) {
-              if (!output || outputs.indexOf(output) >= 0) return;
-              outputs.push(output);
-            };
-            add(midiOutput);
-            add(midiOutputDAW);
-            if (midiAccess && midiAccess.outputs) {
-              for (const output of midiAccess.outputs.values()) {
-                if (/push/i.test(output.name || '')) add(output);
-              }
-            }
-            return outputs;
-          }
-          '''
-          new_get = '''function padWebIsPushMidiPortName(name) {
+          helper_start = s.find('function padWebGetPushMidiOutputs() {')
+          helper_end = s.find('var _pushWebShuttingDown = false;', helper_start)
+          if helper_start < 0 or helper_end < 0:
+              raise SystemExit('Push MIDI helper boundary missing')
+
+          helpers = '''function padWebIsPushMidiPortName(name) {
             var n = String(name || '').trim();
             var lower = n.toLowerCase();
             // Pad Sensei Keys standalone evidence: CoreMIDI may expose Push ports
@@ -124,21 +113,16 @@ jobs:
             }
             return outputs;
           }
+
           '''
           if 'function padWebIsPushMidiPortName' not in s:
-              if old_get not in s:
-                  raise SystemExit('padWebGetPushMidiOutputs block missing')
-              s = s.replace(old_get, new_get, 1)
+              s = s[:helper_start] + helpers + s[helper_end:]
 
-          replacements = [
-              ('        const isPush = /Push/i.test(input.name);\n',
-               '        const isPush = padWebIsPushMidiPortName(input.name);\n',
-               'input Push detection'),
-              ('        var isPush = /push/i.test(connectedName) || /ableton/i.test(connectedName);\n',
-               '        var isPush = padWebIsPushMidiPortName(connectedName);\n',
-               'connected Push detection'),
+          pairs = [
+              ('const isPush = /Push/i.test(input.name);', 'const isPush = padWebIsPushMidiPortName(input.name);', 'input Push detection'),
+              ('var isPush = /push/i.test(connectedName) || /ableton/i.test(connectedName);', 'var isPush = padWebIsPushMidiPortName(connectedName);', 'connected Push detection'),
           ]
-          for old, new, label in replacements:
+          for old, new, label in pairs:
               if old in s:
                   s = s.replace(old, new, 1)
               elif new not in s:
@@ -146,33 +130,31 @@ jobs:
 
           reset_old = '      midiOutput = null;\n      midiOutputDAW = null;\n      _lpOutputActive = false;\n'
           reset_new = '      midiOutput = null;\n      midiOutputDAW = null;\n      _pushLedOutputs = [];\n      _lpOutputActive = false;\n'
-          connect_tail = s[s.find('function connectInputs()'):]
-          if '_pushLedOutputs = [];' not in connect_tail:
+          connect_at = s.find('function connectInputs()')
+          if connect_at < 0:
+              raise SystemExit('connectInputs missing')
+          if '_pushLedOutputs = [];' not in s[connect_at:]:
               if reset_old not in s:
                   raise SystemExit('output reset anchor missing')
               s = s.replace(reset_old, reset_new, 1)
 
-          old_block = '''          // Push 3: try both Live Port (LED control) and User Port
-          var pushLivePort = null;
-          var pushUserPort = null;
-          for (const output of access.outputs.values()) {
-            console.log('[64PE LED] Checking output:', output.name);
-            if (/push/i.test(output.name) || /ableton/i.test(output.name)) {
-              if (/live/i.test(output.name)) pushLivePort = output;
-              else if (/user/i.test(output.name)) pushUserPort = output;
-            }
-          }
-          // LED control via Live Port (proven in standalone), fallback to User Port
-          midiOutput = pushLivePort || pushUserPort;
-          if (midiOutput) {
-            _lpOutputActive = true;
-            _lpProgrammerMode = true;
-            console.log('[64PE LED] Push LED output:', midiOutput.name);
-          }
-          '''
-          new_block = '''          // Match the standalone products: enumerate every Push output, including
+          # Replace only the body of the existing `if (isPush)` branch. Avoid
+          # indentation-sensitive whole-block matching; YAML strips common indent.
+          if '_pushLedOutputs = pushOutputs.slice();' not in s:
+              led_region = s.find('// LED control: Push 3 User Mode')
+              if led_region < 0:
+                  raise SystemExit('LED control region missing')
+              if_start = s.find('        if (isPush) {', led_region)
+              if if_start < 0:
+                  raise SystemExit('Push branch start missing')
+              body_start = s.find('\n', if_start) + 1
+              else_start = s.find('        } else if (false && isLaunchpad) {', body_start)
+              if else_start < 0:
+                  raise SystemExit('Push branch end missing')
+              body = '''          // Match the standalone products: enumerate every Push output, including
           // CoreMIDI's prefix-less Live/User/External Port names. Keep Live Port
           // as the primary compatibility handle, but fan LED writes to all of them.
+          _isPush = true;
           var pushOutputs = padWebCollectPushMidiOutputs(access);
           _pushLedOutputs = pushOutputs.slice();
           var pushLivePort = pushOutputs.find(function(output) { return /live/i.test(output.name || ''); }) || null;
@@ -188,24 +170,21 @@ jobs:
             console.log('[64PE LED] Push primary output:', midiOutput.name,
                         'fan-out:', _pushLedOutputs.map(function(output) { return output.name; }));
           }
-          '''
-          if '_pushLedOutputs = pushOutputs.slice();' not in s:
-              if old_block not in s:
-                  raise SystemExit('Push output selection block missing')
-              s = s.replace(old_block, new_block, 1)
+'''
+              s = s[:body_start] + body + s[else_start:]
 
-          paint_old = '          midiOutput.send([0x90, note, color]);\n'
-          paint_new = '          if (_isPush) padWebSendPushLedMessage([0x90, note, color]);\n          else midiOutput.send([0x90, note, color]);\n'
+          paint_old = 'midiOutput.send([0x90, note, color]);'
+          paint_new = 'if (_isPush) padWebSendPushLedMessage([0x90, note, color]);\n          else midiOutput.send([0x90, note, color]);'
           if 'padWebSendPushLedMessage([0x90, note, color])' not in s:
               if paint_old not in s:
                   raise SystemExit('LED paint send anchor missing')
               s = s.replace(paint_old, paint_new, 1)
 
-          clear_old = '        midiOutput.send([0x90, note, 0]);\n'
-          clear_new = '        if (_isPush) padWebSendPushLedMessage([0x90, note, 0]);\n        else midiOutput.send([0x90, note, 0]);\n'
+          clear_old = 'midiOutput.send([0x90, note, 0]);'
+          clear_new = 'if (_isPush) padWebSendPushLedMessage([0x90, note, 0]);\n        else midiOutput.send([0x90, note, 0]);'
           if 'padWebSendPushLedMessage([0x90, note, 0])' not in s:
               if clear_old not in s:
-                  raise SystemExit('LED clear send line missing')
+                  raise SystemExit('LED clear send anchor missing')
               s = s.replace(clear_old, clear_new, 1)
 
           p.write_text(s)
