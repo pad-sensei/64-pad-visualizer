@@ -115,7 +115,7 @@ let midiOutput = null;       // Output port for LED Note-On
 let midiOutputDAW = null;    // DAW port for SysEx (may be same as midiOutput)
 let _pushLedOutputs = [];  // all Push LED outputs, mirroring Keys standalone fan-out
 let _lpOutputActive = false;
-let _lpHpsUnlocked = false;  // main.js enables standard controller LED behavior
+let _controllerLedEnabled = false;  // main.js enables standard controller LED behavior
 let _lpProgrammerMode = false; // true when Launchpad is in Programmer mode
 let _lpDeviceByte = 0x0C;   // 0x0C = Launchpad X, 0x0D = Mini MK3
 let _isPush = false;         // true when a supported Push 2 / Push 3 MIDI port is detected
@@ -781,12 +781,12 @@ function initWebMIDI() {
       if (ledSel) ledSel.style.display = 'none';
       // LED control: Push 2 / Push 3 MIDI output (no SysEx needed) + Launchpad (disabled until physical testing)
       _isPush = false;
-      console.log('[64PE LED] hpsUnlocked:', _lpHpsUnlocked, 'connected:', connected, 'connectedName:', connectedName);
+      console.log('[64PE LED] controllerLedEnabled:', _controllerLedEnabled, 'connected:', connected, 'connectedName:', connectedName);
       // List all output ports for debugging
       for (const output of access.outputs.values()) {
         console.log('[64PE LED] Output port:', output.name, output.id);
       }
-      if (_lpHpsUnlocked && connected && connectedName) {
+      if (_controllerLedEnabled && connected && connectedName) {
         var isPush = padWebIsPushMidiPortName(connectedName);
         var isLaunchpad = /launchpad/i.test(connectedName);
         console.log('[64PE LED] isPush:', isPush, 'isLaunchpad:', isLaunchpad);

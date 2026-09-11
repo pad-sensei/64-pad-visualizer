@@ -472,7 +472,21 @@
     if (code === 74) { if (global.AppState) call('toggleShowAllPositions', !(global.AppState.showAllPositions === true)); refresh(); return true; }
     if (code === 75) { if (controlState.deleteHeld) call('deleteBank'); else call('addBank'); refresh(); return true; }
     if (code === 48) { call('saveAppSettings'); call('showSaveToast'); return true; }
-    if (code === 46) { call('shiftOctave', value); refresh(); return true; }
+    if (code === 46) {
+      // Preserve the owner-ruling Push WYSIWYG gesture: in Input/Perform with a held
+      // slot/chord, octave moves that slot and saves it instead of transposing the grid.
+      if (currentMode() === 'input' && global.memoryViewMode === 'perform'
+          && global.PerformState && global.PerformState.activePad !== null
+          && global.PlainState && global.PlainState.activeNotes
+          && global.PlainState.activeNotes.size > 0) {
+        call('performOctaveEdit', value);
+        refresh();
+        return true;
+      }
+      call('shiftOctave', value);
+      refresh();
+      return true;
+    }
     if (code === 43) {
       if (currentMode() === 'scale' && typeof global.doubleStopActive === 'function' && global.doubleStopActive() && typeof global.cycleDoubleStopInterval === 'function') {
         global.cycleDoubleStopInterval(value); refresh(); return true;

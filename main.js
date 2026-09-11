@@ -31,7 +31,7 @@ var _hpsEngineAnchor = document.getElementById('hps-engine-anchor');
 if (_hpsEngineAnchor) _hpsEngineAnchor.style.display = 'block';
 
 // Push/Launchpad LED is standard controller behavior in v1.8.0.
-_lpHpsUnlocked = true;
+_controllerLedEnabled = true;
 
 // Genre Preset is standard UI in v1.8.0.
 (function() {

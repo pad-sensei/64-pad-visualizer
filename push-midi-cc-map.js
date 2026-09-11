@@ -37,8 +37,9 @@
     var inputName = String(context.inputName || '');
     var isUserPort = /user port/i.test(inputName);
 
-    // Push 3 mirrors surface controls on Live + User Port. Desktop deliberately
-    // treats Live Port as command authority while allowing octave/performance CCs.
+    // The supported Push generations use the same generation-neutral Live/User
+    // port authority contract here. Push 3 has direct evidence; Push 2 browser behavior
+    // remains an explicit external Human Gate before the two-generation claim is final.
     if (isUserPort && cc !== 74 && cc !== 1 && cc !== 54 && cc !== 55) {
       return { handled: true, events: events, performancePass: false, state: state };
     }
@@ -51,6 +52,7 @@
 
     if ((cc === 54 || cc === 55) && value === 127) {
       var nowMs = Number.isFinite(context.nowMs) ? context.nowMs : Date.now();
+      // 180 ms intentionally matches native Standalone parity (legacy Web path used 100 ms).
       if (!(cc === state.lastOctaveCC && (nowMs - state.lastOctaveMs) < 180)) {
         state.lastOctaveCC = cc;
         state.lastOctaveMs = nowMs;

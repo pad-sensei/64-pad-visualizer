@@ -10,7 +10,8 @@ describe('v1.8.0 Web product contract', () => {
     expect(main).not.toContain("has('hps')");
     expect(main).toContain('TastyState.hpsUnlocked = true');
     expect(main).toContain('StockState.hpsUnlocked = true');
-    expect(main).toContain('_lpHpsUnlocked = true');
+    expect(main).toContain('_controllerLedEnabled = true');
+    expect(main).not.toContain('_lpHpsUnlocked');
   });
 
   it('shows one product version for Web', () => {

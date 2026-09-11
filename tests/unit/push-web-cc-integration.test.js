@@ -34,11 +34,18 @@ describe('Web Push control integration contract', () => {
   });
 
   it('keeps Web MIDI LED/CC standard and retires query-string hps gates', () => {
-    expect(main).toContain('_lpHpsUnlocked = true');
+    expect(main).toContain('_controllerLedEnabled = true');
+    expect(main).not.toContain('_lpHpsUnlocked');
+    expect(midi).not.toContain('_lpHpsUnlocked');
     expect(main).not.toContain("has('hps')");
     expect(host).not.toContain("has('hps')");
   });
 
+  it('preserves Push WYSIWYG octave editing in Input/Perform', () => {
+    expect(control).toContain("currentMode() === 'input' && global.memoryViewMode === 'perform'");
+    expect(control).toContain("call('performOctaveEdit', value)");
+    expect(control).toContain("call('shiftOctave', value)");
+  });
   it('keeps native-only Device action a browser no-op', () => {
     expect(control).toContain('if (code === 73) return true');
   });
