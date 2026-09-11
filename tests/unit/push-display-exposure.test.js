@@ -16,7 +16,10 @@ describe('v1.8.0 Push Display exposure contract', () => {
   it('cache-busts the exposed display controller consistently', () => {
     expect(index).toContain('push-display-webusb-app.js?v=webusb-20260912-11');
     expect(sw).toContain("'push-display-webusb-app.js?v=webusb-20260912-11'");
-    expect(sw).toContain("var CACHE_NAME = '64pad-v180-preview-20260912-webusb-exposure-1';");
+    // The display exposure stays unchanged; the shell must refresh the new
+    // controller/MIDI scripts and the pinned audio-core for returning clients.
+    expect(sw).toContain("var CACHE_NAME = '64pad-v180-preview-20260912-standalone-parity-2';");
+    expect(sw).not.toContain("var CACHE_NAME = '64pad-v180-preview-20260912-webusb-exposure-1';");
     expect(index).not.toContain('push-display-webusb-app.js?v=webusb-20260911-10');
   });
 });
