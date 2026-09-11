@@ -1,0 +1,81 @@
+name: Apply audited audio-core sustain integration
+
+on:
+  push:
+    branches:
+      - codex/web-v180-push-cc-parity
+
+permissions:
+  contents: write
+
+concurrency:
+  group: web-v180-audio-core-sustain-integration
+  cancel-in-progress: false
+
+jobs:
+  integrate-test-deploy:
+    if: ${{ !contains(github.event.head_commit.message, '[audio-core-sustain-integrated]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/web-v180-push-cc-parity
+          submodules: recursive
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Pin audited merged audio-core
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C audio-core fetch origin main
+          git -C audio-core checkout 99a2538c0ec829aae6f82ac824a2692224dd76a8
+          test "$(git -C audio-core rev-parse HEAD)" = "99a2538c0ec829aae6f82ac824a2692224dd76a8"
+          python3 .github/scripts/apply-audio-core-sustain-integration.py
+
+      - name: Verify exact integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          test "$(git -C audio-core rev-parse HEAD)" = "99a2538c0ec829aae6f82ac824a2692224dd76a8"
+          (cd audio-core && node --check audio-voice.js && node tests/sustain-voice-smoke.cjs)
+          npx vitest run \
+            tests/unit/audio-core-sustain-integration.test.js \
+            tests/unit/push-midi-port-contract.test.js \
+            tests/unit/push-midi-output-routing.test.js \
+            tests/unit/push-web-cc-integration.test.js \
+            tests/unit/push-web-control.test.js \
+            tests/unit/v180-web-contract.test.js
+          npm test
+          ./tools/sw-assets-check.sh
+          ! grep -F "audio-core/audio-voice.js?v=6.7.52" sw.js
+          ! grep -F "initializePush3PedalMode" push-midi-port-contract.js midi.js
+          ! grep -F "0x37, 0x26, 0x50" push-midi-port-contract.js midi.js
+          git diff --check
+
+      - name: Deploy exact tested candidate
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avz --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md' --exclude='audio-core/tests'
+          path: ./
+          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-dev/
+          remote_host: xs071284.xsrv.jp
+          remote_port: 10022
+          remote_user: xs071284
+          remote_key: ${{ secrets.XSERVER_SSH_KEY }}
+
+      - name: Commit exact tested integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'daikainozaki-cyber'
+          git config user.email 'daikainozaki@gmail.com'
+          git rm .github/workflows/apply-audio-core-sustain-integration.yml .github/scripts/apply-audio-core-sustain-integration.py
+          git add audio-core index.html sw.js tests/unit/audio-core-sustain-integration.test.js
+          git commit -m 'fix(audio): integrate audited sustain core [audio-core-sustain-integrated]'
+          git push origin HEAD:codex/web-v180-push-cc-parity
