@@ -1,0 +1,179 @@
+from pathlib import Path
+
+p = Path('midi.js')
+s = p.read_text()
+
+anchor = "let midiOutputDAW = null;    // DAW port for SysEx (may be same as midiOutput)\n"
+if '_pushLedOutputs = []' not in s:
+    if anchor not in s:
+        raise SystemExit('midi output declaration anchor missing')
+    s = s.replace(anchor, anchor + "let _pushLedOutputs = [];  // all Push LED outputs, mirroring Keys standalone fan-out\n", 1)
+
+helper_start = s.find('function padWebGetPushMidiOutputs() {')
+helper_end = s.find('var _pushWebShuttingDown = false;', helper_start)
+if helper_start < 0 or helper_end < 0:
+    raise SystemExit('Push MIDI helper boundary missing')
+
+helpers = '''function padWebIsPushMidiPortName(name) {
+  var n = String(name || '').trim();
+  var lower = n.toLowerCase();
+  // Pad Sensei Keys standalone evidence: CoreMIDI may expose Push ports
+  // only as Live/User/External Port without an Ableton/Push prefix.
+  return /push/i.test(n)
+    || /ableton/i.test(n)
+    || lower === 'live port'
+    || lower === 'user port'
+    || lower === 'external port';
+}
+
+function padWebCollectPushMidiOutputs(access) {
+  var outputs = [];
+  if (!access || !access.outputs) return outputs;
+  for (const output of access.outputs.values()) {
+    if (padWebIsPushMidiPortName(output.name)) outputs.push(output);
+  }
+  return outputs;
+}
+
+function padWebUniquePushOutputs(outputs) {
+  var unique = [];
+  (outputs || []).forEach(function(output) {
+    if (output && unique.indexOf(output) < 0) unique.push(output);
+  });
+  return unique;
+}
+
+function padWebSendPushLedMessage(message) {
+  var outputs = _pushLedOutputs.length ? _pushLedOutputs : [midiOutput];
+  padWebUniquePushOutputs(outputs).forEach(function(output) {
+    try { output.send(message); } catch (_) {}
+  });
+}
+
+function padWebHardClearPushOutputs(outputs) {
+  // Exact Gate-0 sequence proven in 64PE Desktop: app-visible pads first,
+  // then explicit NoteOff for every pad on every channel, then CC=0.
+  padWebUniquePushOutputs(outputs).forEach(function(output) {
+    try { output.clear?.(); } catch (_) {}
+    for (var note = 36; note <= 99; note++) {
+      try { output.send([0x90, note, 0]); } catch (_) {}
+    }
+    for (var channel = 0; channel < 16; channel++) {
+      for (var serialNote = 36; serialNote <= 99; serialNote++) {
+        try { output.send([0x80 | channel, serialNote, 0]); } catch (_) {}
+      }
+    }
+    for (var cc = 0; cc <= 127; cc++) {
+      try { output.send([0xb0, cc, 0]); } catch (_) {}
+    }
+  });
+}
+
+function padWebGetPushMidiOutputs() {
+  var outputs = [];
+  var add = function(output) {
+    if (!output || outputs.indexOf(output) >= 0) return;
+    outputs.push(output);
+  };
+  add(midiOutput);
+  add(midiOutputDAW);
+  _pushLedOutputs.forEach(add);
+  if (midiAccess && midiAccess.outputs) {
+    for (const output of midiAccess.outputs.values()) {
+      if (padWebIsPushMidiPortName(output.name)) add(output);
+    }
+  }
+  return outputs;
+}
+
+'''
+if 'function padWebIsPushMidiPortName' not in s:
+    s = s[:helper_start] + helpers + s[helper_end:]
+
+pairs = [
+    ('const isPush = /Push/i.test(input.name);', 'const isPush = padWebIsPushMidiPortName(input.name);', 'input Push detection'),
+    ('var isPush = /push/i.test(connectedName) || /ableton/i.test(connectedName);', 'var isPush = padWebIsPushMidiPortName(connectedName);', 'connected Push detection'),
+]
+for old, new, label in pairs:
+    if old in s:
+        s = s.replace(old, new, 1)
+    elif new not in s:
+        raise SystemExit(label + ' anchor missing')
+
+reset_old = '      midiOutput = null;\n      midiOutputDAW = null;\n      _lpOutputActive = false;\n'
+reset_new = '      midiOutput = null;\n      midiOutputDAW = null;\n      _pushLedOutputs = [];\n      _lpOutputActive = false;\n'
+connect_at = s.find('function connectInputs()')
+if connect_at < 0:
+    raise SystemExit('connectInputs missing')
+if '_pushLedOutputs = [];' not in s[connect_at:]:
+    if reset_old not in s:
+        raise SystemExit('output reset anchor missing')
+    s = s.replace(reset_old, reset_new, 1)
+
+if '_pushLedOutputs = pushOutputs.slice();' not in s:
+    led_region = s.find('// LED control: Push 3 User Mode')
+    if led_region < 0:
+        raise SystemExit('LED control region missing')
+    if_start = s.find('        if (isPush) {', led_region)
+    if if_start < 0:
+        raise SystemExit('Push branch start missing')
+    body_start = s.find('\n', if_start) + 1
+    else_start = s.find('        } else if (false && isLaunchpad) {', body_start)
+    if else_start < 0:
+        raise SystemExit('Push branch end missing')
+    body = '''          // Match the standalone products: enumerate every Push output, including
+          // CoreMIDI's prefix-less Live/User/External Port names. Keep Live Port
+          // as the primary compatibility handle, but fan LED writes to all of them.
+          _isPush = true;
+          var pushOutputs = padWebCollectPushMidiOutputs(access);
+          _pushLedOutputs = pushOutputs.slice();
+          var pushLivePort = pushOutputs.find(function(output) { return /live/i.test(output.name || ''); }) || null;
+          var pushUserPort = pushOutputs.find(function(output) { return /user/i.test(output.name || ''); }) || null;
+          midiOutput = pushLivePort || pushUserPort || pushOutputs[0] || null;
+          if (midiOutput) {
+            // 64PE Desktop explicitly clears a stale previous owner at acquisition.
+            // Do the same before painting the Web state so a crash/old tab cannot
+            // leave an apparently immortal pad colour behind.
+            padWebHardClearPushOutputs(_pushLedOutputs);
+            _lpOutputActive = true;
+            _lpProgrammerMode = true;
+            console.log('[64PE LED] Push primary output:', midiOutput.name,
+                        'fan-out:', _pushLedOutputs.map(function(output) { return output.name; }));
+          }
+'''
+    s = s[:body_start] + body + s[else_start:]
+
+paint_old = 'midiOutput.send([0x90, note, color]);'
+paint_new = 'if (_isPush) padWebSendPushLedMessage([0x90, note, color]);\n          else midiOutput.send([0x90, note, color]);'
+if 'padWebSendPushLedMessage([0x90, note, color])' not in s:
+    if paint_old not in s:
+        raise SystemExit('LED paint send anchor missing')
+    s = s.replace(paint_old, paint_new, 1)
+
+clear_old = 'midiOutput.send([0x90, note, 0]);'
+clear_new = 'if (_isPush) padWebSendPushLedMessage([0x90, note, 0]);\n        else midiOutput.send([0x90, note, 0]);'
+if 'padWebSendPushLedMessage([0x90, note, 0])' not in s:
+    if clear_old not in s:
+        raise SystemExit('LED clear send anchor missing')
+    s = s.replace(clear_old, clear_new, 1)
+
+p.write_text(s)
+
+# Hardware-preview cache bust so this exact candidate reaches Chrome.
+token_old = 'webusb-20260911-6'
+token_new = 'webusb-20260911-7'
+for path in ['index.html', 'push-display-webusb-app.js', 'sw.js']:
+    p = Path(path)
+    text = p.read_text()
+    if token_old not in text and token_new not in text:
+        raise SystemExit(f'WebUSB cache token missing in {path}')
+    p.write_text(text.replace(token_old, token_new))
+
+for path in ['index.html', 'sw.js']:
+    p = Path(path)
+    text = p.read_text()
+    old = 'midi.js?v=6.7.52'
+    new = 'midi.js?v=6.7.53'
+    if old not in text and new not in text:
+        raise SystemExit(f'midi cache URL missing in {path}')
+    p.write_text(text.replace(old, new))
