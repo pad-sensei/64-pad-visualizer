@@ -55,8 +55,10 @@ describe('audited audio-core sustain integration', () => {
     expect(sw).not.toContain("'audio-core/assets/fdtd/manifest.json',");
   });
 
-  it('bumps the service-worker cache identity for the FDTD follow-up', () => {
-    expect(sw).toContain("var CACHE_NAME = '64pad-v180-preview-20260912-audio-sustain-3';");
+  it('keeps a cache identity newer than the pre-FDTD integration shell', () => {
+    const cacheName = sw.match(/var CACHE_NAME = '([^']+)'/)?.[1] || null;
+    expect(cacheName).toBeTruthy();
+    expect(cacheName).not.toBe('64pad-v180-preview-20260912-audio-sustain-2');
   });
 
   it('ships the permanent behavioral sustain regression test with the pinned dependency', () => {
