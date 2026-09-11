@@ -1,0 +1,315 @@
+name: Apply Push CC parity to Web v1.8.0
+
+on:
+  push:
+    branches:
+      - codex/web-v180-push-cc-parity
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    if: ${{ !contains(github.event.head_commit.message, '[push-cc-web]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/web-v180-push-cc-parity
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Wire CC mapper/dispatcher, retire remaining hps URL gates
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          # Script order: mapper + logical dispatcher must exist before midi.js binds inputs.
+          p = Path('index.html')
+          s = p.read_text()
+          anchor = '<script src="midi-input-state.js?v=6.7.52"></script>\n<script src="midi.js?v=6.7.53"></script>'
+          replacement = '<script src="midi-input-state.js?v=6.7.52"></script>\n<script src="push-midi-cc-map.js?v=1.8.0"></script>\n<script src="push-web-control.js?v=1.8.0"></script>\n<script src="midi.js?v=6.7.56"></script>'
+          if anchor not in s and replacement not in s:
+              raise SystemExit('index MIDI script anchor missing')
+          s = s.replace(anchor, replacement, 1)
+          p.write_text(s)
+
+          p = Path('sw.js')
+          s = p.read_text()
+          s = re.sub(r"var CACHE_NAME = '[^']+';", "var CACHE_NAME = '64pad-v180-preview-20260911-cc-1';", s, count=1)
+          anchor = "  'midi-input-state.js?v=6.7.52',\n  'midi.js?v=6.7.53',"
+          replacement = "  'midi-input-state.js?v=6.7.52',\n  'push-midi-cc-map.js?v=1.8.0',\n  'push-web-control.js?v=1.8.0',\n  'midi.js?v=6.7.56',"
+          if anchor not in s and replacement not in s:
+              raise SystemExit('sw MIDI asset anchor missing')
+          s = s.replace(anchor, replacement, 1)
+          p.write_text(s)
+
+          # Retire the remaining URL-based hps gates in host-adapter.js.
+          p = Path('host-adapter.js')
+          s = p.read_text()
+          old = '''    filter: function(entry) {
+                // 64PE host: HPS gate for amp/cabinet presets
+                var hpsUnlocked = new URLSearchParams(window.location.search).has('hps');
+                if (entry.useCabinet && !hpsUnlocked) return false;
+                return true;
+              },'''
+          new = '''    filter: function(entry) {
+                // v1.8.0: preset availability is a standard 64 Pad Explorer feature.
+                return true;
+              },'''
+          if old not in s and new not in s:
+              raise SystemExit('host preset hps gate anchor missing')
+          s = s.replace(old, new, 1)
+
+          s = s.replace("      var hpsUnlocked = false;\n      try { hpsUnlocked = new URLSearchParams(window.location.search).has('hps'); } catch (_) {}\n", '')
+          s = s.replace("(state.isEpiano && hpsUnlocked) ? '' : 'none'", "state.isEpiano ? '' : 'none'")
+          s = s.replace("(state.hasSpring && hpsUnlocked) ? '' : 'none'", "state.hasSpring ? '' : 'none'")
+          if "has('hps')" in s:
+              raise SystemExit('remaining host-adapter hps URL gate')
+          p.write_text(s)
+
+          # Replace the one-off Push octave handler with the Desktop-parity CC path.
+          p = Path('midi.js')
+          s = p.read_text()
+          old = '''          // Push octave buttons: CC#55=▲, CC#54=▼ (data2=127 press, 0 release)
+                    // Debounce: Push 3 sends same CC on multiple ports → shiftOctave called twice → skips octave
+                    if (isPush && cmd === 0xb0 && velocity === 127 && (rawNote === 55 || rawNote === 54)) {
+                      var now = performance.now();
+                      if (now - _lastOctCC < 100) return;
+                      _lastOctCC = now;
+                      var _octDir = rawNote === 55 ? 1 : -1;
+                      // Perform + held pad: octave-shift that slot and save (Push WYSIWYG, うりなみさん
+                      // 2026-05-31) instead of the global octave transpose. Other modes keep shiftOctave.
+                      if (memoryViewMode === 'perform' && PerformState.activePad !== null &&
+                          PlainState.activeNotes.size > 0) {
+                        performOctaveEdit(_octDir);
+                      } else {
+                        shiftOctave(_octDir);
+                      }
+                      return;
+                    }
+          '''
+          if old not in s:
+              raise SystemExit('old Push octave special-case block missing')
+          s = s.replace(old, '', 1)
+
+          sustain_end = '''            return;
+                    }
+                    // Push perform mode: serial 4x4 → slots directly (bypass fourths conversion)
+          '''
+          insert = '''            return;
+                    }
+                    // Push control-surface CC: raw mapping is the same contract used by
+                    // Standalone. CC64 was consumed above as performance sustain.
+                    if (isPush && cmd === 0xb0 && typeof window.padWebHandlePushMidiCc === 'function') {
+                      var _pushCcHandled = window.padWebHandlePushMidiCc(rawNote, velocity, {
+                        inputName: input.name || '',
+                        inputId: input.id || '',
+                        nowMs: (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(),
+                        padIsHeld: midiActiveNotes.size > 0 || (typeof PlainState !== 'undefined' && PlainState.activeNotes && PlainState.activeNotes.size > 0),
+                        padPlaybackBlocked: false,
+                        mpeMode: (typeof window.mpeMode !== 'undefined' && window.mpeMode === true)
+                          || (typeof AppState !== 'undefined' && AppState.mpeMode === true)
+                      });
+                      if (_pushCcHandled) return;
+                    }
+                    // Delete/Duplicate + pad gestures are part of the same Push control surface.
+                    if (isPush && (cmd === 0x90 || cmd === 0x80)
+                        && rawNote >= 36 && rawNote <= 99
+                        && typeof window.padWebPushControlWillHandlePad === 'function') {
+                      var _pushPadDown = cmd === 0x90 && velocity > 0;
+                      if (window.padWebPushControlWillHandlePad(rawNote, _pushPadDown)) return;
+                    }
+                    // Push perform mode: serial 4x4 → slots directly (bypass fourths conversion)
+          '''
+          if sustain_end not in s:
+              raise SystemExit('sustain-to-perform insertion anchor missing')
+          s = s.replace(sustain_end, insert, 1)
+
+          s = s.replace('// Launchpad LED output (HPS exclusive — gated by ?hps URL parameter)', '// Controller LED output (standard 64 Pad Explorer feature in v1.8.0)')
+          s = s.replace('let _lpHpsUnlocked = false;  // set in main.js from ?hps', 'let _lpHpsUnlocked = false;  // main.js enables standard controller LED behavior')
+          p.write_text(s)
+          PY
+
+          cat > tests/unit/push-midi-cc-map.test.js <<'JS'
+          import { describe, it, expect } from 'vitest';
+          import { createRequire } from 'module';
+          const require = createRequire(import.meta.url);
+          const { createState, relativeDelta, mapPushCc } = require('../../push-midi-cc-map.js');
+
+          function codes(cc, value = 127, context = {}, state = createState()) {
+            return mapPushCc(cc, value, context, state).events.map(e => [e.code, e.value]);
+          }
+
+          describe('Push MIDI CC Desktop parity', () => {
+            it('uses the native relative encoder convention', () => {
+              expect(relativeDelta(0)).toBe(0);
+              expect(relativeDelta(1)).toBe(1);
+              expect(relativeDelta(63)).toBe(63);
+              expect(relativeDelta(65)).toBe(-63);
+              expect(relativeDelta(127)).toBe(-1);
+            });
+
+            it('maps native push buttons exactly', () => {
+              expect(codes(55)).toEqual([[46, 1]]);
+              expect(codes(54)).toEqual([[46, -1]]);
+              expect(codes(58)).toEqual([[1, 0]]);
+              expect(codes(31)).toEqual([[47, 0]]);
+              expect(codes(32)).toEqual([[75, 0]]);
+              expect(codes(85)).toEqual([[42, 0]]);
+              expect(codes(86)).toEqual([[3, 0]]);
+              expect(codes(82)).toEqual([[48, 0]]);
+              expect(codes(65)).toEqual([[44, 0]]);
+              expect(codes(81)).toEqual([[45, 0]]);
+              expect(codes(80)).toEqual([[71, 0]]);
+              expect(codes(83)).toEqual([[72, 0]]);
+              expect(codes(110)).toEqual([[73, 0]]);
+              expect(codes(46)).toEqual([[43, 1]]);
+              expect(codes(47)).toEqual([[43, -1]]);
+              expect(codes(44)).toEqual([[35, -1]]);
+              expect(codes(45)).toEqual([[35, 1]]);
+              expect(codes(62)).toEqual([[36, -1]]);
+              expect(codes(63)).toEqual([[36, 1]]);
+              expect(codes(93)).toEqual([[33, 1]]);
+              expect(codes(95)).toEqual([[33, -1]]);
+              expect(codes(102)).toEqual([[21, 0]]);
+              expect(codes(109)).toEqual([[21, 7]]);
+              expect(codes(20)).toEqual([[20, 0]]);
+              expect(codes(27)).toEqual([[20, 7]]);
+            });
+
+            it('preserves press/release state controls', () => {
+              expect(codes(118, 127)).toEqual([[40, 1]]);
+              expect(codes(118, 0)).toEqual([[40, 0]]);
+              expect(codes(88, 127)).toEqual([[49, 1]]);
+              expect(codes(88, 0)).toEqual([[49, 0]]);
+            });
+
+            it('tracks Shift for Undo/Redo exactly like native', () => {
+              const state = createState();
+              expect(mapPushCc(49, 127, {}, state).events).toEqual([]);
+              expect(codes(119, 127, {}, state)).toEqual([[41, 1]]);
+              mapPushCc(49, 0, {}, state);
+              expect(codes(119, 127, {}, state)).toEqual([[41, 0]]);
+            });
+
+            it('fires Setup once per held press and Swap on release', () => {
+              const state = createState();
+              expect(codes(30, 127, {}, state)).toEqual([[70, 0]]);
+              expect(codes(30, 127, {}, state)).toEqual([]);
+              expect(codes(30, 0, {}, state)).toEqual([]);
+              expect(codes(30, 127, {}, state)).toEqual([[70, 0]]);
+              expect(codes(33, 127)).toEqual([]);
+              expect(codes(33, 0)).toEqual([[74, 0]]);
+            });
+
+            it('maps jog and encoders, except MPE Slide collision', () => {
+              expect(codes(70, 1)).toEqual([[30, 1]]);
+              expect(codes(70, 127)).toEqual([[30, -1]]);
+              expect(codes(71, 1)).toEqual([[50, 1]]);
+              expect(codes(78, 127)).toEqual([[57, -1]]);
+              expect(codes(74, 1, { mpeMode: true })).toEqual([]);
+              expect(mapPushCc(74, 1, { mpeMode: true }, createState()).performancePass).toBe(true);
+            });
+
+            it('keeps CC64, CC1 and expression CC74 out of UI control ownership', () => {
+              expect(mapPushCc(64, 127, {}, createState()).handled).toBe(false);
+              expect(mapPushCc(1, 64, {}, createState()).performancePass).toBe(true);
+              expect(mapPushCc(74, 64, { mpeMode: true }, createState()).performancePass).toBe(true);
+            });
+
+            it('uses Live Port as control authority while preserving octave on User Port', () => {
+              expect(codes(58, 127, { inputName: 'Ableton Push 3 User Port' })).toEqual([]);
+              expect(codes(55, 127, { inputName: 'User Port', nowMs: 1000 })).toEqual([[46, 1]]);
+              expect(codes(58, 127, { inputName: 'Ableton Push 3 Live Port' })).toEqual([[1, 0]]);
+            });
+
+            it('suppresses encoder-range expression while a pad is held', () => {
+              expect(codes(71, 1, { padIsHeld: true })).toEqual([]);
+              expect(codes(78, 1, { padIsHeld: true })).toEqual([]);
+            });
+
+            it('debounces mirrored octave presses with the native 180ms window', () => {
+              const state = createState();
+              expect(codes(55, 127, { nowMs: 1000 }, state)).toEqual([[46, 1]]);
+              expect(codes(55, 127, { nowMs: 1100 }, state)).toEqual([]);
+              expect(codes(55, 127, { nowMs: 1181 }, state)).toEqual([[46, 1]]);
+            });
+          });
+          JS
+
+          cat > tests/unit/push-web-cc-integration.test.js <<'JS'
+          import { describe, it, expect } from 'vitest';
+          import fs from 'fs';
+
+          describe('Web Push control integration contract', () => {
+            const html = fs.readFileSync('index.html', 'utf8');
+            const sw = fs.readFileSync('sw.js', 'utf8');
+            const midi = fs.readFileSync('midi.js', 'utf8');
+            const main = fs.readFileSync('main.js', 'utf8');
+            const host = fs.readFileSync('host-adapter.js', 'utf8');
+            const control = fs.readFileSync('push-web-control.js', 'utf8');
+
+            it('loads the CC mapper/dispatcher before midi.js and precaches both', () => {
+              expect(html.indexOf('push-midi-cc-map.js?v=1.8.0')).toBeGreaterThan(0);
+              expect(html.indexOf('push-web-control.js?v=1.8.0')).toBeGreaterThan(html.indexOf('push-midi-cc-map.js?v=1.8.0'));
+              expect(html.indexOf('midi.js?v=6.7.56')).toBeGreaterThan(html.indexOf('push-web-control.js?v=1.8.0'));
+              expect(sw).toContain("'push-midi-cc-map.js?v=1.8.0'");
+              expect(sw).toContain("'push-web-control.js?v=1.8.0'");
+            });
+
+            it('routes Push CC through parity mapper after sustain and before pad-note handling', () => {
+              const sustain = midi.indexOf('if (cmd === 0xb0 && rawNote === 64)');
+              const controlPos = midi.indexOf('window.padWebHandlePushMidiCc');
+              const perform = midi.indexOf('// Push perform mode: serial 4x4');
+              expect(sustain).toBeGreaterThan(0);
+              expect(controlPos).toBeGreaterThan(sustain);
+              expect(perform).toBeGreaterThan(controlPos);
+              expect(midi).not.toContain('// Push octave buttons: CC#55=▲, CC#54=▼');
+            });
+
+            it('keeps Web MIDI LED/CC standard and retires query-string hps gates', () => {
+              expect(main).toContain('_lpHpsUnlocked = true');
+              expect(main).not.toContain("has('hps')");
+              expect(host).not.toContain("has('hps')");
+            });
+
+            it('keeps native-only Device action a browser no-op', () => {
+              expect(control).toContain('if (code === 73) return true');
+            });
+          });
+          JS
+
+          git diff --check
+      - name: Verify focused and full Web suite
+        run: |
+          set -euo pipefail
+          npm ci
+          node --check push-midi-cc-map.js
+          node --check push-web-control.js
+          node --check midi.js
+          npx vitest run tests/unit/push-midi-cc-map.test.js tests/unit/push-web-cc-integration.test.js tests/unit/v180-web-contract.test.js tests/unit/push-midi-output-routing.test.js
+          npm test
+          ./tools/sw-assets-check.sh
+      - name: Commit implementation
+        run: |
+          git config user.name 'daikainozaki-cyber'
+          git config user.email 'daikainozaki@gmail.com'
+          git add index.html sw.js host-adapter.js midi.js push-midi-cc-map.js push-web-control.js tests/unit/push-midi-cc-map.test.js tests/unit/push-web-cc-integration.test.js
+          git commit -m 'feat(push): add Web MIDI CC parity [push-cc-web]'
+          git push origin HEAD:codex/web-v180-push-cc-parity
+      - name: Deploy exact dev preview
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avz --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md'
+          path: ./
+          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-dev/
+          remote_host: xs071284.xsrv.jp
+          remote_port: 10022
+          remote_user: xs071284
+          remote_key: ${{ secrets.XSERVER_SSH_KEY }}
