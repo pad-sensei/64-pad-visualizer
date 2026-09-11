@@ -4,14 +4,18 @@ import {
   HEIGHT,
   FRAME_BYTES,
   FILTER,
+  FILTERS,
+  PUSH2_FILTER,
+  PUSH3_FILTER,
   HEADER,
   PushWebUsbDisplay,
   encodePushDisplayFrame,
   blackPushDisplayFrame,
   pushDisplayConfiguration,
+  pushModelName,
 } from '../../push-display-webusb.js';
 
-function fixture() {
+function fixture(filter = FILTER) {
   const calls = [];
   const alt = {
     alternateSetting: 0,
@@ -26,7 +30,7 @@ function fixture() {
     interfaces: [{ interfaceNumber: 0, alternates: [alt] }],
   };
   const device = {
-    ...FILTER,
+    ...filter,
     configurations: [config],
     configuration: config,
     opened: false,
@@ -54,8 +58,8 @@ async function tick() {
   await new Promise(resolve => setImmediate(resolve));
 }
 
-describe('Push 3 WebUSB display transport', () => {
-  it('encodes the native full-frame byte layout', () => {
+describe('Push 2 / Push 3 WebUSB display transport', () => {
+  it('encodes the shared native full-frame byte layout', () => {
     const rgba = new Uint8Array(WIDTH * HEIGHT * 4);
     rgba.set([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255]);
     const frame = encodePushDisplayFrame(rgba);
@@ -63,26 +67,45 @@ describe('Push 3 WebUSB display transport', () => {
     expect(Array.from(frame.slice(0, 8))).toEqual([0xf8, 0xf3, 0x07, 0xf8, 0xe7, 0x0b, 0x18, 0x00]);
   });
 
-  it('accepts only the known Push 3 display interface', () => {
-    const f = fixture();
-    expect(pushDisplayConfiguration(f.device)).toBe(1);
-    f.alt.endpoints[0].endpointNumber = 2;
-    expect(() => pushDisplayConfiguration(f.device)).toThrow(/display interface/);
+  it('accepts both supported Ableton Push product IDs through the same display interface contract', () => {
+    const push3 = fixture(PUSH3_FILTER);
+    const push2 = fixture(PUSH2_FILTER);
+    expect(pushModelName(push3.device)).toBe('Push 3');
+    expect(pushModelName(push2.device)).toBe('Push 2');
+    expect(pushDisplayConfiguration(push3.device)).toBe(1);
+    expect(pushDisplayConfiguration(push2.device)).toBe(1);
+    push2.alt.endpoints[0].endpointNumber = 2;
+    expect(() => pushDisplayConfiguration(push2.device)).toThrow(/display interface/);
   });
 
-  it('uses an explicit chooser, claims interface 0, and writes header then frame', async () => {
-    const f = fixture();
+  it('rejects unrelated Ableton USB products', () => {
+    const f = fixture({ vendorId: 0x2982, productId: 0x9999 });
+    expect(pushModelName(f.device)).toBe(null);
+    expect(() => pushDisplayConfiguration(f.device)).toThrow(/Push 2 or Push 3/);
+  });
+
+  it('uses an explicit two-model chooser, claims interface 0, and writes header then frame', async () => {
+    const f = fixture(PUSH2_FILTER);
     const connected = await f.probe.connect();
     await tick();
     expect(connected).toBe(true);
-    expect(f.calls[0]).toEqual(['chooser', { filters: [{ ...FILTER }] }]);
+    expect(f.calls[0]).toEqual(['chooser', { filters: FILTERS.map(filter => ({ ...filter })) }]);
     expect(f.calls).toContainEqual(['claim', 0]);
     expect(f.calls).toContainEqual(['alternate', 0, 0]);
     expect(writes(f).length).toBe(2);
     expect(Array.from(writes(f)[0][2])).toEqual(HEADER);
     expect(writes(f)[1][2]).toEqual(f.frame);
+    expect(f.statuses.some(([, text]) => /Push 2 display connected/.test(text))).toBe(true);
     await f.probe.stop();
     expect(f.device.opened).toBe(false);
+  });
+
+  it('reports Push 3 when the Push 3 PID was selected', async () => {
+    const f = fixture(PUSH3_FILTER);
+    expect(await f.probe.connect()).toBe(true);
+    await tick();
+    expect(f.statuses.some(([, text]) => /Push 3 display connected/.test(text))).toBe(true);
+    await f.probe.stop();
   });
 
   it('uses a newly supplied frame on the next completed send', async () => {
@@ -96,17 +119,17 @@ describe('Push 3 WebUSB display transport', () => {
   });
 
   it('sends a black frame before closing a claimed display session', async () => {
-  const f = fixture();
-  await f.probe.connect();
-  await tick();
-  const beforeStop = writes(f).length;
-  await f.probe.stop();
-  const shutdownWrites = writes(f).slice(beforeStop);
-  expect(shutdownWrites.length).toBe(2);
-  expect(Array.from(shutdownWrites[0][2])).toEqual(HEADER);
-  expect(shutdownWrites[1][2]).toEqual(blackPushDisplayFrame());
-  expect(f.calls.at(-1)).toBe('close');
-});
+    const f = fixture();
+    await f.probe.connect();
+    await tick();
+    const beforeStop = writes(f).length;
+    await f.probe.stop();
+    const shutdownWrites = writes(f).slice(beforeStop);
+    expect(shutdownWrites.length).toBe(2);
+    expect(Array.from(shutdownWrites[0][2])).toEqual(HEADER);
+    expect(shutdownWrites[1][2]).toEqual(blackPushDisplayFrame());
+    expect(f.calls.at(-1)).toBe('close');
+  });
 
   it('rejects an already-active incompatible USB configuration before claim', async () => {
     const f = fixture();
