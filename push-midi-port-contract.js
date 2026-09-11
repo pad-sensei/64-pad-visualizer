@@ -99,11 +99,9 @@
       return { generation: 2, evidence: 'explicit-push2-name' };
     }
 
-    // macOS/CoreMIDI can omit the device prefix entirely. Ableton documents Push 3
-    // as Live/User/External; Push 2 control-surface documentation uses Live/User.
-    // Require the complete generic three-port topology before treating an unnamed
-    // device as Push 3, so the Push-3-only Pedal/CV command is never sent from a
-    // single ambiguous generic port.
+    // CoreMIDI can expose bare Live/User/External names. This is informational
+    // generation evidence only. It must never authorize a hardware configuration
+    // write: Web preserves the device's existing Pedal/CV jack configuration.
     var generic = new Set(list.filter(function(port) { return isGenericPushPortName(port.name); })
       .map(function(port) { return normalizedName(port.name).toLowerCase(); }));
     if (generic.has('live port') && generic.has('user port') && generic.has('external port')) {
@@ -129,80 +127,12 @@
     if (!nav || typeof nav.requestMIDIAccess !== 'function') throw new Error('Web MIDI unavailable');
     try {
       return await nav.requestMIDIAccess({ sysex: true });
-    } catch (sysexError) {
-      var access = await nav.requestMIDIAccess();
-      try { access.__64peSysexError = String(sysexError && sysexError.message || sysexError || 'SysEx denied'); } catch (_) {}
-      return access;
-    }
-  }
-
-  function initializePush3PedalMode(access, outputs) {
-    var setupOutputs = Array.from(new Set((outputs || []).filter(function(output) {
-      return !!output && isPushPortName(output.name);
-    })));
-    if (!access || access.sysexEnabled !== true) {
-      return { initialized: false, inquirySent: false, reason: 'sysex-unavailable', output: null, generation: null, evidence: 'none' };
-    }
-
-    // Universal Device Inquiry is safe for Push 2/3 and is part of the proven
-    // external-controller startup sequence. Send it before generation-specific
-    // setup, including when CoreMIDI exposes only generic port names.
-    var inquiry = [0xf0, 0x7e, 0x7f, 0x06, 0x01, 0xf7];
-    var inquirySent = false;
-    setupOutputs.forEach(function(output) {
-      try { output.send(inquiry); inquirySent = true; } catch (_) {}
-    });
-
-    var model = detectPushGeneration(setupOutputs);
-    if (model.generation !== 3) {
-      return {
-        initialized: false,
-        inquirySent: inquirySent,
-        reason: 'push3-model-not-confirmed',
-        output: null,
-        generation: model.generation,
-        evidence: model.evidence,
-      };
-    }
-
-    var primary = selectPushOperationalOutput(setupOutputs);
-    if (!primary) {
-      return {
-        initialized: false,
-        inquirySent: inquirySent,
-        reason: 'live-port-unavailable',
-        output: null,
-        generation: 3,
-        evidence: model.evidence,
-      };
-    }
-
-    var payload = [
-      0xf0,
-      0x00, 0x21, 0x1d, 0x01, 0x01, 0x37, 0x26, 0x50,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0xf7,
-    ];
-    try {
-      primary.send(payload);
-      return {
-        initialized: true,
-        inquirySent: inquirySent,
-        reason: 'ok',
-        output: primary.name || '',
-        generation: 3,
-        evidence: model.evidence,
-      };
-    } catch (error) {
-      return {
-        initialized: false,
-        inquirySent: inquirySent,
-        reason: String(error && error.message || error),
-        output: primary.name || '',
-        generation: 3,
-        evidence: model.evidence,
-      };
+    } catch (_) {
+      // SysEx is optional for this product path. In particular, Push 3 Pedal/CV
+      // configuration is never rewritten by 64PE Web; ordinary Note/CC/LED works
+      // through standard Web MIDI. Launchpad programmer mode can remain unavailable
+      // when the browser denies SysEx.
+      return await nav.requestMIDIAccess();
     }
   }
 
@@ -219,7 +149,6 @@
     detectPushGeneration,
     topologySignature,
     requestMidiAccess,
-    initializePush3PedalMode,
   };
   global.padWebPushPortContract = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
