@@ -4,7 +4,7 @@ import {
   PushWebUsbDisplay,
   encodePushDisplayFrame,
 } from './push-display-webusb.js';
-import { hardClearPushMidiOutputs } from './push-surface-cleanup.js';
+import { fastClearPushPads, hardClearPushMidiOutputs } from './push-surface-cleanup.js';
 
 const params = new URLSearchParams(window.location.search);
 const enabled = params.has('webusb') && !window.IS_DESKTOP_MODE;
@@ -228,8 +228,13 @@ if (enabled) {
     function cleanupPushSurface(message = 'Push display stopped. Surface cleared.') {
       if (cleanupStarted) return;
       cleanupStarted = true;
+      const pushOutputs = window.padWebGetPushMidiOutputs?.() || [];
+      // Desktop clears the visible pad paint first, then performs the exhaustive
+      // sweep. Browser teardown is time-limited, so make those 64 zero-velocity
+      // Note Ons the first hardware operation while the MIDI ports are alive.
+      try { fastClearPushPads(pushOutputs); } catch (_) {}
       try { window.padWebResetPushMidiRuntimeState?.(); } catch (_) {}
-      try { hardClearPushMidiOutputs(window.padWebGetPushMidiOutputs?.() || []); } catch (_) {}
+      try { hardClearPushMidiOutputs(pushOutputs); } catch (_) {}
       try { void probe.stop(message); } catch (_) {}
     }
 
