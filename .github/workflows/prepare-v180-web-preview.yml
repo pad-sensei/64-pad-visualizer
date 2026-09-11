@@ -1,0 +1,162 @@
+name: Prepare unified v1.8.0 Web preview
+
+on:
+  push:
+    branches:
+      - codex/web-push3-webusb-display-preview
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: ${{ !contains(github.event.head_commit.message, '[v180-web]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/web-push3-webusb-display-preview
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Remove hps gate, unify product version, separate display lifecycle
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Product feature gates are retired: the full 64PE surface is standard.
+          p = Path('main.js')
+          s = p.read_text()
+          old = """// TASTY Mode: HPS auth + data loading
+          TastyState.hpsUnlocked = new URLSearchParams(window.location.search).has('hps');
+          if (TastyState.hpsUnlocked) {
+          """
+          new = """// TASTY Mode: standard 64 Pad Explorer feature (legacy ?hps gate retired in v1.8.0)
+          TastyState.hpsUnlocked = true;
+          {
+          """
+          if old not in s: raise SystemExit('Tasty hps gate anchor missing')
+          s = s.replace(old, new, 1)
+
+          old = """// Stock Voicing: same HPS gate
+          StockState.hpsUnlocked = new URLSearchParams(window.location.search).has('hps');
+          if (StockState.hpsUnlocked) {
+          """
+          new = """// Stock Voicing: standard 64 Pad Explorer feature
+          StockState.hpsUnlocked = true;
+          {
+          """
+          if old not in s: raise SystemExit('Stock hps gate anchor missing')
+          s = s.replace(old, new, 1)
+
+          old = "if (_hpsEngineAnchor) _hpsEngineAnchor.style.display = (TastyState.hpsUnlocked || StockState.hpsUnlocked) ? 'block' : 'none';\n\n// Launchpad LED: same HPS gate\n_lpHpsUnlocked = new URLSearchParams(window.location.search).has('hps');\n\n// Genre Preset: HPS-only UI (Desktop paid version always has ?hps)\n(function() {\n  var hps = new URLSearchParams(window.location.search).has('hps');\n  var sel = document.getElementById('genre-preset-select');\n  if (sel && hps) {\n"
+          new = "if (_hpsEngineAnchor) _hpsEngineAnchor.style.display = 'block';\n\n// Push/Launchpad LED is standard controller behavior in v1.8.0.\n_lpHpsUnlocked = true;\n\n// Genre Preset is standard UI in v1.8.0.\n(function() {\n  var sel = document.getElementById('genre-preset-select');\n  if (sel) {\n"
+          if old not in s: raise SystemExit('combined hps UI gate anchor missing')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          # User-facing product version is unified across Web/Standalone/Plugin.
+          p = Path('index.html')
+          s = p.read_text()
+          s = s.replace('?desktop=1&hps=1', '?desktop=1')
+          s = s.replace('"softwareVersion":"6.6.0"', '"softwareVersion":"1.8.0"')
+          import re
+          s, n = re.subn(r'<span class="version-tag">V[^<]+</span>', '<span class="version-tag">v1.8.0</span>', s, count=1)
+          if n != 1: raise SystemExit('version-tag anchor missing')
+          s = s.replace('main.js?v=6.7.52', 'main.js?v=6.7.55')
+          s = s.replace('push-display-webusb-app.js?v=webusb-20260911-7', 'push-display-webusb-app.js?v=webusb-20260911-8')
+          p.write_text(s)
+
+          # Display button owns only WebUSB display. MIDI pads remain automatic and independent.
+          p = Path('push-display-webusb-app.js')
+          s = p.read_text()
+          old = """    // Chrome does not wait for async WebUSB work once pagehide/beforeunload has
+              // committed to destroying the page. visibilitychange fires earlier, while
+              // USB/MIDI ownership is still usable, so cleanup begins there as well.
+              document.addEventListener('visibilitychange', () => {
+                if (document.hidden) cleanupPushSurface('Push display stopped because this tab was hidden.');
+              }, { capture: true });
+              window.addEventListener('pagehide', () => cleanupPushSurface(), { capture: true });
+              window.addEventListener('beforeunload', () => cleanupPushSurface(), { capture: true });
+          """
+          new = """    // WebUSB display is opt-in and independent from automatic Web MIDI pad/CC ownership.
+              // Hiding the tab may release only the display transport; it must never clear pad LEDs.
+              document.addEventListener('visibilitychange', () => {
+                if (document.hidden) void probe.stop('Push display paused because this tab was hidden.');
+              }, { capture: true });
+              // Actual page teardown still clears both transports best-effort.
+              window.addEventListener('pagehide', () => cleanupPushSurface(), { capture: true });
+              window.addEventListener('beforeunload', () => cleanupPushSurface(), { capture: true });
+          """
+          if old not in s: raise SystemExit('display lifecycle anchor missing')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          # Internal cache/build IDs remain separate from public product version.
+          p = Path('sw.js')
+          s = p.read_text()
+          s = s.replace('main.js?v=6.7.52', 'main.js?v=6.7.55')
+          s = s.replace('push-display-webusb-app.js?v=webusb-20260911-7', 'push-display-webusb-app.js?v=webusb-20260911-8')
+          s = re.sub(r"var CACHE_NAME = '[^']+';", "var CACHE_NAME = '64pad-v180-preview-20260911-1';", s, count=1)
+          p.write_text(s)
+
+          # Focused source contract: no URL-based HPS feature gate, public version unified,
+          # display visibility cleanup cannot call the MIDI surface cleanup.
+          Path('tests/unit/v180-web-contract.test.js').write_text(r'''import { describe, it, expect } from 'vitest';
+          import fs from 'fs';
+
+          describe('v1.8.0 Web product contract', () => {
+            const main = fs.readFileSync('main.js', 'utf8');
+            const html = fs.readFileSync('index.html', 'utf8');
+            const display = fs.readFileSync('push-display-webusb-app.js', 'utf8');
+
+            it('retires URL-based hps feature gates', () => {
+              expect(main).not.toContain("has('hps')");
+              expect(main).toContain('TastyState.hpsUnlocked = true');
+              expect(main).toContain('StockState.hpsUnlocked = true');
+              expect(main).toContain('_lpHpsUnlocked = true');
+            });
+
+            it('shows one product version for Web', () => {
+              expect(html).toContain('<span class="version-tag">v1.8.0</span>');
+              expect(html).toContain('"softwareVersion":"1.8.0"');
+            });
+
+            it('keeps display opt-in lifecycle separate from MIDI pad ownership', () => {
+              const hidden = display.match(/document\.addEventListener\('visibilitychange'[\s\S]*?\}, \{ capture: true \}\);/)?.[0] || '';
+              expect(hidden).toContain('probe.stop');
+              expect(hidden).not.toContain('cleanupPushSurface');
+              expect(hidden).not.toContain('hardClearPushMidiOutputs');
+            });
+          });
+          ''')
+          PY
+          git diff --check
+          git status --short
+      - name: Verify focused and full Web suite
+        run: |
+          npm ci
+          npx vitest run tests/unit/v180-web-contract.test.js tests/unit/push-display-webusb.test.js tests/unit/push-midi-output-routing.test.js
+          npm test
+          ./tools/sw-assets-check.sh
+      - name: Commit product changes
+        run: |
+          git config user.name 'daikainozaki-cyber'
+          git config user.email 'daikainozaki@gmail.com'
+          git add main.js index.html sw.js push-display-webusb-app.js tests/unit/v180-web-contract.test.js
+          git commit -m 'feat(web): unify v1.8.0 surface and retire hps gate [v180-web]'
+          git push origin HEAD:codex/web-push3-webusb-display-preview
+      - name: Deploy exact dev preview
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avz --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md'
+          path: ./
+          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-dev/
+          remote_host: xs071284.xsrv.jp
+          remote_port: 10022
+          remote_user: xs071284
+          remote_key: ${{ secrets.XSERVER_SSH_KEY }}
