@@ -1,0 +1,396 @@
+name: Align WebUSB display and cleanup with Desktop
+
+on:
+  push:
+    branches:
+      - codex/web-push3-webusb-display-preview
+
+permissions:
+  contents: write
+
+jobs:
+  implement-test-deploy:
+    if: ${{ !contains(github.event.head_commit.message, '[webusb-parity]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/web-push3-webusb-display-preview
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Add Desktop-parity display model and hard cleanup
+        run: |
+          set -euo pipefail
+          cat > push-surface-cleanup.js <<'JS'
+          // Push surface shutdown contract shared by the Web preview.
+          // Mirrors Desktop hardClearPushLEDs(): every pad gets Note Off on all
+          // channels and every CC is reset to zero on channel 1.
+          export function hardClearPushMidiOutputs(outputs) {
+            const unique = [...new Set((outputs || []).filter(Boolean))];
+            for (const output of unique) {
+              for (let channel = 0; channel < 16; channel++) {
+                for (let note = 36; note <= 99; note++) {
+                  output.send([0x80 | channel, note, 0]);
+                }
+              }
+              for (let cc = 0; cc <= 127; cc++) {
+                output.send([0xb0, cc, 0]);
+              }
+            }
+            return {
+              outputs: unique.length,
+              noteOffs: unique.length * 16 * 64,
+              ccResets: unique.length * 128,
+            };
+          }
+          JS
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Transport: send a black display frame before releasing WebUSB.
+          p = Path('push-display-webusb.js')
+          s = p.read_text()
+          anchor = "export function pushDisplayConfiguration(device) {\n"
+          helper = "export function blackPushDisplayFrame() {\n  return encodePushDisplayFrame(new Uint8Array(WIDTH * HEIGHT * 4));\n}\n\n"
+          if helper not in s:
+              if anchor not in s: raise SystemExit('transport helper anchor missing')
+              s = s.replace(anchor, helper + anchor, 1)
+          s = s.replace("      device: null, stopped: false, connecting: true, frames: 0,\n      timer: null, closing: null,\n",
+                        "      device: null, stopped: false, connecting: true, frames: 0,\n      timer: null, closing: null, claimed: false,\n", 1)
+          s = s.replace("      await session.device.selectAlternateInterface(0, 0);\n      if (session.stopped) return false;\n",
+                        "      await session.device.selectAlternateInterface(0, 0);\n      session.claimed = true;\n      if (session.stopped) return false;\n", 1)
+          close_anchor = "  async close(session) {\n"
+          final_method = '''  async sendFinalBlackFrame(session) {
+            if (!session.device?.opened || !session.claimed) return;
+            const black = blackPushDisplayFrame();
+            try {
+              for (const bytes of [new Uint8Array(HEADER), black]) {
+                const result = await withDeadline(session.device.transferOut(1, bytes), this.timeoutMs, 'USB shutdown transfer');
+                if (result.status !== 'ok' || result.bytesWritten !== bytes.length) break;
+              }
+            } catch (_) {
+              // Best effort during page teardown: closing USB still takes priority.
+            }
+          }
+
+          '''
+          if final_method not in s:
+              if close_anchor not in s: raise SystemExit('transport close anchor missing')
+              s = s.replace(close_anchor, final_method + close_anchor, 1)
+          old = "    this.onStatus('stopping', 'Stopping Push display output...');\n    try {\n      await this.close(session);\n"
+          new = "    this.onStatus('stopping', 'Stopping Push display output...');\n    try {\n      await this.sendFinalBlackFrame(session);\n      await this.close(session);\n"
+          if old not in s: raise SystemExit('transport stop anchor missing')
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          # Expose a presentation-neutral snapshot and live Push MIDI outputs from existing Web state.
+          p = Path('midi.js')
+          s = p.read_text()
+          anchor = "function setLEDMode(mode) {\n"
+          bridge = r'''function padWebGetPushMidiOutputs() {
+            var outputs = [];
+            var add = function(output) {
+              if (!output || outputs.indexOf(output) >= 0) return;
+              outputs.push(output);
+            };
+            add(midiOutput);
+            add(midiOutputDAW);
+            if (midiAccess && midiAccess.outputs) {
+              for (const output of midiAccess.outputs.values()) {
+                if (/push/i.test(output.name || '')) add(output);
+              }
+            }
+            return outputs;
+          }
+
+          function padWebResetPushMidiRuntimeState() {
+            try { if (typeof _cancelSustainDebounce === 'function') _cancelSustainDebounce(); } catch (_) {}
+            try {
+              if (typeof _midiSustainOn !== 'undefined') _midiSustainOn = false;
+              if (typeof setSustain === 'function') setSustain(false);
+            } catch (_) {}
+            try { if (midiHeldState) midiHeldState.clearAll(); } catch (_) {}
+            try { midiActiveNotes.clear(); } catch (_) {}
+            for (var i = 0; i < 64; i++) _prevLEDState[i] = -1;
+          }
+
+          function padWebGetPushDisplaySnapshot() {
+            var payload = (typeof padWebGetLatestObservedShellUstPayload === 'function')
+              ? padWebGetLatestObservedShellUstPayload() : null;
+            var notes = Array.from(midiActiveNotes).sort(function(a, b) { return a - b; });
+            var noteNames = notes.map(function(note) {
+              try { return pcName(((note % 12) + 12) % 12); }
+              catch (_) { return String(note); }
+            });
+            var key = '';
+            var scale = '';
+            try {
+              key = pcName(AppState.key, AppState.key);
+              scale = (SCALES[AppState.scaleIdx] && SCALES[AppState.scaleIdx].name) || '';
+            } catch (_) {}
+            var chord = payload && payload.chord && payload.chord.name || '';
+            if (!chord) {
+              var detect = document.getElementById('midi-detect');
+              var first = detect && detect.firstElementChild;
+              chord = (first && first.textContent || '').replace(/UST:.*/, '').trim();
+            }
+            var shell = payload && payload.shell && Array.isArray(payload.shell.degrees)
+              ? payload.shell.degrees.join(' ') : '';
+            var ust = '';
+            if (payload && payload.ust) {
+              ust = payload.ust.name || '';
+              if (payload.ust.base) ust += ' / ' + payload.ust.base;
+            }
+            var tensions = payload && Array.isArray(payload.tensions)
+              ? payload.tensions.map(function(item) { return item.label; }).filter(Boolean).join(' ') : '';
+            return {
+              mode: (typeof AppState !== 'undefined' && AppState.mode) || '',
+              key: key,
+              scale: scale,
+              chord: chord,
+              notes: noteNames,
+              shell: shell,
+              ust: ust,
+              tensions: tensions,
+            };
+          }
+
+          if (typeof window !== 'undefined') {
+            window.padWebGetPushMidiOutputs = padWebGetPushMidiOutputs;
+            window.padWebResetPushMidiRuntimeState = padWebResetPushMidiRuntimeState;
+            window.padWebGetPushDisplaySnapshot = padWebGetPushDisplaySnapshot;
+          }
+
+          '''
+          if bridge not in s:
+              if anchor not in s: raise SystemExit('midi bridge anchor missing')
+              s = s.replace(anchor, bridge + anchor, 1)
+          p.write_text(s)
+          PY
+
+          cat > push-display-webusb-app.js <<'JS'
+          import {
+            WIDTH,
+            HEIGHT,
+            PushWebUsbDisplay,
+            encodePushDisplayFrame,
+          } from './push-display-webusb.js';
+          import { hardClearPushMidiOutputs } from './push-surface-cleanup.js';
+
+          const params = new URLSearchParams(window.location.search);
+          const enabled = params.has('webusb') && !window.IS_DESKTOP_MODE;
+
+          if (enabled) {
+            const host = document.getElementById('sound-header');
+            if (host) {
+              const button = document.createElement('button');
+              button.id = 'push-webusb-display-btn';
+              button.type = 'button';
+              button.textContent = 'Push Display';
+              button.title = 'Connect Push 3 display via WebUSB (Chrome)';
+              button.style.cssText = 'font-size:0.6rem;padding:2px 6px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:4px;cursor:pointer;';
+
+              const status = document.createElement('span');
+              status.id = 'push-webusb-display-status';
+              status.style.cssText = 'font-size:0.55rem;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+              status.textContent = 'Push USB: ready';
+
+              host.insertBefore(button, host.firstChild);
+              host.insertBefore(status, button.nextSibling);
+
+              const canvas = document.createElement('canvas');
+              canvas.width = WIDTH;
+              canvas.height = HEIGHT;
+              const context = canvas.getContext('2d', { willReadFrequently: true });
+
+              function fallbackSnapshot() {
+                const detect = document.getElementById('midi-detect');
+                const detected = (detect?.textContent || '').replace(/\s+/g, ' ').trim();
+                return { chord: detected.slice(0, 48), notes: [], shell: '', ust: '', tensions: '', key: '', scale: '', mode: '' };
+              }
+
+              function currentSnapshot() {
+                try { return window.padWebGetPushDisplaySnapshot?.() || fallbackSnapshot(); }
+                catch (_) { return fallbackSnapshot(); }
+              }
+
+              function fitText(text, maxWidth) {
+                let value = String(text || '');
+                while (value && context.measureText(value).width > maxWidth) value = value.slice(0, -1);
+                return value;
+              }
+
+              function drawLabel(text, x, y, size, color, weight = 500, maxWidth = 400) {
+                if (!text) return;
+                context.fillStyle = color;
+                context.font = `${weight} ${size}px "M PLUS 1 Code", ui-monospace, monospace`;
+                context.fillText(fitText(text, maxWidth), x, y);
+              }
+
+              function drawFrame() {
+                const snap = currentSnapshot();
+                context.fillStyle = '#0d1114';
+                context.fillRect(0, 0, WIDTH, HEIGHT);
+                context.fillStyle = '#e6a024';
+                context.fillRect(0, 0, WIDTH, 5);
+                context.fillStyle = '#449eb4';
+                context.fillRect(0, HEIGHT - 5, WIDTH, 5);
+
+                // Match Desktop Push information hierarchy: chord is the hero,
+                // observed theory sits on the right, Key/Scale stay at top-right.
+                drawLabel(snap.chord, 32, 49, 38, '#ffdb5c', 700, 365);
+                drawLabel(snap.notes.length ? `NOTE: ${snap.notes.join(' ')}` : '', 36, 84, 15, '#ccdae0', 500, 360);
+
+                const detailX = 430;
+                drawLabel(snap.ust ? `UST: ${snap.ust}` : '', detailX, 72, 17, '#ffdb5c', 600, 390);
+                drawLabel(snap.shell ? `Shell: ${snap.shell}` : '', detailX, 100, 15, '#ccdae0', 500, 390);
+                drawLabel(snap.tensions ? `Tension ${snap.tensions}` : '', detailX, 121, 15, '#ffb848', 500, 390);
+
+                drawLabel('Key', 720, 16, 11, '#9aa9ad', 500, 90);
+                drawLabel(snap.key, 720, 34, 17, '#ffdb5c', 700, 90);
+                drawLabel('Scale', 810, 16, 11, '#9aa9ad', 500, 130);
+                drawLabel(snap.scale, 810, 34, 15, '#ffdb5c', 600, 130);
+                drawLabel((snap.mode || '').toUpperCase(), 850, 145, 11, '#ff6084', 600, 90);
+
+                return encodePushDisplayFrame(context.getImageData(0, 0, WIDTH, HEIGHT).data);
+              }
+
+              const supported = window.isSecureContext && Boolean(navigator.usb);
+              const probe = new PushWebUsbDisplay(navigator.usb, drawFrame(), (state, text) => {
+                status.textContent = text;
+                status.title = text;
+                button.disabled = state === 'connecting' || state === 'stopping' || state === 'blocked' || !supported;
+                button.textContent = state === 'running' ? 'Stop Push Display' : 'Push Display';
+                button.dataset.state = state;
+              });
+
+              if (!supported) {
+                button.disabled = true;
+                status.textContent = 'WebUSB unavailable: use Chrome over HTTPS';
+              }
+
+              button.addEventListener('click', async () => {
+                const state = button.dataset.state;
+                if (state === 'running') await probe.stop();
+                else {
+                  probe.setFrame(drawFrame());
+                  await probe.connect();
+                }
+              });
+
+              const refreshFrame = () => {
+                try { probe.setFrame(drawFrame()); } catch (_) {}
+              };
+              const detect = document.getElementById('midi-detect');
+              if (detect && typeof MutationObserver !== 'undefined') {
+                new MutationObserver(refreshFrame).observe(detect, { childList: true, subtree: true, characterData: true });
+              }
+              ['mode-scale', 'mode-chord', 'mode-input'].forEach(id => {
+                document.getElementById(id)?.addEventListener('click', () => setTimeout(refreshFrame, 0));
+              });
+
+              let cleanupStarted = false;
+              function cleanupPushSurface() {
+                if (cleanupStarted) return;
+                cleanupStarted = true;
+                try { window.padWebResetPushMidiRuntimeState?.(); } catch (_) {}
+                try { hardClearPushMidiOutputs(window.padWebGetPushMidiOutputs?.() || []); } catch (_) {}
+                // WebUSB is async, so this is best effort during page teardown. The
+                // explicit Stop button uses the same black-frame path reliably.
+                try { void probe.stop('Push display stopped. Surface cleared.'); } catch (_) {}
+              }
+              window.addEventListener('pagehide', cleanupPushSurface, { capture: true });
+              window.addEventListener('beforeunload', cleanupPushSurface, { capture: true });
+            }
+          }
+          JS
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('tests/unit/push-display-webusb.test.js')
+          s = p.read_text()
+          s = s.replace('  PushWebUsbDisplay,\n  encodePushDisplayFrame,\n', '  PushWebUsbDisplay,\n  encodePushDisplayFrame,\n  blackPushDisplayFrame,\n', 1)
+          anchor = "  it('rejects an already-active incompatible USB configuration before claim', async () => {\n"
+          test = '''  it('sends a black frame before closing a claimed display session', async () => {
+            const f = fixture();
+            await f.probe.connect();
+            await tick();
+            const beforeStop = writes(f).length;
+            await f.probe.stop();
+            const shutdownWrites = writes(f).slice(beforeStop);
+            expect(shutdownWrites.length).toBe(2);
+            expect(Array.from(shutdownWrites[0][2])).toEqual(HEADER);
+            expect(shutdownWrites[1][2]).toEqual(blackPushDisplayFrame());
+            expect(f.calls.at(-1)).toBe('close');
+          });
+
+          '''
+          if test not in s:
+              if anchor not in s: raise SystemExit('WebUSB test insertion anchor missing')
+              s = s.replace(anchor, test + anchor, 1)
+          p.write_text(s)
+          PY
+
+          cat > tests/unit/push-surface-cleanup.test.js <<'JS'
+          import { describe, it, expect } from 'vitest';
+          import { hardClearPushMidiOutputs } from '../../push-surface-cleanup.js';
+
+          describe('Push Web surface shutdown', () => {
+            it('mirrors Desktop hard clear: every pad NoteOff on all channels + every CC zero', () => {
+              const sent = [];
+              const output = { send(message) { sent.push(message.slice()); } };
+              const result = hardClearPushMidiOutputs([output, output]);
+              expect(result).toEqual({ outputs: 1, noteOffs: 1024, ccResets: 128 });
+              expect(sent).toHaveLength(1152);
+              expect(sent[0]).toEqual([0x80, 36, 0]);
+              expect(sent[1023]).toEqual([0x8f, 99, 0]);
+              expect(sent[1024]).toEqual([0xb0, 0, 0]);
+              expect(sent.at(-1)).toEqual([0xb0, 127, 0]);
+              expect(sent).toContainEqual([0xb0, 64, 0]);
+              expect(sent).toContainEqual([0xb0, 123, 0]);
+            });
+          });
+          JS
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('sw.js')
+          s = p.read_text()
+          for asset in ['./push-surface-cleanup.js']:
+              if asset not in s:
+                  anchor = "  './push-display-webusb.js',\n"
+                  if anchor not in s: raise SystemExit('sw asset anchor missing')
+                  s = s.replace(anchor, anchor + f"  '{asset}',\n", 1)
+          p.write_text(s)
+          PY
+
+          git diff --check
+      - name: Verify
+        run: |
+          npm ci
+          npx vitest run tests/unit/push-display-webusb.test.js tests/unit/push-surface-cleanup.test.js
+          npm test
+          bash tools/sw-assets-check.sh
+      - name: Commit product changes and remove temporary workflow
+        run: |
+          git config user.name 'daikainozaki-cyber'
+          git config user.email 'daikainozaki@gmail.com'
+          git add push-display-webusb.js push-display-webusb-app.js push-surface-cleanup.js midi.js sw.js tests/unit/push-display-webusb.test.js tests/unit/push-surface-cleanup.test.js
+          git rm .github/workflows/webusb-display-parity-cleanup.yml
+          git commit -m 'feat(push): align WebUSB display and shutdown with Desktop [webusb-parity]'
+          git push origin HEAD:codex/web-push3-webusb-display-preview
+      - name: Deploy dev preview
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avz --delete --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md'
+          path: ./
+          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-dev/
+          remote_host: xs071284.xsrv.jp
+          remote_port: 10022
+          remote_user: xs071284
+          remote_key: ${{ secrets.XSERVER_SSH_KEY }}
