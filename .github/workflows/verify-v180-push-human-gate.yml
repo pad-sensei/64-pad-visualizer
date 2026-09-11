@@ -19,7 +19,7 @@ jobs:
       - name: Checkout exact candidate
         uses: actions/checkout@v4
         with:
-          ref: codex/web-v180-push-human-gate-followup
+          ref: ${{ github.sha }}
           submodules: recursive
           fetch-depth: 0
           persist-credentials: false
@@ -83,7 +83,7 @@ jobs:
           npm test
           ./tools/sw-assets-check.sh
           git diff --check
-          test "$(git submodule status audio-core | awk '{print $1}' | tr -d '+-U')" = "60d36a0ace35681f770bdd122b645b0f196f796d"
+          test "$(git submodule status audio-core | awk '{print $1}' | tr -d '+-U')" = "dd1ef52e7681eb459bb35c729226063c5638c506"
 
       - name: Deploy exact tested candidate
         uses: burnett01/rsync-deployments@6.0.0
