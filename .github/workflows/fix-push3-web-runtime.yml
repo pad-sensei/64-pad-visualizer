@@ -1,0 +1,465 @@
+name: Repair Push 3 Web runtime
+
+on:
+  push:
+    branches:
+      - codex/web-v180-push-cc-parity
+
+permissions:
+  contents: write
+
+jobs:
+  fix-test-deploy:
+    if: ${{ !contains(github.event.head_commit.message, '[push3-runtime-fixed]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/web-v180-push-cc-parity
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Implement Push MIDI topology, pedal init, and display lifetime fix
+        run: |
+          set -euo pipefail
+
+          cat > push-midi-port-contract.js <<'JS'
+          (function(global) {
+            'use strict';
+
+            function isPushPortName(name) {
+              var n = String(name || '').trim();
+              var lower = n.toLowerCase();
+              return /push/i.test(n)
+                || /ableton/i.test(n)
+                || lower === 'live port'
+                || lower === 'user port'
+                || lower === 'external port';
+            }
+
+            function isPush3PortName(name) {
+              return /(?:ableton\s+)?push\s*3/i.test(String(name || ''));
+            }
+
+            function connectedValues(portMap) {
+              if (!portMap || typeof portMap.values !== 'function') return [];
+              return Array.from(portMap.values()).filter(function(port) {
+                return !port || port.state !== 'disconnected';
+              });
+            }
+
+            function collectInputCluster(access, selectedId) {
+              var inputs = connectedValues(access && access.inputs);
+              if (!selectedId || selectedId === 'all') return inputs;
+              var selected = inputs.find(function(input) { return input && input.id === selectedId; });
+              if (!selected) return [];
+              // Push is a multi-port device. Selecting any one Push port means owning
+              // the complete Live/User/External input cluster so notes, surface CC,
+              // and pedal CC64 cannot be split across listeners.
+              if (isPushPortName(selected.name)) {
+                return inputs.filter(function(input) { return isPushPortName(input && input.name); });
+              }
+              return [selected];
+            }
+
+            function collectPushOutputs(access) {
+              return connectedValues(access && access.outputs).filter(function(output) {
+                return isPushPortName(output && output.name);
+              });
+            }
+
+            function topologySignature(access) {
+              function side(portMap) {
+                if (!portMap || typeof portMap.values !== 'function') return '';
+                return Array.from(portMap.values()).map(function(port) {
+                  return [port && port.id || '', port && port.name || '', port && port.state || ''].join(':');
+                }).sort().join(',');
+              }
+              // Deliberately exclude `connection` (open/closed). Web MIDI can emit
+              // statechange merely because send() implicitly opens an output; that is
+              // not a hardware topology change and must not tear down/rebind inputs.
+              return 'i=' + side(access && access.inputs) + '|o=' + side(access && access.outputs);
+            }
+
+            async function requestMidiAccess(nav) {
+              if (!nav || typeof nav.requestMIDIAccess !== 'function') throw new Error('Web MIDI unavailable');
+              try {
+                return await nav.requestMIDIAccess({ sysex: true });
+              } catch (sysexError) {
+                var access = await nav.requestMIDIAccess();
+                try { access.__64peSysexError = String(sysexError && sysexError.message || sysexError || 'SysEx denied'); } catch (_) {}
+                return access;
+              }
+            }
+
+            function initializePush3PedalMode(access, outputs) {
+              var unique = Array.from(new Set((outputs || []).filter(Boolean)));
+              if (!access || access.sysexEnabled !== true) {
+                return { initialized: false, reason: 'sysex-unavailable', output: null };
+              }
+              var push3 = unique.filter(function(output) { return isPush3PortName(output && output.name); });
+              var primary = push3.find(function(output) { return /live port/i.test(output && output.name || ''); }) || push3[0] || null;
+              if (!primary) return { initialized: false, reason: 'push3-model-not-confirmed', output: null };
+
+              var inquiry = [0xf0, 0x7e, 0x7f, 0x06, 0x01, 0xf7];
+              unique.forEach(function(output) {
+                try { output.send(inquiry); } catch (_) {}
+              });
+
+              // Exact native Standalone payload: Push 3 dual-footswitch mode.
+              // createSysExMessage() adds F0/F7 in JUCE; Web MIDI needs them inline.
+              var payload = [
+                0xf0,
+                0x00, 0x21, 0x1d, 0x01, 0x01, 0x37, 0x26, 0x50,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0xf7,
+              ];
+              try {
+                primary.send(payload);
+                return { initialized: true, reason: 'ok', output: primary.name || '' };
+              } catch (error) {
+                return { initialized: false, reason: String(error && error.message || error), output: primary.name || '' };
+              }
+            }
+
+            var api = {
+              isPushPortName,
+              isPush3PortName,
+              collectInputCluster,
+              collectPushOutputs,
+              topologySignature,
+              requestMidiAccess,
+              initializePush3PedalMode,
+            };
+            global.padWebPushPortContract = api;
+            if (typeof module !== 'undefined' && module.exports) module.exports = api;
+          })(typeof window !== 'undefined' ? window : globalThis);
+          JS
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('midi.js')
+          s = p.read_text()
+
+          s = s.replace(
+              "navigator.requestMIDIAccess().then(access => {",
+              "padWebPushPortContract.requestMidiAccess(navigator).then(access => {",
+              1,
+          )
+
+          s = s.replace(
+              "      for (const input of access.inputs.values()) {\n        const opt = document.createElement('option');",
+              "      for (const input of access.inputs.values()) {\n        if (input.state === 'disconnected') continue;\n        const opt = document.createElement('option');",
+              1,
+          )
+
+          old = """      const selectedId = select.value;
+      let connected = false;
+      let connectedName = '';
+
+      for (const input of access.inputs.values()) {
+        if (selectedId !== 'all' && input.id !== selectedId) continue;
+        connected = true;
+        connectedName = input.name;
+        // Per-input Push detection: シリアル→4度変換をデバイス単位で適用
+        const isPush = padWebIsPushMidiPortName(input.name);
+"""
+          new = """      const selectedId = select.value;
+      const inputCluster = padWebPushPortContract.collectInputCluster(access, selectedId);
+      const inputIds = new Set(inputCluster.map(function(input) { return input.id; }));
+      const pushInputs = inputCluster.filter(function(input) { return padWebIsPushMidiPortName(input.name); });
+      let connected = inputCluster.length > 0;
+      let connectedName = pushInputs.length > 0 ? (pushInputs[0].name || '')
+        : (inputCluster.length > 0 ? (inputCluster[0].name || '') : '');
+      try {
+        window.__64PE_PUSH_MIDI_DIAG__ = {
+          selectedId: selectedId,
+          boundInputs: inputCluster.map(function(input) { return input.name || input.id || ''; }),
+          pushInputs: pushInputs.map(function(input) { return input.name || input.id || ''; }),
+          sysexEnabled: access.sysexEnabled === true,
+        };
+      } catch (_) {}
+
+      for (const input of access.inputs.values()) {
+        if (!inputIds.has(input.id)) continue;
+        // Per-input Push detection: シリアル→4度変換をデバイス単位で適用
+        const isPush = padWebIsPushMidiPortName(input.name);
+"""
+          if old not in s:
+              raise SystemExit('selected input loop anchor missing')
+          s = s.replace(old, new, 1)
+
+          s = s.replace(
+              "        var isPush = padWebIsPushMidiPortName(connectedName);",
+              "        var isPush = pushInputs.length > 0;",
+              1,
+          )
+
+          old = """          _pushLedOutputs = pushOutputs.slice();
+          var pushLivePort = pushOutputs.find(function(output) { return /live/i.test(output.name || ''); }) || null;
+"""
+          new = """          _pushLedOutputs = pushOutputs.slice();
+          var pedalInit = padWebPushPortContract.initializePush3PedalMode(access, _pushLedOutputs);
+          try {
+            window.__64PE_PUSH_MIDI_DIAG__.pedalMode = pedalInit;
+          } catch (_) {}
+          var pushLivePort = pushOutputs.find(function(output) { return /live/i.test(output.name || ''); }) || null;
+"""
+          if old not in s:
+              raise SystemExit('push output anchor missing')
+          s = s.replace(old, new, 1)
+
+          old = """    refreshDeviceList();
+    connectInputs();
+    access.onstatechange = () => {
+      refreshDeviceList();
+      connectInputs();
+    };
+"""
+          new = """    refreshDeviceList();
+    connectInputs();
+    let _midiTopologySignature = padWebPushPortContract.topologySignature(access);
+    access.onstatechange = () => {
+      const nextSignature = padWebPushPortContract.topologySignature(access);
+      if (nextSignature === _midiTopologySignature) return;
+      _midiTopologySignature = nextSignature;
+      refreshDeviceList();
+      connectInputs();
+    };
+"""
+          if old not in s:
+              raise SystemExit('statechange anchor missing')
+          s = s.replace(old, new, 1)
+
+          old = """function padWebIsPushMidiPortName(name) {
+  var n = String(name || '').trim();
+  var lower = n.toLowerCase();
+  // Pad Sensei Keys standalone evidence: CoreMIDI may expose Push ports
+  // only as Live/User/External Port without an Ableton/Push prefix.
+  return /push/i.test(n)
+    || /ableton/i.test(n)
+    || lower === 'live port'
+    || lower === 'user port'
+    || lower === 'external port';
+}
+
+function padWebCollectPushMidiOutputs(access) {
+  var outputs = [];
+  if (!access || !access.outputs) return outputs;
+  for (const output of access.outputs.values()) {
+    if (padWebIsPushMidiPortName(output.name)) outputs.push(output);
+  }
+  return outputs;
+}
+"""
+          new = """function padWebIsPushMidiPortName(name) {
+  return !!(window.padWebPushPortContract && window.padWebPushPortContract.isPushPortName(name));
+}
+
+function padWebCollectPushMidiOutputs(access) {
+  return window.padWebPushPortContract
+    ? window.padWebPushPortContract.collectPushOutputs(access)
+    : [];
+}
+"""
+          if old not in s:
+              raise SystemExit('port helper anchor missing')
+          s = s.replace(old, new, 1)
+
+          s = s.replace('// Auto-match MIDI output for LED control (HPS exclusive)',
+                        '// Auto-match MIDI output for standard Push LED/control ownership')
+          s = s.replace('// HPS exclusive feature (?hps gate): Push LED control without Ableton',
+                        '// Standard Push LED control without Ableton (v1.8.0)')
+
+          p.write_text(s)
+
+          p = Path('push-display-webusb-app.js')
+          s = p.read_text()
+          old = """    // WebUSB display is opt-in and independent from automatic Web MIDI pad/CC ownership.
+    // Hiding the tab may release only the display transport; it must never clear pad LEDs.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) void probe.stop('Push display paused because this tab was hidden.');
+    }, { capture: true });
+    // Actual page teardown still clears both transports best-effort.
+"""
+          new = """    // WebUSB display is opt-in and independent from automatic Web MIDI pad/CC ownership.
+    // Do not intentionally stop merely because the tab becomes hidden: the Push display
+    // needs a keepalive stream, and visibility changes must not tear down a live session.
+    // Actual page teardown still clears both transports best-effort.
+"""
+          if old not in s:
+              raise SystemExit('visibility cleanup anchor missing')
+          s = s.replace(old, new, 1)
+          s = s.replace("'./push-display-webusb.js?v=webusb-20260911-9'", "'./push-display-webusb.js?v=webusb-20260911-10'", 1)
+          p.write_text(s)
+
+          p = Path('push-display-webusb.js')
+          s = p.read_text()
+          s = s.replace('maxRecoveries = 4', 'maxRecoveries = 12', 1)
+          p.write_text(s)
+
+          p = Path('index.html')
+          s = p.read_text()
+          anchor = '<script src="push-midi-cc-map.js?v=1.8.0"></script>'
+          if 'push-midi-port-contract.js' not in s:
+              s = s.replace(anchor, '<script src="push-midi-port-contract.js?v=1.8.0"></script>\n' + anchor, 1)
+          s = s.replace('midi.js?v=6.7.56', 'midi.js?v=6.7.57')
+          s = s.replace('push-display-webusb-app.js?v=webusb-20260911-9', 'push-display-webusb-app.js?v=webusb-20260911-10')
+          p.write_text(s)
+
+          p = Path('sw.js')
+          s = p.read_text()
+          s = s.replace("64pad-v180-preview-20260911-push23-2", "64pad-v180-preview-20260911-push3runtime-1")
+          anchor = "  'push-midi-cc-map.js?v=1.8.0',"
+          if 'push-midi-port-contract.js' not in s:
+              s = s.replace(anchor, "  'push-midi-port-contract.js?v=1.8.0',\n" + anchor, 1)
+          s = s.replace("'midi.js?v=6.7.56'", "'midi.js?v=6.7.57'")
+          s = s.replace("'push-display-webusb.js?v=webusb-20260911-9'", "'push-display-webusb.js?v=webusb-20260911-10'")
+          s = s.replace("'push-display-webusb-app.js?v=webusb-20260911-9'", "'push-display-webusb-app.js?v=webusb-20260911-10'")
+          p.write_text(s)
+          PY
+
+          cat > tests/unit/push-midi-port-contract.test.js <<'JS'
+          import { describe, it, expect, vi } from 'vitest';
+          import { createRequire } from 'module';
+          const require = createRequire(import.meta.url);
+          const {
+            isPushPortName,
+            isPush3PortName,
+            collectInputCluster,
+            topologySignature,
+            requestMidiAccess,
+            initializePush3PedalMode,
+          } = require('../../push-midi-port-contract.js');
+
+          function port(id, name, state = 'connected') { return { id, name, state }; }
+          function access(inputs, outputs = [], sysexEnabled = false) {
+            return {
+              inputs: new Map(inputs.map(p => [p.id, p])),
+              outputs: new Map(outputs.map(p => [p.id, p])),
+              sysexEnabled,
+            };
+          }
+
+          describe('Push Web MIDI multi-port ownership', () => {
+            it('treats one selected Push port as the full Live/User/External input cluster', () => {
+              const a = access([
+                port('p-live', 'Ableton Push 3 Live Port'),
+                port('p-user', 'Ableton Push 3 User Port'),
+                port('p-ext', 'Ableton Push 3 External Port'),
+                port('keys', 'Roland A-88 MK2'),
+              ]);
+              expect(collectInputCluster(a, 'p-live').map(p => p.id)).toEqual(['p-live', 'p-user', 'p-ext']);
+              expect(collectInputCluster(a, 'keys').map(p => p.id)).toEqual(['keys']);
+              expect(collectInputCluster(a, 'all').map(p => p.id)).toEqual(['p-live', 'p-user', 'p-ext', 'keys']);
+            });
+
+            it('supports CoreMIDI prefix-less Push port names', () => {
+              expect(isPushPortName('Live Port')).toBe(true);
+              expect(isPushPortName('User Port')).toBe(true);
+              expect(isPushPortName('External Port')).toBe(true);
+              expect(isPush3PortName('Ableton Push 3 Live Port')).toBe(true);
+              expect(isPush3PortName('Ableton Push 2 Live Port')).toBe(false);
+            });
+
+            it('does not treat implicit port-open connection churn as topology drift', () => {
+              const input = port('p-live', 'Ableton Push 3 Live Port');
+              input.connection = 'closed';
+              const a = access([input]);
+              const before = topologySignature(a);
+              input.connection = 'open';
+              expect(topologySignature(a)).toBe(before);
+              input.state = 'disconnected';
+              expect(topologySignature(a)).not.toBe(before);
+            });
+
+            it('requests SysEx first and falls back to ordinary Web MIDI without losing notes', async () => {
+              const normal = access([]);
+              const nav = {
+                requestMIDIAccess: vi.fn(opts => opts?.sysex ? Promise.reject(new Error('denied')) : Promise.resolve(normal)),
+              };
+              await expect(requestMidiAccess(nav)).resolves.toBe(normal);
+              expect(nav.requestMIDIAccess).toHaveBeenNthCalledWith(1, { sysex: true });
+              expect(nav.requestMIDIAccess).toHaveBeenCalledTimes(2);
+            });
+
+            it('sends the proven Push 3 dual-footswitch SysEx only to a confirmed Push 3', () => {
+              const sent3 = [];
+              const sent2 = [];
+              const p3 = { ...port('p3-live', 'Ableton Push 3 Live Port'), send: bytes => sent3.push(bytes) };
+              const p2 = { ...port('p2-live', 'Ableton Push 2 Live Port'), send: bytes => sent2.push(bytes) };
+              const result = initializePush3PedalMode({ sysexEnabled: true }, [p3, p2]);
+              expect(result.initialized).toBe(true);
+              expect(sent3.some(bytes => bytes[0] === 0xf0 && bytes[1] === 0x00 && bytes[7] === 0x26 && bytes[8] === 0x50 && bytes.at(-1) === 0xf7)).toBe(true);
+              expect(sent2.some(bytes => bytes[1] === 0x00 && bytes[8] === 0x50)).toBe(false);
+              expect(initializePush3PedalMode({ sysexEnabled: false }, [p3]).reason).toBe('sysex-unavailable');
+            });
+          });
+          JS
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('tests/unit/push-web-cc-integration.test.js')
+          s = p.read_text()
+          s = s.replace(
+            "    expect(html.indexOf('push-midi-cc-map.js?v=1.8.0')).toBeGreaterThan(0);",
+            "    expect(html.indexOf('push-midi-port-contract.js?v=1.8.0')).toBeGreaterThan(0);\n    expect(html.indexOf('push-midi-cc-map.js?v=1.8.0')).toBeGreaterThan(html.indexOf('push-midi-port-contract.js?v=1.8.0'));",
+            1,
+          )
+          s = s.replace(
+            "    expect(sw).toContain(\"'push-midi-cc-map.js?v=1.8.0'\");",
+            "    expect(sw).toContain(\"'push-midi-port-contract.js?v=1.8.0'\");\n    expect(sw).toContain(\"'push-midi-cc-map.js?v=1.8.0'\");",
+            1,
+          )
+          insert = """
+
+  it('owns the complete Push MIDI port cluster and initializes Push 3 pedal mode', () => {
+    expect(midi).toContain('padWebPushPortContract.collectInputCluster(access, selectedId)');
+    expect(midi).toContain('pushInputs.length > 0');
+    expect(midi).toContain('padWebPushPortContract.initializePush3PedalMode(access, _pushLedOutputs)');
+    expect(midi).toContain('padWebPushPortContract.topologySignature(access)');
+  });
+"""
+          s = s.replace("\n  it('keeps native-only Device action a browser no-op'", insert + "\n  it('keeps native-only Device action a browser no-op'", 1)
+          p.write_text(s)
+          PY
+
+      - name: Verify runtime fix
+        run: |
+          set -euo pipefail
+          npm ci
+          node --check push-midi-port-contract.js
+          node --check push-midi-cc-map.js
+          node --check push-web-control.js
+          node --check midi.js
+          node --check push-display-webusb-app.js
+          npx vitest run tests/unit/push-midi-port-contract.test.js tests/unit/push-midi-cc-map.test.js tests/unit/push-web-control.test.js tests/unit/push-web-cc-integration.test.js tests/unit/push-display-webusb.test.js
+          npm test
+          ./tools/sw-assets-check.sh
+          git diff --check
+
+      - name: Deploy exact tested candidate to dev
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avz --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md'
+          path: ./
+          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-dev/
+          remote_host: xs071284.xsrv.jp
+          remote_port: 10022
+          remote_user: xs071284
+          remote_key: ${{ secrets.XSERVER_SSH_KEY }}
+
+      - name: Commit product and regression fixes
+        run: |
+          set -euo pipefail
+          git config user.name 'daikainozaki-cyber'
+          git config user.email 'daikainozaki@gmail.com'
+          git add push-midi-port-contract.js midi.js push-display-webusb.js push-display-webusb-app.js index.html sw.js tests/unit/push-midi-port-contract.test.js tests/unit/push-web-cc-integration.test.js
+          git commit -m 'fix(push): own full Web MIDI port cluster and initialize pedal [push3-runtime-fixed]'
+          git push origin HEAD:codex/web-v180-push-cc-parity
