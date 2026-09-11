@@ -27,7 +27,7 @@ jobs:
           set -euo pipefail
           python3 .github/scripts/apply-push-standalone-parity.py
           git rm .github/scripts/apply-push-standalone-parity.py .github/workflows/apply-push-standalone-parity.yml .github/workflows/snapshot-push-parity.yml
-          git add push-web-control.js midi.js builder.js instruments.js plain.js index.html sw.js tests/unit/push-web-control.test.js tests/unit/push-web-cc-integration.test.js tests/unit/push-standalone-parity.test.js tests/push-standalone-parity.cjs docs/PUSH_STANDALONE_PARITY_2026-09-12.md
+          git add push-web-control.js midi.js builder.js instruments.js plain.js index.html sw.js tests/unit/push-web-control.test.js tests/unit/push-web-cc-integration.test.js tests/unit/push-standalone-parity.test.js tests/push-standalone-parity.cjs docs/PUSH_STANDALONE_PARITY_2026-09-12.md tests/unit/push-display-exposure.test.js
           git diff --cached --check
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix(push): align live browser state and held gestures with Standalone'
           echo "TESTED_CANDIDATE=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
@@ -40,7 +40,7 @@ jobs:
           for f in push-web-control midi builder instruments plain; do node --check "$f.js"; done
           node tests/push-standalone-parity.cjs
           node audio-core/tests/worklet-sustain-bootstrap-smoke.cjs
-          npx vitest run tests/unit/push-web-control.test.js tests/unit/push-web-cc-integration.test.js tests/unit/push-standalone-parity.test.js tests/unit/audio-core-sustain-integration.test.js tests/unit/push-midi-cc-map.test.js tests/unit/push-midi-port-contract.test.js tests/unit/push-midi-output-routing.test.js tests/unit/push-display-webusb.test.js
+          npx vitest run tests/unit/push-web-control.test.js tests/unit/push-web-cc-integration.test.js tests/unit/push-standalone-parity.test.js tests/unit/audio-core-sustain-integration.test.js tests/unit/push-midi-cc-map.test.js tests/unit/push-midi-port-contract.test.js tests/unit/push-midi-output-routing.test.js tests/unit/push-display-webusb.test.js tests/unit/push-display-exposure.test.js
       - name: Full Web, PWA, provenance and Pedal/CV negative guards
         run: |
           set -euo pipefail
