@@ -1,0 +1,41 @@
+name: Snapshot exact Push parity sources
+on:
+  push:
+    branches: [codex/web-v180-push-human-gate-followup]
+    paths: [.github/workflows/snapshot-push-parity.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: recursive
+          persist-credentials: false
+          path: web
+      - uses: actions/checkout@v4
+        with:
+          repository: pad-sensei/64-pad-explorer-desktop
+          ref: 5c7e9d3d48b5c6c036d407ac52ae8706d2b26780
+          persist-credentials: false
+          path: desktop
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /Source/PluginEditor.cpp
+            /Source/PluginProcessor.cpp
+            /CLAUDE.md
+            /webui-source-pin.json
+      - name: Archive source only
+        run: |
+          set -euo pipefail
+          tar --exclude='.git' --exclude='assets' --exclude='img' --exclude='fonts' --exclude='node_modules' --exclude='WebUI' -czf push-parity-sources.tgz web desktop
+          git -C web rev-parse HEAD
+          git -C web/audio-core rev-parse HEAD
+          git -C desktop rev-parse HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: push-parity-sources
+          path: push-parity-sources.tgz
+          retention-days: 1
