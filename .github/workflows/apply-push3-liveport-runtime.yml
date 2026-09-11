@@ -29,7 +29,19 @@ jobs:
           cache: npm
 
       - name: Apply product patch
-        run: python3 .github/scripts/apply-push3-liveport-runtime.py
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/apply-push3-liveport-runtime.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('midi.js')
+          s = p.read_text()
+          old = "if (typeof window !== 'undefined' && !window.__64PE_PUSH_DIAG_ERROR_HOOK__) {"
+          new = "if (typeof window !== 'undefined' && typeof window.addEventListener === 'function' && !window.__64PE_PUSH_DIAG_ERROR_HOOK__) {"
+          if old not in s:
+              raise SystemExit('Push diagnostic browser guard anchor missing')
+          p.write_text(s.replace(old, new, 1))
+          PY
 
       - name: Verify
         run: |
