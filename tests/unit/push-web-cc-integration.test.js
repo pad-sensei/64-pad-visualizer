@@ -8,11 +8,12 @@ describe('Web Push control integration contract', () => {
   const main = fs.readFileSync('main.js', 'utf8');
   const host = fs.readFileSync('host-adapter.js', 'utf8');
   const control = fs.readFileSync('push-web-control.js', 'utf8');
+  const portContract = fs.readFileSync('push-midi-port-contract.js', 'utf8');
 
   it('loads the CC mapper/dispatcher before midi.js and precaches both', () => {
     expect(html.indexOf('push-midi-cc-map.js?v=1.8.0')).toBeGreaterThan(0);
     expect(html.indexOf('push-web-control.js?v=1.8.0')).toBeGreaterThan(html.indexOf('push-midi-cc-map.js?v=1.8.0'));
-    expect(html.indexOf('midi.js?v=6.7.56')).toBeGreaterThan(html.indexOf('push-web-control.js?v=1.8.0'));
+    expect(html.indexOf('midi.js?v=6.7.57')).toBeGreaterThan(html.indexOf('push-web-control.js?v=1.8.0'));
     expect(sw).toContain("'push-midi-cc-map.js?v=1.8.0'");
     expect(sw).toContain("'push-web-control.js?v=1.8.0'");
   });
@@ -29,7 +30,10 @@ describe('Web Push control integration contract', () => {
 
   it('keeps Push detection generation-neutral for Push 2 and Push 3 MIDI names', () => {
     expect(midi).toContain('function padWebIsPushMidiPortName(name)');
-    expect(midi).toContain('return /push/i.test(n)');
+    expect(midi).toContain('window.padWebPushPortContract.isPushPortName(name)');
+    expect(portContract).toContain('return /push/i.test(n)');
+    expect(portContract).toContain("lower === 'live port'");
+    expect(portContract).toContain("lower === 'user port'");
     expect(midi).toContain('supported Push 2 / Push 3 MIDI port');
   });
 
