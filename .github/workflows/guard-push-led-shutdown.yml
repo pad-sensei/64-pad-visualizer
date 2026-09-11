@@ -118,7 +118,10 @@ jobs:
               expect(midiSource).toContain('_lpOutputActive = false;');
               expect(midiSource).toContain('_lpProgrammerMode = false;');
               expect(midiSource).toContain('function updateLaunchpadLEDs(state) {\n  if (_pushWebShuttingDown) return;');
-              expect(appSource.indexOf('padWebBeginPushShutdown')).toBeLessThan(appSource.indexOf('fastClearPushPads'));
+              const cleanupBegin = appSource.indexOf('padWebBeginPushShutdown?.()');
+              const fastClear = appSource.indexOf('fastClearPushPads(pushOutputs)');
+              expect(cleanupBegin).toBeGreaterThan(-1);
+              expect(fastClear).toBeGreaterThan(cleanupBegin);
             });
 
             it('can re-enable the Push MIDI surface after an intentional hidden-tab shutdown', () => {
