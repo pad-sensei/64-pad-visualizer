@@ -26,6 +26,12 @@ describe('Push Web MIDI output routing parity', () => {
     expect(source).toContain('output.send([0xb0, cc, 0])');
   });
 
+  it('never uses setup outputs to rewrite Push Pedal/CV hardware', () => {
+    expect(source).not.toContain('initializePush3PedalMode');
+    expect(source).toContain("pedalPolicy: 'hardware-default-preserved-no-pedal-cv-sysex'");
+    expect(portContract).not.toContain('0x37, 0x26, 0x50');
+  });
+
   it('routes Push button feedback and blink protocol through the same Live-only transport', () => {
     expect(source).toContain('function padWebSendPushButtonLed(cc, state, colorPaletteLed)');
     expect(source).toContain('padWebSendPushLedMessage([0xb0, cc, value])');

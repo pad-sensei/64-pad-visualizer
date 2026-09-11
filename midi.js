@@ -144,7 +144,7 @@ function padWebRenderPushMidiDiag() {
     (document.body || document.documentElement).appendChild(el);
   }
   var d = (typeof window !== 'undefined' && window.__64PE_PUSH_MIDI_DIAG__) || {};
-  var pedal = d.pedalMode ? JSON.stringify(d.pedalMode) : '-';
+  var pedal = d.pedalPolicy || '-';
   el.textContent = [
     'PUSH MIDI DIAG',
     'sysex=' + String(d.sysexEnabled),
@@ -881,13 +881,15 @@ function initWebMIDI() {
           _isPush = true;
           var pushSetupOutputs = padWebCollectPushMidiOutputs(access);
           _pushSetupOutputs = pushSetupOutputs.slice();
-          var pedalInit = padWebPushPortContract.initializePush3PedalMode(access, _pushSetupOutputs);
+          // Do not rewrite Push 3 Pedal/CV jack configuration on page load.
+          // Real hardware already delivers Pedal 2 as CC64 by default; the 2026-09-11
+          // audible failure was downstream in audio-core, not in MIDI transport.
           midiOutput = padWebPushPortContract.selectPushOperationalOutput(_pushSetupOutputs);
           _pushLedOutputs = midiOutput ? [midiOutput] : [];
           padWebPatchPushMidiDiag({
             setupOutputs: _pushSetupOutputs.map(function(output) { return output.name || output.id || ''; }),
             operationalOutput: midiOutput ? (midiOutput.name || midiOutput.id || '') : '',
-            pedalMode: pedalInit,
+            pedalPolicy: 'hardware-default-preserved-no-pedal-cv-sysex',
           });
           if (midiOutput) {
             // Clear and paint only the operational Live Port. Mirroring ordinary

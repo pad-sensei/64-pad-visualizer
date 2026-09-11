@@ -11,11 +11,11 @@ describe('Web Push control integration contract', () => {
   const portContract = fs.readFileSync('push-midi-port-contract.js', 'utf8');
 
   it('loads the CC mapper/dispatcher before midi.js and precaches both', () => {
-    expect(html.indexOf('push-midi-port-contract.js?v=1.8.0-liveport2')).toBeGreaterThan(0);
-    expect(html.indexOf('push-midi-cc-map.js?v=1.8.0')).toBeGreaterThan(html.indexOf('push-midi-port-contract.js?v=1.8.0-liveport2'));
+    expect(html.indexOf('push-midi-port-contract.js?v=1.8.0-liveport3')).toBeGreaterThan(0);
+    expect(html.indexOf('push-midi-cc-map.js?v=1.8.0')).toBeGreaterThan(html.indexOf('push-midi-port-contract.js?v=1.8.0-liveport3'));
     expect(html.indexOf('push-web-control.js?v=1.8.0-led1')).toBeGreaterThan(html.indexOf('push-midi-cc-map.js?v=1.8.0'));
-    expect(html.indexOf('midi.js?v=6.7.59')).toBeGreaterThan(html.indexOf('push-web-control.js?v=1.8.0-led1'));
-    expect(sw).toContain("'push-midi-port-contract.js?v=1.8.0-liveport2'");
+    expect(html.indexOf('midi.js?v=6.7.60')).toBeGreaterThan(html.indexOf('push-web-control.js?v=1.8.0-led1'));
+    expect(sw).toContain("'push-midi-port-contract.js?v=1.8.0-liveport3'");
     expect(sw).toContain("'push-midi-cc-map.js?v=1.8.0'");
     expect(sw).toContain("'push-web-control.js?v=1.8.0-led1'");
   });
@@ -53,10 +53,12 @@ describe('Web Push control integration contract', () => {
     expect(control).toContain("call('shiftOctave', value)");
   });
 
-  it('owns the complete Push MIDI port cluster and initializes Push 3 pedal mode', () => {
+  it('owns the complete Push MIDI port cluster without rewriting Pedal/CV hardware', () => {
     expect(midi).toContain('padWebPushPortContract.collectInputCluster(access, selectedId)');
     expect(midi).toContain('pushInputs.length > 0');
-    expect(midi).toContain('padWebPushPortContract.initializePush3PedalMode(access, _pushSetupOutputs)');
+    expect(midi).not.toContain('initializePush3PedalMode');
+    expect(midi).toContain("pedalPolicy: 'hardware-default-preserved-no-pedal-cv-sysex'");
+    expect(portContract).not.toContain('0x37, 0x26, 0x50');
     expect(midi).toContain('padWebPushPortContract.topologySignature(access)');
   });
 

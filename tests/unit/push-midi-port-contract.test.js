@@ -11,7 +11,6 @@ const {
   detectPushGeneration,
   topologySignature,
   requestMidiAccess,
-  initializePush3PedalMode,
 } = require('../../push-midi-port-contract.js');
 
 function port(id, name, state = 'connected') { return { id, name, state }; }
@@ -80,33 +79,9 @@ describe('Push Web MIDI Live-Port ownership', () => {
     expect(nav.requestMIDIAccess).toHaveBeenCalledTimes(2);
   });
 
-  it('sends inquiry to setup outputs and Push 3 pedal mode only to Live', () => {
-    const sent = { live: [], user: [], ext: [] };
-    const live = { ...port('live', 'Live Port'), send: bytes => sent.live.push(bytes) };
-    const user = { ...port('user', 'User Port'), send: bytes => sent.user.push(bytes) };
-    const ext = { ...port('ext', 'External Port'), send: bytes => sent.ext.push(bytes) };
-    const result = initializePush3PedalMode({ sysexEnabled: true }, [live, user, ext]);
-    expect(result.initialized).toBe(true);
-    expect(result.evidence).toBe('generic-live-user-external-topology');
-    expect(result.output).toBe('Live Port');
-    for (const key of ['live', 'user', 'ext']) {
-      expect(sent[key].some(bytes => bytes[0] === 0xf0 && bytes[1] === 0x7e && bytes[4] === 0x01 && bytes.at(-1) === 0xf7)).toBe(true);
-    }
-    expect(sent.live.some(bytes => bytes[1] === 0x00 && bytes[7] === 0x26 && bytes[8] === 0x50)).toBe(true);
-    expect(sent.user.some(bytes => bytes[1] === 0x00 && bytes[8] === 0x50)).toBe(false);
-    expect(sent.ext.some(bytes => bytes[1] === 0x00 && bytes[8] === 0x50)).toBe(false);
-  });
-
-  it('still sends universal inquiry when Push 3 generation is not confirmed', () => {
-    const sent = [];
-    const live = { ...port('live', 'Live Port'), send: bytes => sent.push(bytes) };
-    const user = { ...port('user', 'User Port'), send: bytes => sent.push(bytes) };
-    const result = initializePush3PedalMode({ sysexEnabled: true }, [live, user]);
-    expect(result.initialized).toBe(false);
-    expect(result.inquirySent).toBe(true);
-    expect(result.reason).toBe('push3-model-not-confirmed');
-    expect(sent.some(bytes => bytes[1] === 0x7e)).toBe(true);
-    expect(sent.some(bytes => bytes[1] === 0x00 && bytes[8] === 0x50)).toBe(false);
-    expect(initializePush3PedalMode({ sysexEnabled: false }, [live]).reason).toBe('sysex-unavailable');
+  it('does not expose or send a Push 3 Pedal/CV configuration write', () => {
+    expect('initializePush3PedalMode' in require('../../push-midi-port-contract.js')).toBe(false);
+    const source = require('fs').readFileSync(new URL('../../push-midi-port-contract.js', import.meta.url), 'utf8');
+    expect(source).not.toContain('0x37, 0x26, 0x50');
   });
 });
