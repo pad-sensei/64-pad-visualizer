@@ -90,12 +90,20 @@ jobs:
           if anchor not in s:
               raise SystemExit('integration test insertion anchor missing')
           p.write_text(s.replace(anchor, extra + anchor, 1))
+
+          p = Path('tests/unit/v180-web-contract.test.js')
+          s = p.read_text()
+          old = "    expect(main).toContain('_lpHpsUnlocked = true');"
+          new = "    expect(main).toContain('_controllerLedEnabled = true');\n    expect(main).not.toContain('_lpHpsUnlocked');"
+          if old not in s:
+              raise SystemExit('v180 hps assertion anchor missing')
+          p.write_text(s.replace(old, new, 1))
           PY
       - name: Verify focused and full Web suite
         run: |
           set -euo pipefail
           npm ci
-          npx vitest run tests/unit/push-midi-cc-map.test.js tests/unit/push-web-control.test.js tests/unit/push-web-cc-integration.test.js tests/unit/push-display-webusb.test.js
+          npx vitest run tests/unit/push-midi-cc-map.test.js tests/unit/push-web-control.test.js tests/unit/push-web-cc-integration.test.js tests/unit/push-display-webusb.test.js tests/unit/v180-web-contract.test.js
           npm test
           node --check push-web-control.js
           node --check push-midi-cc-map.js
@@ -116,6 +124,6 @@ jobs:
           set -euo pipefail
           git config user.name 'daikainozaki-cyber'
           git config user.email 'daikainozaki@gmail.com'
-          git add push-web-control.js push-midi-cc-map.js midi.js main.js tests/unit/push-web-cc-integration.test.js
+          git add push-web-control.js push-midi-cc-map.js midi.js main.js tests/unit/push-web-cc-integration.test.js tests/unit/v180-web-contract.test.js
           git commit -m 'fix(push): restore Perform octave parity [web-audit-fix-v2]'
           git push origin HEAD:codex/web-v180-push-cc-parity
