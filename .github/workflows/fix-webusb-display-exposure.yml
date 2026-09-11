@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   verify-deploy-cleanup:
-    if: github.event.head_commit.message == 'ci(dev): fix standard WebUSB display exposure'
+    if: "${{ github.event.head_commit.message == 'ci(dev): fix standard WebUSB display exposure' }}"
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -30,7 +30,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          EXPECTED_PARENT=709ade485541e1b53dc7cbe8e573ce170224b011
+          EXPECTED_PARENT=d3cbaf7aa93b7a079b951ed42cc999e9d7959d71
           test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
           test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/fix-webusb-display-exposure.yml"
           python3 - <<'PY'
