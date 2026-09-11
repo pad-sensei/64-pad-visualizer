@@ -45,8 +45,18 @@ describe('audited audio-core sustain integration', () => {
     expect(sw).not.toMatch(/audio-core\/spring-reverb-processor\.js\?v=/);
   });
 
-  it('bumps the service-worker cache identity for this follow-up', () => {
-    expect(sw).toContain("var CACHE_NAME = '64pad-v180-preview-20260912-audio-sustain-2';");
+  it('aligns FDTD runtime fetch identities with the service-worker precache', () => {
+    const version = appVersion();
+    expect(workletEngine).toContain("fetch(basePath + 'attack_tables.bin?v=' + (window.APP_VERSION || Date.now()))");
+    expect(workletEngine).toContain("fetch(basePath + 'manifest.json?v=' + (window.APP_VERSION || Date.now()))");
+    expect(sw).toContain(`'audio-core/assets/fdtd/attack_tables.bin?v=${version}'`);
+    expect(sw).toContain(`'audio-core/assets/fdtd/manifest.json?v=${version}'`);
+    expect(sw).not.toContain("'audio-core/assets/fdtd/attack_tables.bin',");
+    expect(sw).not.toContain("'audio-core/assets/fdtd/manifest.json',");
+  });
+
+  it('bumps the service-worker cache identity for the FDTD follow-up', () => {
+    expect(sw).toContain("var CACHE_NAME = '64pad-v180-preview-20260912-audio-sustain-3';");
   });
 
   it('ships the permanent behavioral sustain regression test with the pinned dependency', () => {
