@@ -1,0 +1,163 @@
+name: Fix v1.8.0 Web audit blocker
+
+on:
+  push:
+    branches:
+      - codex/web-v180-push-cc-parity
+
+permissions:
+  contents: write
+
+jobs:
+  fix-test-deploy:
+    if: ${{ !contains(github.event.head_commit.message, '[web-audit-fix]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/web-v180-push-cc-parity
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Restore Push WYSIWYG and clean retired HPS naming
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('push-web-control.js')
+          s = p.read_text()
+          old = "    if (code === 46) { call('shiftOctave', value); refresh(); return true; }"
+          new = """    if (code === 46) {
+      // Preserve the owner-ruling Push WYSIWYG gesture: in Input/Perform with a held
+      // slot/chord, octave moves that slot and saves it instead of transposing the grid.
+      if (currentMode() === 'input' && global.memoryViewMode === 'perform'
+          && global.PerformState && global.PerformState.activePad !== null
+          && global.PlainState && global.PlainState.activeNotes
+          && global.PlainState.activeNotes.size > 0) {
+        call('performOctaveEdit', value);
+        refresh();
+        return true;
+      }
+      call('shiftOctave', value);
+      refresh();
+      return true;
+    }"""
+          if old not in s:
+              raise SystemExit('code 46 octave anchor missing')
+          p.write_text(s.replace(old, new, 1))
+
+          for name in ['midi.js', 'main.js']:
+              p = Path(name)
+              s = p.read_text().replace('_lpHpsUnlocked', '_controllerLedEnabled')
+              s = s.replace('[64PE LED] hpsUnlocked:', '[64PE LED] controllerLedEnabled:')
+              p.write_text(s)
+
+          p = Path('push-midi-cc-map.js')
+          s = p.read_text()
+          old = """    // Push 3 mirrors surface controls on Live + User Port. Desktop deliberately
+    // treats Live Port as command authority while allowing octave/performance CCs."""
+          new = """    // The supported Push generations use the same generation-neutral Live/User
+    // port authority contract here. Push 3 has direct evidence; Push 2 browser behavior
+    // remains an explicit external Human Gate before the two-generation claim is final."""
+          if old not in s:
+              raise SystemExit('port authority comment anchor missing')
+          s = s.replace(old, new, 1)
+          old = "      if (!(cc === state.lastOctaveCC && (nowMs - state.lastOctaveMs) < 180)) {"
+          new = "      // 180 ms intentionally matches native Standalone parity (legacy Web path used 100 ms).\n      if (!(cc === state.lastOctaveCC && (nowMs - state.lastOctaveMs) < 180)) {"
+          if old not in s:
+              raise SystemExit('octave debounce anchor missing')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('tests/unit/push-web-cc-integration.test.js')
+          s = p.read_text()
+          s = s.replace("expect(main).toContain('_lpHpsUnlocked = true');",
+                        "expect(main).toContain('_controllerLedEnabled = true');\n    expect(main).not.toContain('_lpHpsUnlocked');\n    expect(midi).not.toContain('_lpHpsUnlocked');")
+          anchor = "  it('keeps native-only Device action a browser no-op', () => {"
+          extra = """  it('preserves Push WYSIWYG octave editing in Input/Perform', () => {
+    expect(control).toContain("currentMode() === 'input' && global.memoryViewMode === 'perform'");
+    expect(control).toContain("call('performOctaveEdit', value)");
+    expect(control).toContain("call('shiftOctave', value)");
+  });
+
+"""
+          if anchor not in s:
+              raise SystemExit('integration test insertion anchor missing')
+          p.write_text(s.replace(anchor, extra + anchor, 1))
+
+          Path('tests/unit/push-web-control.test.js').write_text(r'''import { afterEach, describe, expect, it } from 'vitest';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const { handleLogical } = require('../../push-web-control.js');
+
+const touched = [
+  'AppState', 'memoryViewMode', 'PerformState', 'PlainState',
+  'performOctaveEdit', 'shiftOctave', 'updatePlainDisplay', 'render',
+  'updateMemorySlotUI', 'updateBankUI', 'saveAppSettings', 'refreshLaunchpadLEDs',
+];
+
+afterEach(() => {
+  for (const key of touched) delete globalThis[key];
+});
+
+describe('Push Web logical control behavior', () => {
+  it('uses Perform slot octave edit for code 46 when a Perform pad/chord is active', () => {
+    const calls = [];
+    globalThis.AppState = { mode: 'input' };
+    globalThis.memoryViewMode = 'perform';
+    globalThis.PerformState = { activePad: 3 };
+    globalThis.PlainState = { activeNotes: new Set([60, 64, 67]) };
+    globalThis.performOctaveEdit = value => calls.push(['perform', value]);
+    globalThis.shiftOctave = value => calls.push(['global', value]);
+
+    expect(handleLogical(46, 1)).toBe(true);
+    expect(calls).toEqual([['perform', 1]]);
+  });
+
+  it('falls back to global octave shift when Perform WYSIWYG preconditions are absent', () => {
+    const calls = [];
+    globalThis.AppState = { mode: 'input' };
+    globalThis.memoryViewMode = 'perform';
+    globalThis.PerformState = { activePad: null };
+    globalThis.PlainState = { activeNotes: new Set() };
+    globalThis.performOctaveEdit = value => calls.push(['perform', value]);
+    globalThis.shiftOctave = value => calls.push(['global', value]);
+
+    expect(handleLogical(46, -1)).toBe(true);
+    expect(calls).toEqual([['global', -1]]);
+  });
+});
+''')
+          PY
+      - name: Verify focused and full Web suite
+        run: |
+          set -euo pipefail
+          npm ci
+          npx vitest run tests/unit/push-midi-cc-map.test.js tests/unit/push-web-control.test.js tests/unit/push-web-cc-integration.test.js tests/unit/push-display-webusb.test.js
+          npm test
+          node --check push-web-control.js
+          node --check push-midi-cc-map.js
+          node --check midi.js
+          ./tools/sw-assets-check.sh
+      - name: Deploy exact tested candidate to dev
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avz --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md'
+          path: ./
+          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-dev/
+          remote_host: xs071284.xsrv.jp
+          remote_port: 10022
+          remote_user: xs071284
+          remote_key: ${{ secrets.XSERVER_SSH_KEY }}
+      - name: Commit audited product/test fix
+        run: |
+          set -euo pipefail
+          git config user.name 'daikainozaki-cyber'
+          git config user.email 'daikainozaki@gmail.com'
+          git add push-web-control.js push-midi-cc-map.js midi.js main.js tests/unit/push-web-cc-integration.test.js tests/unit/push-web-control.test.js
+          git commit -m 'fix(push): restore Perform octave parity [web-audit-fix]'
+          git push origin HEAD:codex/web-v180-push-cc-parity
