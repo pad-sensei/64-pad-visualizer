@@ -3,8 +3,8 @@ import {
   HEIGHT,
   PushWebUsbDisplay,
   encodePushDisplayFrame,
-} from './push-display-webusb.js?v=webusb-20260911-5';
-import { fastClearPushPads, hardClearPushMidiOutputs } from './push-surface-cleanup.js?v=webusb-20260911-5';
+} from './push-display-webusb.js?v=webusb-20260911-6';
+import { fastClearPushPads, hardClearPushMidiOutputs } from './push-surface-cleanup.js?v=webusb-20260911-6';
 
 const params = new URLSearchParams(window.location.search);
 const enabled = params.has('webusb') && !window.IS_DESKTOP_MODE;
@@ -209,6 +209,7 @@ if (enabled) {
       if (state === 'running' || state === 'recovering') await probe.stop();
       else {
         cleanupStarted = false;
+        try { window.padWebResumePushSurface?.(); } catch (_) {}
         probe.setFrame(drawFrame());
         await probe.connect();
       }
@@ -229,6 +230,7 @@ if (enabled) {
       if (cleanupStarted) return;
       cleanupStarted = true;
       const pushOutputs = window.padWebGetPushMidiOutputs?.() || [];
+      try { window.padWebBeginPushShutdown?.(); } catch (_) {}
       // Desktop clears the visible pad paint first, then performs the exhaustive
       // sweep. Browser teardown is time-limited, so make those 64 zero-velocity
       // Note Ons the first hardware operation while the MIDI ports are alive.

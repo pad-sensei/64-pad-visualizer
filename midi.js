@@ -1178,6 +1178,30 @@ function padWebGetPushMidiOutputs() {
   return outputs;
 }
 
+var _pushWebShuttingDown = false;
+
+function padWebBeginPushShutdown() {
+  _pushWebShuttingDown = true;
+  // Freeze the normal LED renderer before the shutdown clear. Without
+  // this, a late render()/MIDI callback can repaint the scale after the
+  // 64 zero-velocity messages have already been sent.
+  _lpOutputActive = false;
+  _lpProgrammerMode = false;
+  _lastLEDState = null;
+  _pushColorPickPaletteVisible = false;
+  _pushColorPickReadyAt = 0;
+}
+
+function padWebResumePushSurface() {
+  _pushWebShuttingDown = false;
+  if (_isPush && midiOutput) {
+    _lpOutputActive = true;
+    _lpProgrammerMode = true;
+    for (var i = 0; i < 64; i++) _prevLEDState[i] = -1;
+    try { if (typeof render === 'function') render(); } catch (_) {}
+  }
+}
+
 function padWebResetPushMidiRuntimeState() {
   try { if (typeof _cancelSustainDebounce === 'function') _cancelSustainDebounce(); } catch (_) {}
   try {
@@ -1232,6 +1256,8 @@ function padWebGetPushDisplaySnapshot() {
 
 if (typeof window !== 'undefined') {
   window.padWebGetPushMidiOutputs = padWebGetPushMidiOutputs;
+  window.padWebBeginPushShutdown = padWebBeginPushShutdown;
+  window.padWebResumePushSurface = padWebResumePushSurface;
   window.padWebResetPushMidiRuntimeState = padWebResetPushMidiRuntimeState;
   window.padWebGetPushDisplaySnapshot = padWebGetPushDisplaySnapshot;
 }
@@ -1286,6 +1312,7 @@ function _exitLaunchpadProgrammerMode() {
 }
 
 function updateLaunchpadLEDs(state) {
+  if (_pushWebShuttingDown) return;
   _lastLEDState = state;
   if (_isPush && _pushIsColorPickActive()) return;
   if (!midiOutput || !_lpOutputActive || !_lpProgrammerMode) return;
@@ -1317,6 +1344,7 @@ function updateLaunchpadLEDs(state) {
 
 // Re-run LED update with cached state (for noteOn/noteOff feedback)
 function refreshLaunchpadLEDs() {
+  if (_pushWebShuttingDown) return;
   if (_isPush && _pushIsColorPickActive()) return;
   if (_lastLEDState) updateLaunchpadLEDs(_lastLEDState);
 }

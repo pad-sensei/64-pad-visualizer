@@ -1,4 +1,4 @@
-var CACHE_NAME = '64pad-v6.7.52-webusb-20260911-5';
+var CACHE_NAME = '64pad-v6.7.52-webusb-20260911-6';
 var ASSETS = [
   './',
   'index.html',
@@ -36,9 +36,9 @@ var ASSETS = [
   'observed-ust-consumer.js?v=6.7.52',
   'midi-input-state.js?v=6.7.52',
   'midi.js?v=6.7.52',
-  'push-display-webusb.js?v=webusb-20260911-5',
-  'push-surface-cleanup.js?v=webusb-20260911-5',
-  'push-display-webusb-app.js?v=webusb-20260911-5',
+  'push-display-webusb.js?v=webusb-20260911-6',
+  'push-surface-cleanup.js?v=webusb-20260911-6',
+  'push-display-webusb-app.js?v=webusb-20260911-6',
   'plain.js?v=6.7.52',
   'perform.js?v=6.7.52',
   'i18n.js?v=6.7.52',
