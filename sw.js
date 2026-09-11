@@ -1,10 +1,10 @@
-var CACHE_NAME = '64pad-v6.7.52-webusb-20260911-7';
+var CACHE_NAME = '64pad-v6.7.52-webusb-20260911-7-pc8-2';
 var ASSETS = [
   './',
   'index.html',
   'style.css?v=6.7.52',
-  'pad-core/data.js?v=6.7.52',
-  'pad-core/theory.js?v=6.7.52',
+  'pad-core/data.js?v=6.7.54',
+  'pad-core/theory.js?v=6.7.54',
   'pad-core/render.js?v=6.7.52',
   'pad-core/circle.js?v=6.7.52',
   'pad-core/builder-ui.js?v=6.7.52',
