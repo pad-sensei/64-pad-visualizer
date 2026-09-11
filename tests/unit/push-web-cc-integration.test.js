@@ -1,0 +1,39 @@
+import { describe, it, expect } from 'vitest';
+import fs from 'fs';
+
+describe('Web Push control integration contract', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const sw = fs.readFileSync('sw.js', 'utf8');
+  const midi = fs.readFileSync('midi.js', 'utf8');
+  const main = fs.readFileSync('main.js', 'utf8');
+  const host = fs.readFileSync('host-adapter.js', 'utf8');
+  const control = fs.readFileSync('push-web-control.js', 'utf8');
+
+  it('loads the CC mapper/dispatcher before midi.js and precaches both', () => {
+    expect(html.indexOf('push-midi-cc-map.js?v=1.8.0')).toBeGreaterThan(0);
+    expect(html.indexOf('push-web-control.js?v=1.8.0')).toBeGreaterThan(html.indexOf('push-midi-cc-map.js?v=1.8.0'));
+    expect(html.indexOf('midi.js?v=6.7.56')).toBeGreaterThan(html.indexOf('push-web-control.js?v=1.8.0'));
+    expect(sw).toContain("'push-midi-cc-map.js?v=1.8.0'");
+    expect(sw).toContain("'push-web-control.js?v=1.8.0'");
+  });
+
+  it('routes Push CC through parity mapper after sustain and before pad-note handling', () => {
+    const sustain = midi.indexOf('if (cmd === 0xb0 && rawNote === 64)');
+    const controlPos = midi.indexOf('window.padWebHandlePushMidiCc');
+    const perform = midi.indexOf('// Push perform mode: serial 4x4');
+    expect(sustain).toBeGreaterThan(0);
+    expect(controlPos).toBeGreaterThan(sustain);
+    expect(perform).toBeGreaterThan(controlPos);
+    expect(midi).not.toContain('// Push octave buttons: CC#55=▲, CC#54=▼');
+  });
+
+  it('keeps Web MIDI LED/CC standard and retires query-string hps gates', () => {
+    expect(main).toContain('_lpHpsUnlocked = true');
+    expect(main).not.toContain("has('hps')");
+    expect(host).not.toContain("has('hps')");
+  });
+
+  it('keeps native-only Device action a browser no-op', () => {
+    expect(control).toContain('if (code === 73) return true');
+  });
+});

@@ -110,12 +110,12 @@ function chordPracticeDisplayLocked() {
     && !!BuilderState.quality;
 }
 
-// Launchpad LED output (HPS exclusive — gated by ?hps URL parameter)
+// Controller LED output (standard 64 Pad Explorer feature in v1.8.0)
 let midiOutput = null;       // Output port for LED Note-On
 let midiOutputDAW = null;    // DAW port for SysEx (may be same as midiOutput)
 let _pushLedOutputs = [];  // all Push LED outputs, mirroring Keys standalone fan-out
 let _lpOutputActive = false;
-let _lpHpsUnlocked = false;  // set in main.js from ?hps
+let _lpHpsUnlocked = false;  // main.js enables standard controller LED behavior
 let _lpProgrammerMode = false; // true when Launchpad is in Programmer mode
 let _lpDeviceByte = 0x0C;   // 0x0C = Launchpad X, 0x0D = Mini MK3
 let _isPush = false;         // true when Push 3 User Mode detected
@@ -668,23 +668,6 @@ function initWebMIDI() {
           if (e.data.length < 3) return;
           const [status, rawNote, velocity] = e.data;
           const cmd = status & 0xf0;
-          // Push octave buttons: CC#55=▲, CC#54=▼ (data2=127 press, 0 release)
-          // Debounce: Push 3 sends same CC on multiple ports → shiftOctave called twice → skips octave
-          if (isPush && cmd === 0xb0 && velocity === 127 && (rawNote === 55 || rawNote === 54)) {
-            var now = performance.now();
-            if (now - _lastOctCC < 100) return;
-            _lastOctCC = now;
-            var _octDir = rawNote === 55 ? 1 : -1;
-            // Perform + held pad: octave-shift that slot and save (Push WYSIWYG, うりなみさん
-            // 2026-05-31) instead of the global octave transpose. Other modes keep shiftOctave.
-            if (memoryViewMode === 'perform' && PerformState.activePad !== null &&
-                PlainState.activeNotes.size > 0) {
-              performOctaveEdit(_octDir);
-            } else {
-              shiftOctave(_octDir);
-            }
-            return;
-          }
           // Launchpad octave buttons: CC#91=▲, CC#92=▼ (X/Mini MK3/Pro MK3)
           //                           CC#104=▲, CC#105=▼ (MK1/Mini MK2)
           if (!isPush && cmd === 0xb0 && velocity === 127 &&
@@ -721,6 +704,27 @@ function initWebMIDI() {
               }
             }
             return;
+          }
+          // Push control-surface CC: raw mapping is the same contract used by
+          // Standalone. CC64 was consumed above as performance sustain.
+          if (isPush && cmd === 0xb0 && typeof window.padWebHandlePushMidiCc === 'function') {
+            var _pushCcHandled = window.padWebHandlePushMidiCc(rawNote, velocity, {
+              inputName: input.name || '',
+              inputId: input.id || '',
+              nowMs: (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(),
+              padIsHeld: midiActiveNotes.size > 0 || (typeof PlainState !== 'undefined' && PlainState.activeNotes && PlainState.activeNotes.size > 0),
+              padPlaybackBlocked: false,
+              mpeMode: (typeof window.mpeMode !== 'undefined' && window.mpeMode === true)
+                || (typeof AppState !== 'undefined' && AppState.mpeMode === true)
+            });
+            if (_pushCcHandled) return;
+          }
+          // Delete/Duplicate + pad gestures are part of the same Push control surface.
+          if (isPush && (cmd === 0x90 || cmd === 0x80)
+              && rawNote >= 36 && rawNote <= 99
+              && typeof window.padWebPushControlWillHandlePad === 'function') {
+            var _pushPadDown = cmd === 0x90 && velocity > 0;
+            if (window.padWebPushControlWillHandlePad(rawNote, _pushPadDown)) return;
           }
           // Push perform mode: serial 4x4 → slots directly (bypass fourths conversion)
           if (isPush && memoryViewMode === 'perform' && cmd === 0x90 && velocity > 0) {
