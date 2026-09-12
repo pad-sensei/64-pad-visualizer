@@ -17,37 +17,15 @@ jobs:
           submodules: recursive
           persist-credentials: false
           path: web
-      - name: Inspect deployed source identities
-        working-directory: web
-        run: |
-          python3 - <<'PY'
-          import hashlib, json, pathlib, urllib.request
-          base = 'https://murinaikurashi.com/apps/64-pad-dev/'
-          files = ['index.html','sw.js','midi.js','push-web-control.js','host-adapter.js','audio-core/audio-voice.js','audio-core/epiano-worklet-engine.js']
-          result = []
-          for name in files:
-              item = {'path': name, 'expected_sha256': hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest()}
-              try:
-                  request = urllib.request.Request(base + name, headers={'Cache-Control':'no-cache'})
-                  with urllib.request.urlopen(request, timeout=15) as response:
-                      content = response.read()
-                      item.update(status=response.status, actual_sha256=hashlib.sha256(content).hexdigest())
-                      item['matches'] = item['expected_sha256'] == item['actual_sha256']
-                      out = pathlib.Path('../deployed') / name
-                      out.parent.mkdir(parents=True, exist_ok=True)
-                      out.write_bytes(content)
-              except Exception as error:
-                  item['error'] = str(error)
-              result.append(item)
-          print(json.dumps(result, indent=2))
-          pathlib.Path('../identity.json').write_text(json.dumps(result, indent=2))
-          PY
-      - name: Archive public sources for local reproduction
+      - name: Record source identities and known HTTP limitation
         run: |
           git -C web rev-parse HEAD > source-identities.txt
           git -C web/audio-core rev-parse HEAD >> source-identities.txt
           git -C web/pad-core rev-parse HEAD >> source-identities.txt
-          tar --exclude='.git' --exclude='assets' --exclude='img' --exclude='fonts' --exclude='test-results' --exclude='tools/fdtd_output' -czf web-repro.tgz web deployed identity.json source-identities.txt
+          printf '%s\n' 'Dev HTTP reads returned 403 in run 34668775502; no server/client equality is established.' > http-limitation.txt
+      - name: Archive public sources for local reproduction
+        run: |
+          tar --exclude='.git' --exclude='assets' --exclude='img' --exclude='fonts' --exclude='test-results' --exclude='fdtd_output' -czf web-repro.tgz web source-identities.txt http-limitation.txt
       - uses: actions/upload-artifact@v4
         with:
           name: exact-web-repro
