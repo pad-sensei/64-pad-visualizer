@@ -1,0 +1,242 @@
+name: F05 dev delivery and loaded-source proof a8cb
+
+on:
+  push:
+    branches: [tuner/f05-dev-delivery-a8cb-20260913]
+    paths: [.github/workflows/f05-dev-delivery-a8cb.yml]
+
+concurrency:
+  group: 64pe-f05-dev-delivery-a8cb
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout immutable audited product
+        uses: actions/checkout@v4
+        with:
+          ref: a8cb8f8dec6f500ae065bdb92ede45e7bdfe364e
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Assert exact audited identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = a8cb8f8dec6f500ae065bdb92ede45e7bdfe364e
+          test "$(git rev-parse HEAD^{tree})" = ff5e1411dd8feca11712ee28ea0600698c16ab94
+          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+          git diff --exit-code
+          git diff --cached --exit-code
+
+      - name: Deploy audited product to dev only
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avz --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md'
+          path: ./
+          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-dev/
+          remote_host: xs071284.xsrv.jp
+          remote_port: 10022
+          remote_user: xs071284
+          remote_key: ${{ secrets.XSERVER_SSH_KEY }}
+
+  verify-loaded-source:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout immutable audited product
+        uses: actions/checkout@v4
+        with:
+          ref: a8cb8f8dec6f500ae065bdb92ede45e7bdfe364e
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install locked browser tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = a8cb8f8dec6f500ae065bdb92ede45e7bdfe364e
+          test "$(git rev-parse HEAD^{tree})" = ff5e1411dd8feca11712ee28ea0600698c16ab94
+          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+          npm ci
+          command -v google-chrome
+
+      - name: Verify served bytes, cache identity, Chrome parsed source, and F05 LED execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const { chromium } = require('@playwright/test');
+          const assert = require('node:assert/strict');
+          const fs = require('node:fs');
+          const crypto = require('node:crypto');
+          const { execFileSync } = require('node:child_process');
+          const base = 'https://murinaikurashi.com/apps/64-pad-dev/';
+          const product = 'a8cb8f8dec6f500ae065bdb92ede45e7bdfe364e';
+          const tree = 'ff5e1411dd8feca11712ee28ea0600698c16ab94';
+          const hash = value => crypto.createHash('sha256').update(value).digest('hex');
+
+          function latestPadColors(messages) {
+            const byNote = new Map();
+            for (const m of messages) {
+              if (Array.isArray(m) && m.length >= 3 && m[0] === 0x90 && m[1] >= 36 && m[1] <= 99) byNote.set(m[1], m[2]);
+            }
+            return Array.from({ length: 64 }, (_, i) => byNote.get(36 + i));
+          }
+
+          async function assertPhase(page, cdp, parsed, phase) {
+            parsed.clear();
+            const response = phase === 'fresh'
+              ? await page.goto(base, { waitUntil: 'load', timeout: 60000 })
+              : await page.reload({ waitUntil: 'load', timeout: 60000 });
+            assert.equal(response.status(), 200, phase + ' document');
+            await page.waitForFunction(() => typeof render === 'function' && typeof _padColorToLP === 'function' && typeof window.__f05Input?.onmidimessage === 'function');
+            const overlay = page.locator('#audio-start-overlay.active');
+            if (await overlay.count()) await overlay.click();
+            await page.waitForFunction(() => !document.getElementById('audio-start-overlay')?.classList.contains('active'));
+
+            await page.evaluate(() => {
+              document.getElementById('midi-device-select').value = 'all';
+              AppState.mode = 'chord';
+              AppState.key = 0;
+              AppState.scaleIdx = 0;
+              AppState.diatonicMode = 'tetrad';
+              AppState.showAllPositions = false;
+              padWebPushControlState.chordLowerLayerIndex = 0;
+              _prevLEDState.fill(-1);
+              window.__f05Midi.length = 0;
+              render();
+            });
+            await page.evaluate(() => {
+              window.__f05Input.onmidimessage({ data: new Uint8Array([0xb0, 21, 127]) });
+              window.__f05Input.onmidimessage({ data: new Uint8Array([0xb0, 21, 0]) });
+            });
+            await page.waitForFunction(() => BuilderState.root === 0 && !!BuilderState.quality);
+            const one = await page.evaluate(() => {
+              const state = computeRenderState();
+              const expected = [];
+              for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) expected.push(_padColorToLP(state, r, c));
+              return {
+                expected,
+                actualMessages: window.__f05Midi.slice(),
+                root: BuilderState.root,
+                quality: BuilderState.quality && BuilderState.quality.name,
+                shapeCount: state.basicFormPadSet ? state.basicFormPadSet.size : 0,
+              };
+            });
+            const oneActual = latestPadColors(one.actualMessages);
+            assert.equal(one.root, 0);
+            assert.ok(one.quality);
+            assert.ok(one.shapeCount > 0, 'built chord did not resolve a one-position shape');
+            assert.equal(oneActual.filter(v => v !== undefined).length, 64, 'one-position did not repaint all Push pads');
+            assert.deepEqual(oneActual, one.expected, 'Push NoteOn colors do not match displayed Chord state');
+            assert.ok(oneActual.includes(21), 'one-position exact chord-shape color missing');
+            assert.ok(oneActual.includes(122), 'scale background missing behind chord shape');
+
+            await page.evaluate(() => {
+              AppState.showAllPositions = true;
+              _prevLEDState.fill(-1);
+              window.__f05Midi.length = 0;
+              render();
+            });
+            const overview = await page.evaluate(() => {
+              const state = computeRenderState();
+              const expected = [];
+              for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) expected.push(_padColorToLP(state, r, c));
+              return { expected, actualMessages: window.__f05Midi.slice() };
+            });
+            const overviewActual = latestPadColors(overview.actualMessages);
+            assert.equal(overviewActual.filter(v => v !== undefined).length, 64, 'all-position did not repaint all Push pads');
+            assert.deepEqual(overviewActual, overview.expected, 'all-position Push colors mismatch displayed state');
+            assert.notDeepEqual(overviewActual, oneActual, 'one-position and all-position Push views unexpectedly identical');
+            assert.ok(overviewActual.some(v => ![0,3,21,122].includes(v)), 'all-position chord-role colors missing');
+
+            const sw = await page.evaluate(async () => ({
+              controller: navigator.serviceWorker.controller?.scriptURL || null,
+              registrations: (await navigator.serviceWorker.getRegistrations()).length,
+            }));
+            assert.equal(sw.controller, null);
+            assert.equal(sw.registrations, 0);
+
+            for (const file of ['midi.js', 'render.js', 'push-web-control.js', 'push-midi-cc-map.js']) {
+              const path = new URL(file, base).pathname;
+              const scripts = [...parsed].filter(([, url]) => { try { return new URL(url).pathname === path; } catch { return false; } });
+              assert.ok(scripts.length > 0, 'Not browser-parsed: ' + file + ' phase=' + phase);
+              for (const [scriptId, url] of scripts) {
+                const source = (await cdp.send('Debugger.getScriptSource', { scriptId })).scriptSource;
+                assert.equal(source, fs.readFileSync(file, 'utf8'), 'Browser loaded different source: ' + url);
+                console.log('F05_PARSED_IDENTITY=' + JSON.stringify({ phase, file, url, sha256: hash(source) }));
+              }
+            }
+            console.log('F05_DEV_EXECUTION=' + JSON.stringify({ phase, product, tree, quality: one.quality, shapeCount: one.shapeCount, oneUnique: [...new Set(oneActual)], overviewUnique: [...new Set(overviewActual)], sw }));
+          }
+
+          (async () => {
+            const browser = await chromium.launch({
+              executablePath: execFileSync('which', ['google-chrome'], { encoding: 'utf8' }).trim(),
+              headless: true,
+            });
+            try {
+              const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+              const identityFiles = ['index.html', 'sw.js', 'midi.js', 'render.js', 'push-web-control.js', 'push-midi-cc-map.js'];
+              for (const file of identityFiles) {
+                const response = await context.request.get(base + file);
+                assert.equal(response.status(), 200, file);
+                const bytes = await response.body();
+                assert.deepEqual(bytes, fs.readFileSync(file), 'Served source mismatch: ' + file);
+                const cacheControl = response.headers()['cache-control'] || '';
+                assert.ok(/no-store|no-cache/i.test(cacheControl), file + ' missing dev no-cache/no-store policy: ' + cacheControl);
+                console.log('F05_SERVED_IDENTITY=' + JSON.stringify({ file, sha256: hash(bytes), cacheControl }));
+              }
+              const index = fs.readFileSync('index.html', 'utf8');
+              const sw = fs.readFileSync('sw.js', 'utf8');
+              assert.ok(index.includes('midi.js?v=1.8.0-chord-pad-led2'));
+              assert.ok(sw.includes("'midi.js?v=1.8.0-chord-pad-led2'"));
+              assert.ok(sw.includes("var CACHE_NAME = '64pad-v180-preview-20260913-chord-pad-led2';"));
+              assert.ok(!index.includes('midi.js?v=1.8.0-chord-pad-led\"'));
+
+              const page = await context.newPage();
+              const errors = [];
+              page.on('pageerror', e => errors.push(String(e)));
+              await page.addInitScript(() => {
+                const input = { id: 'f05-live', name: 'Ableton Push 3 Live Port', state: 'connected', type: 'input', connection: 'open', open: async () => {}, onmidimessage: null };
+                const user = { ...input, id: 'f05-user', name: 'Ableton Push 3 User Port' };
+                window.__f05Midi = [];
+                const liveOut = { id: 'f05-live-out', name: 'Ableton Push 3 Live Port', state: 'connected', type: 'output', connection: 'open', open: async () => {}, send: bytes => window.__f05Midi.push(Array.from(bytes)) };
+                const userOut = { ...liveOut, id: 'f05-user-out', name: 'Ableton Push 3 User Port', send: bytes => window.__f05Midi.push(Array.from(bytes)) };
+                const access = { inputs: new Map([[input.id,input],[user.id,user]]), outputs: new Map([[liveOut.id,liveOut],[userOut.id,userOut]]), sysexEnabled: true, onstatechange: null };
+                Object.defineProperty(navigator, 'requestMIDIAccess', { value: async () => access, configurable: true });
+                window.__f05Input = input;
+              });
+              const cdp = await context.newCDPSession(page);
+              const parsed = new Map();
+              cdp.on('Debugger.scriptParsed', e => { if (e.url) parsed.set(e.scriptId, e.url); });
+              await cdp.send('Debugger.enable');
+              for (const phase of ['fresh', 'reload']) {
+                await assertPhase(page, cdp, parsed, phase);
+                assert.deepEqual(errors, []);
+              }
+              await context.close();
+            } finally {
+              await browser.close();
+            }
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          JS
+          test "$(git rev-parse HEAD)" = a8cb8f8dec6f500ae065bdb92ede45e7bdfe364e
+          test "$(git rev-parse HEAD^{tree})" = ff5e1411dd8feca11712ee28ea0600698c16ab94
+          git diff --exit-code
+          git diff --cached --exit-code
