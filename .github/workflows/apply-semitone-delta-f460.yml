@@ -10,22 +10,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout execution helper
+      - name: Checkout execution carrier
         uses: actions/checkout@v4
         with:
-          persist-credentials: false
-      - name: Checkout frozen product branch
-        uses: actions/checkout@v4
-        with:
-          ref: codex/web-v180-push-human-gate-followup
-          path: product
           fetch-depth: 0
-          submodules: recursive
-      - name: Assert frozen audited parent
+          persist-credentials: true
+      - name: Switch cleanly to frozen product head
         shell: bash
         run: |
           set -euo pipefail
-          cd product
+          cp .github/scripts/apply-semitone-delta-f460.py "$RUNNER_TEMP/apply-semitone-delta-f460.py"
+          git fetch origin codex/web-v180-push-human-gate-followup
+          test "$(git rev-parse origin/codex/web-v180-push-human-gate-followup)" = f4605772d88311df63164c7880e1ce87aa5e4d2b
+          git checkout --force -B codex/web-v180-push-human-gate-followup origin/codex/web-v180-push-human-gate-followup
+          git submodule sync --recursive
+          git submodule update --init --force --recursive
           test "$(git rev-parse HEAD)" = f4605772d88311df63164c7880e1ce87aa5e4d2b
           test "$(git rev-parse HEAD^{tree})" = 7bb832831f2a5285ca282a73d262275f63969974
           test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
@@ -35,8 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 .github/scripts/apply-semitone-delta-f460.py tests product
-          cd product
+          python3 "$RUNNER_TEMP/apply-semitone-delta-f460.py" tests .
           set +e
           npx vitest run tests/unit/push-web-control.test.js > "$RUNNER_TEMP/negative-control.log" 2>&1
           status=$?
@@ -47,8 +45,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 .github/scripts/apply-semitone-delta-f460.py product product
-          cd product
+          python3 "$RUNNER_TEMP/apply-semitone-delta-f460.py" product .
           git diff --check
           npx vitest run tests/unit/push-web-control.test.js tests/unit/push-display-exposure.test.js
           node tests/push-standalone-parity.cjs
@@ -59,7 +56,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cd product
           git config user.name 'ChatGPT Codex Connector'
           git config user.email '14957082+openai@users.noreply.github.com'
           git add push-web-control.js tests/unit/push-web-control.test.js sw.js tests/unit/push-display-exposure.test.js
