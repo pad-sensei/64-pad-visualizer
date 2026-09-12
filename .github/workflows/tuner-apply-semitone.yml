@@ -26,21 +26,23 @@ jobs:
         run: |
           set -euo pipefail
           gh api repos/pad-sensei/64-pad-visualizer/pulls/22 | jq -e --arg sha "$EXPECTED_HEAD" --arg ref "$TARGET_REF" '.state == "open" and .draft == true and .head.sha == $sha and .head.ref == $ref' >/dev/null
-          current="$(gh api repos/pad-sensei/64-pad-visualizer/git/ref/heads/$TARGET_REF --jq .object.sha)"
+          current="$(gh api repos/pad-sensei/64-pad-visualizer/git/ref/heads/$TARGET_REF | jq -r .object.sha)"
           test "$current" = "$EXPECTED_HEAD"
 
       - name: Dispatch existing exact-head verifier once
         shell: bash
         run: |
           set -euo pipefail
-          existing="$(gh api 'repos/pad-sensei/64-pad-visualizer/actions/workflows/verify-push-parity.yml/runs?event=workflow_dispatch&per_page=20' --jq --arg sha "$EXPECTED_HEAD" '[.workflow_runs[] | select(.head_sha == $sha)][0].id // empty')"
+          runs="$(gh api 'repos/pad-sensei/64-pad-visualizer/actions/workflows/verify-push-parity.yml/runs?event=workflow_dispatch&per_page=20')"
+          existing="$(jq -r --arg sha "$EXPECTED_HEAD" '[.workflow_runs[] | select(.head_sha == $sha)][0].id // empty' <<<"$runs")"
           if [[ -z "$existing" ]]; then
             gh api --method POST repos/pad-sensei/64-pad-visualizer/actions/workflows/verify-push-parity.yml/dispatches -f ref="$TARGET_REF" >/dev/null
           fi
           run_id="$existing"
           for _ in $(seq 1 20); do
             if [[ -z "$run_id" ]]; then
-              run_id="$(gh api 'repos/pad-sensei/64-pad-visualizer/actions/workflows/verify-push-parity.yml/runs?event=workflow_dispatch&per_page=20' --jq --arg sha "$EXPECTED_HEAD" '[.workflow_runs[] | select(.head_sha == $sha)][0].id // empty')"
+              runs="$(gh api 'repos/pad-sensei/64-pad-visualizer/actions/workflows/verify-push-parity.yml/runs?event=workflow_dispatch&per_page=20')"
+              run_id="$(jq -r --arg sha "$EXPECTED_HEAD" '[.workflow_runs[] | select(.head_sha == $sha)][0].id // empty' <<<"$runs")"
             fi
             [[ -n "$run_id" ]] && break
             sleep 2
