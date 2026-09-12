@@ -12,4 +12,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Prove temporary branch workflows execute
-        run: echo TUNER_SMOKE_PASS
+        run: |
+          echo TUNER_SMOKE_PASS
