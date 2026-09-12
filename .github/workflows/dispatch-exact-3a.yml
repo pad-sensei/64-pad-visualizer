@@ -1,0 +1,40 @@
+name: Dispatch existing exact 3a880c17 verification
+on:
+  push:
+    branches: [tuner/64pe-signed-delta-check-20260912]
+    paths: [.github/workflows/dispatch-exact-3a.yml]
+permissions:
+  contents: read
+  pull-requests: read
+  actions: write
+concurrency:
+  group: 64pe-dispatch-verification-3a880c17
+  cancel-in-progress: false
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: pad-sensei/64-pad-visualizer
+      EXPECTED: 3a880c172214972b3143cfff5b59ddad94b33abc
+      TARGET: codex/web-v180-push-human-gate-followup
+    steps:
+      - name: Guard current product and invoke existing verifier at most once
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/pulls/22" | jq -e --arg sha "$EXPECTED" --arg ref "$TARGET" '.state == "open" and .draft and .head.sha == $sha and .head.ref == $ref' >/dev/null
+          gh api "repos/$REPO/git/commits/$EXPECTED" | jq -e '.tree.sha == "e8e8e19f45839387ec0b9fbef7f0741092a60ff4"' >/dev/null
+          blob="$(gh api "repos/$REPO/contents/.github/workflows/verify-push-parity.yml?ref=$EXPECTED" --jq .sha)"
+          test "$blob" = 1b2617b23f4e341464d471d26b6c3be75e2110dd
+          existing="$(gh api "repos/$REPO/actions/workflows/verify-push-parity.yml/runs?head_sha=$EXPECTED&per_page=10" --jq '.workflow_runs[0].id // empty')"
+          if [[ -n "$existing" ]]; then
+            echo "EXISTING_EXACT_VERIFICATION=$existing; no duplicate dispatch"
+            exit 0
+          fi
+          test "$(gh api "repos/$REPO/git/ref/heads/$TARGET" --jq .object.sha)" = "$EXPECTED"
+          gh api --method POST "repos/$REPO/actions/workflows/verify-push-parity.yml/dispatches" -f ref="$TARGET"
+          echo "VERIFICATION_DISPATCH_REQUESTED head=$EXPECTED"
+          echo 'Read the actual resulting run and checkout before claiming verification PASS.'
+          echo 'No product source/ref change, deployment, release, or hardware access.'
