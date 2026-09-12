@@ -56,6 +56,11 @@ jobs:
           chrome = shutil.which('google-chrome') or shutil.which('google-chrome-stable')
           assert chrome, 'Existing runner Chrome missing; do not alter system browser policy'
           report = {'target': BASE, 'productHead': os.environ['EXPECTED_HEAD'], 'http': [], 'browser': []}
+          # Accepted index.html intentionally unregisters SWs on /64-pad-dev/.
+          # The earlier checker wrongly required an active SW. Do not change the product to satisfy it.
+          index = (ROOT / 'index.html').read_text()
+          assert "location.pathname.indexOf('/64-pad-dev/') !== -1" in index
+          assert 'if (_is64PadDevDeploy)' in index and 'return r.unregister()' in index
           with sync_playwright() as p:
               request = p.request.new_context(timeout=30000)
               for relative, path in [('index.html', 'index.html'), ('sw.js', 'sw.js'), (APP_URL, APP)]:
@@ -84,8 +89,9 @@ jobs:
                   response = page.goto(BASE, wait_until='domcontentloaded', timeout=45000) if attempt == 'fresh-context' else page.reload(wait_until='domcontentloaded', timeout=45000)
                   assert response and response.status == 200, 'Page navigation was not HTTP 200'
                   page.locator('#push-webusb-display-btn').wait_for(state='attached', timeout=20000)
-                  page.wait_for_function('navigator.serviceWorker && navigator.serviceWorker.controller !== null', timeout=30000)
-                  page.wait_for_function('(name) => caches.keys().then(keys => keys.includes(name))', arg=CACHE, timeout=30000)
+                  page.wait_for_function('''async () => window._is64PadDevDeploy === true &&
+                    navigator.serviceWorker.controller === null &&
+                    (await navigator.serviceWorker.getRegistrations()).length === 0''', timeout=10000)
                   assert parsed, 'Display module was not parsed by this browser'
                   for script_id in list(parsed):
                       loaded = cdp.send('Debugger.getScriptSource', {'scriptId': script_id})['scriptSource']
@@ -96,18 +102,22 @@ jobs:
                   assert executed > 0, 'Parsed module has no observed execution coverage'
                   state = page.evaluate('''async () => ({
                     url: location.href,
-                    controller: navigator.serviceWorker.controller?.scriptURL,
+                    controller: navigator.serviceWorker.controller?.scriptURL || null,
+                    registrations: (await navigator.serviceWorker.getRegistrations()).length,
                     caches: await caches.keys(),
                     buttonCount: document.querySelectorAll('#push-webusb-display-btn').length,
                     status: document.querySelector('#push-webusb-display-status')?.textContent,
-                    desktop: !!window.IS_DESKTOP_MODE
+                    desktop: !!window.IS_DESKTOP_MODE,
+                    dev: window._is64PadDevDeploy
                   })''')
                   assert state['url'].startswith(BASE)
-                  assert state['controller'] == BASE + 'sw.js'
+                  assert state['controller'] is None and state['registrations'] == 0 and state['dev'] is True
                   assert state['buttonCount'] == 1 and not state['desktop']
                   report['browser'].append({'visit': attempt, 'parsedSourceSha256': sha(expected.encode()), 'executedCoverageRanges': executed, **state})
                   print('BROWSER_VISIT=' + json.dumps(report['browser'][-1]), flush=True)
               report['pageErrors'] = errors
+              report['servedSwGeneration'] = CACHE
+              report['swRuntimePolicy'] = 'intentionally unregistered on dev; served sw.js is not an active dev cache generation'
               report['limitations'] = 'Isolated hosted Chrome only; no owner-tab inspection, no USB/MIDI permission, no Push connection, no sound/physical pixels, no old-profile upgrade proof.'
               print('DEV_SERVED_AND_LOADED_IDENTITY=PASS', flush=True)
               print('BROWSER_IDENTITY_REPORT=' + json.dumps(report), flush=True)
