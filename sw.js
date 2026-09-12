@@ -1,4 +1,4 @@
-var CACHE_NAME = '64pad-v180-preview-20260912-chord-lower-s1';
+var CACHE_NAME = '64pad-v180-preview-20260913-chord-pad-led2';
 var ASSETS = [
   './',
   'index.html',
@@ -38,7 +38,7 @@ var ASSETS = [
   'push-midi-port-contract.js?v=1.8.0-liveport3',
   'push-midi-cc-map.js?v=1.8.0',
   'push-web-control.js?v=1.8.0-chord-lower-s1',
-  'midi.js?v=1.8.0-chord-pad-led',
+  'midi.js?v=1.8.0-chord-pad-led2',
   'push-display-webusb.js?v=webusb-20260911-10',
   'push-surface-cleanup.js?v=webusb-20260911-7',
   'push-display-webusb-app.js?v=webusb-20260912-s1',
