@@ -390,11 +390,11 @@
     if (!controlState.entryStep) return false;
     if (controlState.entryStep === 'root') {
       if (controlState.entryRoot === null || controlState.entryRoot === undefined) controlState.entryRoot = delta < 0 ? 11 : 0;
-      else controlState.entryRoot = wrap(controlState.entryRoot + (delta < 0 ? -1 : 1), 12);
+      else controlState.entryRoot = wrap(controlState.entryRoot + delta, 12);
     }
     else {
       var list = qualityList();
-      controlState.entryQualityIndex = wrap(controlState.entryQualityIndex + (delta < 0 ? -1 : 1), Math.max(1, list.length));
+      controlState.entryQualityIndex = wrap(controlState.entryQualityIndex + delta, Math.max(1, list.length));
     }
     return true;
   }
@@ -403,6 +403,7 @@
     if (!controlState.entryStep) return false;
     if (controlState.entryStep === 'root') {
       var root = index === undefined ? controlState.entryRoot : index;
+      if (root === null || root === undefined) root = 0;
       if (root < 0 || root > 11) return true;
       if (typeof global.selectRoot === 'function') global.selectRoot(root);
       controlState.entryRoot = root;

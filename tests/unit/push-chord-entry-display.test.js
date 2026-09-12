@@ -60,6 +60,26 @@ describe('S2 A04: Push Root/Quality entry display',()=>{
     expect(b.read('BuilderState.root')).toBe(0); expect(b.read('BuilderState.quality.name')).toBe(expected[0]);
     expect(b.read('padWebGetPushDisplaySnapshot().chordEntry')).toBeNull();
   });
+  it('Jog press with no Root selected confirms C before advancing to Quality',()=>{
+    const b=browser(); b.logical(21,0);
+    expect(b.read('[BuilderState.root,padWebPushControlState.entryRoot]')).toEqual([null,null]);
+    b.logical(34,0);
+    expect(b.read('[BuilderState.root,padWebPushControlState.entryRoot,padWebPushControlState.entryStep]')).toEqual([0,0,'quality']);
+    expect(b.snap().title).toBe('Select Quality');
+  });
+  it('preserves signed relative Jog magnitude for Root and Quality after the null first step',()=>{
+    const b=browser(); b.logical(21,0);
+    b.logical(30,1); // null -> C, same as Standalone first-step rule
+    b.logical(30,3);
+    expect(b.read('padWebPushControlState.entryRoot')).toBe(3);
+    b.logical(21,3); // commit D#/Eb and enter Quality
+    expect(b.read('padWebPushControlState.entryStep')).toBe('quality');
+    b.run('padWebPushControlState.entryQualityIndex=0');
+    b.logical(30,3);
+    expect(b.read('padWebPushControlState.entryQualityIndex')).toBe(3);
+    b.logical(30,-2);
+    expect(b.read('padWebPushControlState.entryQualityIndex')).toBe(1);
+  });
   it('display renderer consumes chordEntry rows/title/detail instead of inventing another entry state',()=>{
     const src=fs.readFileSync(path.join(root,'push-display-webusb-app.js'),'utf8');
     expect(src).toContain('const entry = snap.chordEntry || null;');
