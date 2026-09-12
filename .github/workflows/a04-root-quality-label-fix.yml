@@ -39,7 +39,7 @@ jobs:
           python3 /tmp/a04-root-quality-label-fix.py
           git diff --check
           { git diff --name-only; git ls-files --others --exclude-standard; } | sort | tee /tmp/files.txt
-          test "$(tr '\n' ' ' < /tmp/files.txt)" = 'index.html push-display-webusb-app.js sw.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js '
+          test "$(tr '\n' ' ' < /tmp/files.txt)" = 'index.html push-display-webusb-app.js sw.js tests/unit/push-display-exposure.test.js '
       - name: Verify label repair and regressions
         shell: bash
         run: |
@@ -58,8 +58,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git add index.html push-display-webusb-app.js sw.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js
-          test "$(git diff --cached --name-only | sort | tr '\n' ' ')" = 'index.html push-display-webusb-app.js sw.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js '
+          git add index.html push-display-webusb-app.js sw.js tests/unit/push-display-exposure.test.js
+          test "$(git diff --cached --name-only | sort | tr '\n' ' ')" = 'index.html push-display-webusb-app.js sw.js tests/unit/push-display-exposure.test.js '
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'fix(push): show Root and Quality on Chord screen'
