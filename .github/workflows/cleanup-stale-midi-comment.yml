@@ -1,0 +1,67 @@
+name: Clean stale Push LED comment
+on:
+  push:
+    branches: [tuner/cleanup-stale-midi-comment-20260913]
+    paths: [.github/workflows/cleanup-stale-midi-comment.yml]
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: a8cb8f8dec6f500ae065bdb92ede45e7bdfe364e
+          submodules: recursive
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Replace only the stale comment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('midi.js')
+          s = p.read_text()
+          old = """  // urinami 2026-04-14: PUSH は楽器としての scale 表示に徹する。render.js で
+  // padApplyScaleOnlyOverride を通した state が渡ってくるので、ここでは
+  // 通常の音階パッドは維持。明示的な Memory/Perform slot layout だけは
+  // _padColorToLP が同じ controller state を参照して16スロットを描く。
+"""
+          new = """  // Push pad LEDs follow the rendered controller state. _padColorToLP applies
+  // the current Scale / Chord / Memory / Perform presentation, including exact
+  // Chord-position overlays and the scale background defined by the current view.
+"""
+          assert s.count(old) == 1, s.count(old)
+          p.write_text(s.replace(old, new))
+          PY
+          git diff --check
+          git diff -- midi.js
+      - name: Verify no behavior change
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check midi.js
+          npx vitest run tests/unit/push-chord-pad-led.test.js tests/unit/push-midi-output-routing.test.js --reporter=verbose
+          node tests/push-standalone-parity.cjs
+          ./tools/sw-assets-check.sh
+          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+      - name: Commit and publish candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add midi.js
+          test "$(git diff --cached --name-only)" = midi.js
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'docs(push): refresh pad LED state comment'
+          git diff --exit-code
+          git diff --cached --exit-code
+          echo "COMMENT_CLEANUP_CANDIDATE $(git rev-parse HEAD) $(git rev-parse HEAD^{tree})"
+          git push origin HEAD:refs/heads/tuner/cleanup-stale-midi-comment-candidate-20260913
