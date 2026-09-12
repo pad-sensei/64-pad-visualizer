@@ -219,9 +219,16 @@ if (enabled) {
     const refreshFrame = () => {
       try { probe.setFrame(drawFrame()); } catch (_) {}
     };
-    const detect = document.getElementById('midi-detect');
-    if (detect && typeof MutationObserver !== 'undefined') {
-      new MutationObserver(refreshFrame).observe(detect, { childList: true, subtree: true, characterData: true });
+    // Key/scale edits (including hardware controls) render the canonical pad
+    // grid without necessarily changing MIDI detection or clicking a mode.
+    // Observe that completed render too; the frame still reads the same snapshot.
+    // One observer batches mutations, with no extra timer or USB connection.
+    if (typeof MutationObserver !== 'undefined') {
+      const observer = new MutationObserver(refreshFrame);
+      ['midi-detect', 'pad-grid'].forEach(id => {
+        const target = document.getElementById(id);
+        if (target) observer.observe(target, { childList: true, subtree: true, characterData: true });
+      });
     }
     ['mode-scale', 'mode-chord', 'mode-input'].forEach(id => {
       document.getElementById(id)?.addEventListener('click', () => setTimeout(refreshFrame, 0));

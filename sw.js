@@ -1,4 +1,4 @@
-var CACHE_NAME = '64pad-v180-preview-20260912-standalone-parity-2';
+var CACHE_NAME = '64pad-v180-preview-20260912-display-state-3';
 var ASSETS = [
   './',
   'index.html',
