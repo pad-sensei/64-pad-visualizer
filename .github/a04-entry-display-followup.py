@@ -12,8 +12,10 @@ replace_once(
     "  c.ensureAudioResumed=()=>{}; c.t=k=>k; c.padWebSendPushButtonLed=()=>{};\n",
     "  c.ensureAudioResumed=()=>{}; c.playMidiNotes=()=>{}; c.t=k=>k; c.padWebSendPushButtonLed=()=>{};\n",
 )
-replace_once(
-    'tests/unit/push-display-exposure.test.js',
-    'push-display-webusb-app.js?v=webusb-20260912-s1',
-    'push-display-webusb-app.js?v=webusb-20260913-a04',
-)
+
+p = Path('tests/unit/push-display-exposure.test.js')
+s = p.read_text()
+old = 'push-display-webusb-app.js?v=webusb-20260912-s1'
+new = 'push-display-webusb-app.js?v=webusb-20260913-a04'
+assert s.count(old) == 2, ('tests/unit/push-display-exposure.test.js', s.count(old), old)
+p.write_text(s.replace(old, new))
