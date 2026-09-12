@@ -25,7 +25,7 @@ test('S1 A01-A03 real MIDI ingress, selected chord, OLED pixels and saved settin
   await page.route('**/push-display-webusb.js?*',async route=>{
     if(new URL(route.request().url()).searchParams.has('s1-real')) return route.continue();
     await route.fulfill({contentType:'application/javascript',body:`
-      export { PUSH_DISPLAY_WIDTH, PUSH_DISPLAY_HEIGHT, encodePushDisplayFrame } from './push-display-webusb.js?s1-real=1';
+      export { WIDTH, HEIGHT, encodePushDisplayFrame } from './push-display-webusb.js?s1-real=1';
       export class PushWebUsbDisplay {
         constructor(usb,frame,notify) { this.notify=notify;window.__s1Frame=Array.from(frame);window.__s1Frames=1;notify('idle','Test transport'); }
         setFrame(frame) { window.__s1Frame=Array.from(frame);window.__s1Frames++; }
@@ -58,7 +58,7 @@ test('S1 A01-A03 real MIDI ingress, selected chord, OLED pixels and saved settin
   },cc);
   await send(21);
   await expect.poll(()=>page.evaluate(()=>padWebGetPushDisplaySnapshot().chordLowerRow?.labels[0])).toBe('Diatonic');
-  expect(await page.evaluate(()=>[BuilderState.root,BuilderState.quality.name])).toEqual([0,'maj7']);
+  expect(await page.evaluate(()=>[BuilderState.root,BuilderState.quality.name])).toEqual([0,'Maj7']);
   expect(await page.evaluate(()=>window.__s1Played.length)).toBe(1);
   expect(await page.evaluate(()=>padWebGetPushDisplaySnapshot().chordLowerRow.labels)).toEqual(await page.evaluate(()=>['Diatonic',...getDiatonicTetrads(SCALES[0].pcs,0,4).map(t=>t.chordName)]));
   // The real renderer paints the currently selected first chord in the accent.

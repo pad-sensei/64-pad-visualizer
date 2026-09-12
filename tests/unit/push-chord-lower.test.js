@@ -54,7 +54,7 @@ describe('S1 A01-A03: Chord lower buttons', () => {
     const b=browser(); expect(b.c.AppState).toBeUndefined();
     b.cc(21);
     expect(b.read('BuilderState.root')).toBe(0);
-    expect(b.read('BuilderState.quality.name')).toBe('maj7');
+    expect(b.read('BuilderState.quality.name')).toBe('Maj7');
     expect(b.played.length).toBe(1);
     expect(b.played[0]).toEqual(b.read('getBuilderPCS()'));
     expect(b.read('showGuitar')).toBe(false);

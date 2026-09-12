@@ -120,10 +120,11 @@ if (enabled) {
       context.fillText(value, x, y);
     }
 
-    function drawControlRow(labels, y) {
+    function drawControlRow(labels, y, states) {
       labels.forEach((label, i) => {
         if (!label) return;
-        drawPixelText(label, 12 + i * 120, y, 1, '#84c4d2', 18);
+        const color = states && states[i] === true ? '#ffdb5c' : '#84c4d2';
+        drawPixelText(label, 12 + i * 120, y, 1, color, 18);
       });
     }
 
@@ -167,9 +168,10 @@ if (enabled) {
       const upper = inputMode
         ? ['', '', '', '', '', '', 'Key', 'Scale']
         : ['', 'Tasty', 'Stock', 'Guitar', '', 'Tension', 'Key', 'Scale'];
-      const lower = ['Link', 'Guitar TAB', 'Bass TAB', 'Piano', 'Relative', 'Parallel', 'Secondary', 'Available'];
+      const chordRow = snap.mode === 'chord' ? snap.chordLowerRow : null;
+      const lower = chordRow ? chordRow.labels : ['Link', 'Guitar TAB', 'Bass TAB', 'Piano', 'Relative', 'Parallel', 'Secondary', 'Available'];
       drawControlRow(upper, 14);
-      drawControlRow(lower, 148);
+      drawControlRow(lower, 148, chordRow && chordRow.states);
       drawKeyScale(snap);
 
       if (snap.chord) drawPixelText(snap.chord, 32, 42, 4, '#ffdb5c', 20);

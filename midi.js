@@ -1438,6 +1438,7 @@ function padWebGetPushDisplaySnapshot() {
     shell: shell,
     ust: ust,
     tensions: tensions,
+    chordLowerRow: typeof window.padWebGetPushChordLowerRow === 'function' ? window.padWebGetPushChordLowerRow() : null,
   };
 }
 
