@@ -34,7 +34,7 @@ jobs:
         working-directory: prep
         run: |
           set -euo pipefail
-          git fetch --no-tags ../candidate HEAD
+          git fetch --update-shallow --no-tags ../candidate HEAD
           tree=$(git rev-parse FETCH_HEAD^{tree})
           prepared=$(printf '%s\n' 'prepare: bounded candidate tree, no PR branch update' | git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit-tree "$tree" -p "$GITHUB_SHA")
           git push origin "$prepared":refs/heads/codex/web-v180-semitone-preparation
