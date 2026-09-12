@@ -8,7 +8,6 @@ def repl(path, old, new, count=1):
     assert actual==count,(path,actual,old[:80])
     p.write_text(s.replace(old,new))
 
-# Current owner ruling supersedes the old 2026-04-14 Push=scale-only rule.
 old_led="""  // Launchpad/PUSH LED update: always show current scale only
   // (urinami 2026-04-14: PUSH は楽器なので scale のみ、chord/tasty/builder は出さない).
   // C-fixed mode はさらに C Major に固定する。
@@ -46,10 +45,8 @@ insert="""  var activePCS = state.activePCS;
     }
     if (typeof StockState !== 'undefined' && StockState.enabled
         && StockState.currentIndex >= 0 && addPositions(StockState.padPositions)) {
-      // highest priority
     } else if (typeof TastyState !== 'undefined' && TastyState.enabled
         && TastyState.currentIndex >= 0 && addPositions(TastyState.padPositions)) {
-      // second priority
     } else if (typeof isGuitarEngineActive === 'function' && isGuitarEngineActive()
         && typeof _instrumentPadSet !== 'undefined' && _instrumentPadSet && _instrumentPadSet.size) {
       _instrumentPadSet.forEach(function(idx) { chordPadIdxs.add(idx); });
@@ -88,9 +85,6 @@ new_return="""  if (AppState.mode === 'scale') {
     return 0;
   }
 
-  // Chord one-position view: exact displayed positions win; every other pad
-  // keeps the current scale as a background. The C-fixed flag only fixes the
-  // background to C Major; it must not erase the displayed chord shape.
   if (_isPush && AppState.mode === 'chord' && chordPadIdxs) {
     if (chordPadIdxs.has(row * COLS + col)) return 21;
     if (pc === scaleRoot) return AppState.pushScaleRootColor || 3;
@@ -101,16 +95,14 @@ new_return="""  if (AppState.mode === 'scale') {
   var chordColor = 0;
   if (isRoot && isActive) chordColor = AppState.pushScaleRootColor || 3;
   else if (isBass) chordColor = AppState.pushScaleRootColor || 3;
-  else if (isGuide3) chordColor = 26;      // Push: hot pink — guide tone 3rd
-  else if (isGuide7) chordColor = 10;      // Push: bright green — guide tone 7th
-  else if (isAvoid) chordColor = 25;       // Push: pink-red — avoid note
-  else if (isTension) chordColor = 16;     // Push: cyan — tension
-  else if (isActive) chordColor = 18;      // Push: sky blue — chord tone
+  else if (isGuide3) chordColor = 26;
+  else if (isGuide7) chordColor = 10;
+  else if (isAvoid) chordColor = 25;
+  else if (isTension) chordColor = 16;
+  else if (isActive) chordColor = 18;
   else if (overlayPCS && overlayPCS.has(pc)) chordColor = 121;
   if (chordColor) return chordColor;
 
-  // Standalone's all-position chord view keeps the scale visible behind chord
-  // tones. Preserve the same learning context here.
   if (_isPush && AppState.mode === 'chord' && AppState.showAllPositions === true) {
     if (pc === scaleRoot) return AppState.pushScaleRootColor || 3;
     if (scalePCS.has(pc)) return AppState.pushScaleToneColor || 122;
@@ -119,14 +111,15 @@ new_return="""  if (AppState.mode === 'scale') {
 """
 repl('midi.js',old_return,new_return)
 
-# Asset identities for the two changed runtime scripts.
+# App-level script identity only; do not rewrite pad-core/render.js.
+repl('index.html','<script src="render.js?v=6.7.52"></script>','<script src="render.js?v=1.8.0-chord-pad-led"></script>')
+repl('index.html','<script src="midi.js?v=1.8.0-chord-lower-s1"></script>','<script src="midi.js?v=1.8.0-chord-pad-led"></script>')
+repl('sw.js',"'render.js?v=6.7.52'","'render.js?v=1.8.0-chord-pad-led'")
+repl('sw.js',"'midi.js?v=1.8.0-chord-lower-s1'","'midi.js?v=1.8.0-chord-pad-led'")
 versions={
  'render.js?v=6.7.52':'render.js?v=1.8.0-chord-pad-led',
  'midi.js?v=1.8.0-chord-lower-s1':'midi.js?v=1.8.0-chord-pad-led',
 }
-for path in ['index.html','sw.js']:
-    for old,new in versions.items(): repl(path,old,new)
-# Update existing URL-identity tests only where they explicitly pin changed URLs.
 for p in (root/'tests/unit').glob('*.test.js'):
     s=p.read_text(); changed=False
     for old,new in versions.items():
