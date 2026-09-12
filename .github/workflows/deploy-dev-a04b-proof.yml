@@ -1,0 +1,122 @@
+name: Deploy exact A04b to dev and prove loaded source
+on:
+  push:
+    branches: [tuner/deploy-dev-a04b-20260913]
+    paths:
+      - .github/workflows/deploy-dev-a04b-proof.yml
+permissions:
+  contents: read
+jobs:
+  deploy-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tuner/deploy-dev-a04b-20260913
+          submodules: false
+          fetch-depth: 2
+      - name: Switch to exact audited A04b head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --depth 2 origin 5a47def365058421316a4f7d9d6cb36e50542e33
+          git checkout --detach 5a47def365058421316a4f7d9d6cb36e50542e33
+          git submodule update --init --recursive --depth 2
+          test "$(git rev-parse HEAD)" = 5a47def365058421316a4f7d9d6cb36e50542e33
+          test "$(git rev-parse HEAD^{tree})" = c0f9de5d888cbd39f78028ab55b517f72dbfb245
+          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Predeploy exact-byte manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check push-web-control.js
+          npx vitest run tests/unit/push-chord-entry-display.test.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js
+          ./tools/sw-assets-check.sh
+          grep -F 'push-web-control.js?v=1.8.0-entry-a04b' index.html >/dev/null
+          grep -F "64pad-v180-preview-20260913-entry-a04b" sw.js >/dev/null
+          sha256sum index.html sw.js push-web-control.js midi.js push-display-webusb-app.js push-midi-cc-map.js | tee /tmp/local-sha.txt
+      - name: Deploy exact head to authorized dev path
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avz --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md'
+          path: ./
+          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-dev/
+          remote_host: xs071284.xsrv.jp
+          remote_port: 10022
+          remote_user: xs071284
+          remote_key: ${{ secrets.XSERVER_SSH_KEY }}
+      - name: Prove served bytes match exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://murinaikurashi.com/apps/64-pad-dev'
+          for f in index.html sw.js push-web-control.js midi.js push-display-webusb-app.js push-midi-cc-map.js; do
+            curl -fsS -H 'Cache-Control: no-cache' "$base/$f?proof=5a47def365" -o "/tmp/$f"
+            local_sha=$(sha256sum "$f" | awk '{print $1}')
+            served_sha=$(sha256sum "/tmp/$f" | awk '{print $1}')
+            echo "$f local=$local_sha served=$served_sha"
+            test "$local_sha" = "$served_sha"
+          done
+          curl -fsSI -H 'Cache-Control: no-cache' "$base/" | tee /tmp/dev-headers.txt
+          grep -F 'push-web-control.js?v=1.8.0-entry-a04b' /tmp/index.html >/dev/null
+          grep -F '64pad-v180-preview-20260913-entry-a04b' /tmp/sw.js >/dev/null
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Prove Chrome actually loaded exact A04b runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > prove-loaded-a04b.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import { createHash } from 'node:crypto';
+          import { readFileSync } from 'node:fs';
+          const want = new Map([
+            ['push-web-control.js', createHash('sha256').update(readFileSync('push-web-control.js')).digest('hex')],
+            ['midi.js', createHash('sha256').update(readFileSync('midi.js')).digest('hex')],
+            ['push-display-webusb-app.js', createHash('sha256').update(readFileSync('push-display-webusb-app.js')).digest('hex')],
+            ['push-midi-cc-map.js', createHash('sha256').update(readFileSync('push-midi-cc-map.js')).digest('hex')],
+          ]);
+          const browser = await chromium.launch({headless:true});
+          const page = await browser.newPage();
+          const seen = new Map();
+          const errors = [];
+          page.on('pageerror', e => errors.push(String(e)));
+          page.on('response', async r => {
+            const u = new URL(r.url());
+            const name = u.pathname.split('/').pop();
+            if (!want.has(name)) return;
+            const body = await r.body();
+            seen.set(name, { url:r.url(), sha:createHash('sha256').update(body).digest('hex') });
+          });
+          await page.goto('https://murinaikurashi.com/apps/64-pad-dev/?proof=5a47def365', {waitUntil:'networkidle'});
+          await page.waitForTimeout(1000);
+          for (const [name, sha] of want) {
+            const got = seen.get(name);
+            console.log(name, got);
+            if (!got || got.sha !== sha) throw new Error(`${name} loaded SHA mismatch`);
+          }
+          const runtime = await page.evaluate(() => ({
+            handler: typeof window.padWebHandlePushMidiCc,
+            entryDisplay: typeof window.padWebGetPushChordEntryDisplay,
+            updateLaunchpadLEDs: typeof window.updateLaunchpadLEDs,
+            render: typeof window.render,
+            resources: performance.getEntriesByType('resource').map(r=>r.name).filter(x=>/push-web-control|midi\.js|push-display-webusb-app|push-midi-cc-map/.test(x)),
+          }));
+          console.log('RUNTIME', JSON.stringify(runtime));
+          console.log('PAGE_ERRORS', JSON.stringify(errors));
+          if (runtime.handler !== 'function' || runtime.entryDisplay !== 'function' || runtime.updateLaunchpadLEDs !== 'function' || runtime.render !== 'function') throw new Error('runtime globals missing');
+          if (errors.length) throw new Error('page errors present');
+          await browser.close();
+          console.log('CHROME_EXACT_A04B_PROOF PASS');
+          JS
+          node prove-loaded-a04b.mjs
+          rm prove-loaded-a04b.mjs
+          git diff --exit-code
+          git diff --cached --exit-code
