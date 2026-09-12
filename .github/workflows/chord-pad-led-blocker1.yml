@@ -2,7 +2,9 @@ name: Chord pad LED blocker1 repair
 on:
   push:
     branches: [tuner/chord-pad-led-blocker1-20260913]
-    paths: [.github/workflows/chord-pad-led-blocker1.yml]
+    paths:
+      - .github/workflows/chord-pad-led-blocker1.yml
+      - .github/chord-pad-led-blocker1.py
 permissions:
   contents: write
 jobs:
@@ -58,40 +60,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('midi.js'); s=p.read_text()
-          old="""  if (_isPush && AppState.mode === 'chord' && chordPadIdxs) {
-    if (chordPadIdxs.has(row * COLS + col)) return 21;
-    if (pc === scaleRoot) return AppState.pushScaleRootColor || 3;
-    if (scalePCS.has(pc)) return AppState.pushScaleToneColor || 122;
-    return 0;
-  }
-
-  var chordColor = 0;
-"""
-          new="""  if (_isPush && AppState.mode === 'chord' && chordPadIdxs) {
-    if (chordPadIdxs.has(row * COLS + col)) return 21;
-    if (pc === scaleRoot) return AppState.pushScaleRootColor || 3;
-    if (scalePCS.has(pc)) return AppState.pushScaleToneColor || 122;
-    return 0;
-  }
-
-  // Standalone SSOT: one-position Chord view never falls through to
-  // pitch-class role colours. If no exact shape is currently available
-  // (for example while root/quality selection is incomplete), keep only
-  // the scale background until an exact shape exists.
-  if (_isPush && AppState.mode === 'chord' && AppState.showAllPositions !== true) {
-    if (pc === scaleRoot) return AppState.pushScaleRootColor || 3;
-    if (scalePCS.has(pc)) return AppState.pushScaleToneColor || 122;
-    return 0;
-  }
-
-  var chordColor = 0;
-"""
-          assert s.count(old)==1, s.count(old)
-          p.write_text(s.replace(old,new))
-          PY
+          python3 ../control/.github/chord-pad-led-blocker1.py "$PWD"
           git diff --check
           git add midi.js
           test "$(git diff --cached --name-only)" = midi.js
