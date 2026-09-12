@@ -6,7 +6,69 @@ on:
 permissions:
   contents: write
 jobs:
-  smoke:
+  apply-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - run: echo carrier-ok
+      - name: Checkout execution helper
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout frozen product branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/web-v180-push-human-gate-followup
+          path: product
+          fetch-depth: 0
+          submodules: recursive
+      - name: Assert frozen audited parent
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd product
+          test "$(git rev-parse HEAD)" = f4605772d88311df63164c7880e1ce87aa5e4d2b
+          test "$(git rev-parse HEAD^{tree})" = 7bb832831f2a5285ca282a73d262275f63969974
+          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+          npm ci
+      - name: Prove old source fails signed-delta regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/apply-semitone-delta-f460.py tests product
+          cd product
+          set +e
+          npx vitest run tests/unit/push-web-control.test.js > "$RUNNER_TEMP/negative-control.log" 2>&1
+          status=$?
+          set -e
+          cat "$RUNNER_TEMP/negative-control.log"
+          test "$status" -ne 0
+      - name: Apply minimal correction and run gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/apply-semitone-delta-f460.py product product
+          cd product
+          git diff --check
+          npx vitest run tests/unit/push-web-control.test.js tests/unit/push-display-exposure.test.js
+          node tests/push-standalone-parity.cjs
+          npm test
+          ./tools/sw-assets-check.sh
+          if grep -R -n -E 'initializePush3PedalMode|0x37.*0x26.*0x50' -- midi.js push-web-control.js host-adapter.js; then exit 1; fi
+      - name: Commit candidate and fast-forward product branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd product
+          git config user.name 'ChatGPT Codex Connector'
+          git config user.email '14957082+openai@users.noreply.github.com'
+          git add push-web-control.js tests/unit/push-web-control.test.js sw.js tests/unit/push-display-exposure.test.js
+          git diff --cached --check
+          test "$(git diff --cached --name-only | wc -l | tr -d ' ')" = 4
+          git commit -m 'fix(push): preserve signed semitone delta parity'
+          echo "CANDIDATE_HEAD=$(git rev-parse HEAD)"
+          echo "CANDIDATE_TREE=$(git rev-parse HEAD^{tree})"
+          git fetch origin codex/web-v180-push-human-gate-followup
+          test "$(git rev-parse origin/codex/web-v180-push-human-gate-followup)" = f4605772d88311df63164c7880e1ce87aa5e4d2b
+          git push origin HEAD:refs/heads/codex/web-v180-push-human-gate-followup
+          test "$(git status --porcelain)" = ''
