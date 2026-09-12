@@ -1,0 +1,33 @@
+name: Inspect A04 Push entry display parity
+on:
+  push:
+    branches: [tuner/a04-entry-display-inspect-20260913]
+    paths: [.github/workflows/a04-entry-display-inspect.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: f144c228696b2f7af6d59b8910ae35d168ccb0d5
+          fetch-depth: 1
+      - name: Web entry and snapshot excerpts
+        run: |
+          set -euo pipefail
+          echo '=== push-web-control entry funcs ==='
+          grep -n -E 'function (beginEntry|cycleEntry|applyEntry|qualityList)|padWebGetPushDisplaySnapshot|entryStep|entryRoot|entryQualityIndex' push-web-control.js || true
+          echo '=== snapshot symbol all files ==='
+          grep -R -n --exclude-dir=.git -E 'padWebGetPushDisplaySnapshot|chordLowerRow|upperButtonStates|lowerButtonStates' . | head -n 120 || true
+          echo '=== display draw controls ==='
+          grep -n -E 'drawControlRow|drawFrame|currentSnapshot|entry|Root|Quality|upper|lower' push-display-webusb-app.js | head -n 160 || true
+      - name: Desktop reference excerpts
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/pad-sensei/64-pad-explorer-desktop.git /tmp/desktop
+          cd /tmp/desktop
+          git fetch --depth 1 origin 9ebe324a4eb4d7652c20cb04d2a0b7c8624f42a1
+          git checkout 9ebe324a4eb4d7652c20cb04d2a0b7c8624f42a1
+          echo '=== desktop relevant symbols ==='
+          grep -n -E 'Select Root|Select Quality|Root|Quality|_push.*Root|_push.*Quality|entry|BuilderStep|lower|upper' Source/PluginEditor.cpp | head -n 260 || true
