@@ -1,4 +1,4 @@
-name: Accepted semitone dev delivery 3a880c17
+name: Accepted semitone loaded-source verification 3a880c17
 on:
   push:
     branches: [tuner/64pe-dev-accepted-3a880c17-20260912]
@@ -9,68 +9,7 @@ concurrency:
 permissions:
   contents: read
 jobs:
-  dispatch:
-    runs-on: ubuntu-latest
-    timeout-minutes: 6
-    permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-      actions: write
-    steps:
-      - name: Guard accepted identity and dispatch existing dev workflow at most once
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 <<'PY'
-          import json, subprocess, time
-          repo='pad-sensei/64-pad-visualizer'
-          head='3a880c172214972b3143cfff5b59ddad94b33abc'
-          tree='e8e8e19f45839387ec0b9fbef7f0741092a60ff4'
-          ref='codex/web-v180-push-human-gate-followup'
-          def api(path, payload=None):
-              args=['gh','api','repos/'+repo+'/'+path]
-              if payload is not None: args += ['--method','POST','--input','-']
-              p=subprocess.run(args,input=None if payload is None else json.dumps(payload),text=True,capture_output=True,check=True)
-              return json.loads(p.stdout) if p.stdout.strip() else None
-          def guard():
-              pr=api('pulls/22')
-              assert pr['state']=='open' and pr['draft'] and pr['head']['sha']==head
-              assert pr['head']['ref']==ref and pr['base']['sha']=='348404360df602b737f9f43353f1d9e8a08bd7f6'
-              assert api('git/commits/'+head)['tree']['sha']==tree
-              body=api('issues/comments/5645038965')['body']
-              assert head in body and tree in body and 'RESULT: PASS' in body
-              assert 'BLOCKER 0 / CONFIRM 0 / MINOR 2' in body
-              check=api('actions/runs/34685921940')
-              assert check['head_sha']==head and check['conclusion']=='success'
-          guard()
-          def runs():
-              return api('actions/workflows/deploy-dev.yml/runs?head_sha='+head+'&event=workflow_dispatch&per_page=100')['workflow_runs']
-          current=runs()
-          assert len(current)<=1, 'Multiple dev runs require inspection'
-          if not current:
-              guard()
-              api('actions/workflows/deploy-dev.yml/dispatches',{'ref':ref})
-              print('Existing dev workflow dispatched',flush=True)
-          deadline=time.monotonic()+240
-          while time.monotonic()<deadline:
-              current=runs()
-              assert len(current)<=1, 'Concurrent dev run detected'
-              if current:
-                  run=current[0]
-                  assert run['head_sha']==head
-                  print('DEV_RUN='+str(run['id'])+' STATUS='+run['status']+' RESULT='+str(run['conclusion']),flush=True)
-                  if run['status']=='completed':
-                      assert run['conclusion']=='success', 'Dev workflow did not succeed; do not retry automatically'
-                      guard()
-                      break
-              time.sleep(5)
-          else: raise RuntimeError('Existing dev run is not completed; no duplicate dispatch')
-          PY
   verify:
-    needs: dispatch
     runs-on: ubuntu-latest
     timeout-minutes: 8
     permissions:
@@ -142,7 +81,8 @@ jobs:
                 }
                 const states=await page.evaluate(()=>{
                   setMode('chord');
-                  const quality=BUILDER_QUALITIES.find(q=>Array.isArray(q.pcs)&&q.pcs.length>=3);
+                  // The authoritative data is a row/column quality grid, not a flat list.
+                  const quality=BUILDER_QUALITIES.flat().find(q=>q&&q.name==='m7');
                   if(!quality)throw new Error('No real chord quality available');
                   Object.assign(BuilderState,{root:10,quality,tension:null,bass:2});
                   const out=[];
