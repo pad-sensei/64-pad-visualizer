@@ -1,0 +1,151 @@
+name: Deploy exact f144 to dev and prove loaded source
+on:
+  push:
+    branches: [tuner/deploy-dev-f144-20260913]
+    paths: [.github/workflows/deploy-dev-f144-proof.yml]
+permissions:
+  contents: read
+jobs:
+  deploy-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact audited product head
+        uses: actions/checkout@v4
+        with:
+          ref: f144c228696b2f7af6d59b8910ae35d168ccb0d5
+          submodules: recursive
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Assert exact source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = f144c228696b2f7af6d59b8910ae35d168ccb0d5
+          test "$(git rev-parse HEAD^{tree})" = 4e2f1efd5b882474f56bb094931aa92110286461
+          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+          grep -F 'midi.js?v=1.8.0-chord-pad-led2' index.html >/dev/null
+          grep -F "64pad-v180-preview-20260913-chord-pad-led2" sw.js >/dev/null
+          ! grep -F 'padApplyScaleOnlyOverride を通した state が渡ってくる' midi.js
+          printf 'SOURCE_HEAD=%s\nSOURCE_TREE=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse HEAD^{tree})"
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Final pre-deploy regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check midi.js
+          npx vitest run tests/unit/push-chord-pad-led.test.js tests/unit/push-midi-output-routing.test.js tests/unit/push-display-exposure.test.js
+          node tests/push-standalone-parity.cjs
+          ./tools/sw-assets-check.sh
+      - name: Record exact local hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in index.html sw.js midi.js render.js push-web-control.js push-midi-cc-map.js; do
+            sha256sum "$f"
+          done | tee /tmp/local-sha256.txt
+      - name: Deploy exact head to authorized dev path
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avz --delete --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md'
+          path: ./
+          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-dev/
+          remote_host: xs071284.xsrv.jp
+          remote_port: 10022
+          remote_user: xs071284
+          remote_key: ${{ secrets.XSERVER_SSH_KEY }}
+      - name: Prove served bytes match exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://murinaikurashi.com/apps/64-pad-dev'
+          mkdir -p /tmp/served
+          curl -fsS -H 'Cache-Control: no-cache' "$base/index.html?proof=f144" -o /tmp/served/index.html
+          curl -fsS -H 'Cache-Control: no-cache' "$base/sw.js?proof=f144" -o /tmp/served/sw.js
+          curl -fsS -H 'Cache-Control: no-cache' "$base/midi.js?v=1.8.0-chord-pad-led2&proof=f144" -o /tmp/served/midi.js
+          curl -fsS -H 'Cache-Control: no-cache' "$base/render.js?v=1.8.0-chord-pad-led&proof=f144" -o /tmp/served/render.js
+          curl -fsS -H 'Cache-Control: no-cache' "$base/push-web-control.js?v=1.8.0-chord-lower-s1&proof=f144" -o /tmp/served/push-web-control.js
+          curl -fsS -H 'Cache-Control: no-cache' "$base/push-midi-cc-map.js?v=1.8.0&proof=f144" -o /tmp/served/push-midi-cc-map.js
+          for f in index.html sw.js midi.js render.js push-web-control.js push-midi-cc-map.js; do
+            test "$(sha256sum "$f" | awk '{print $1}')" = "$(sha256sum "/tmp/served/$f" | awk '{print $1}')"
+            printf 'SERVED_MATCH %s %s\n' "$f" "$(sha256sum "$f" | awk '{print $1}')"
+          done
+          grep -F 'midi.js?v=1.8.0-chord-pad-led2' /tmp/served/index.html >/dev/null
+          grep -F "64pad-v180-preview-20260913-chord-pad-led2" /tmp/served/sw.js >/dev/null
+          ! grep -F 'padApplyScaleOnlyOverride を通した state が渡ってくる' /tmp/served/midi.js
+          curl -fsSI -H 'Cache-Control: no-cache' "$base/index.html?proof=f144-header" | sed -n '1,20p'
+      - name: Install Chromium for actual-loaded-source proof
+        run: npx playwright install chromium
+      - name: Prove Chrome loaded and executed exact scripts
+        shell: bash
+        env:
+          DEV_URL: https://murinaikurashi.com/apps/64-pad-dev/?proof=f144-loaded
+        run: |
+          set -euo pipefail
+          cat >/tmp/prove-loaded.mjs <<'NODE'
+          import { chromium } from 'playwright';
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
+          const base = process.cwd();
+          const files = {
+            'midi.js': fs.readFileSync(base + '/midi.js'),
+            'render.js': fs.readFileSync(base + '/render.js'),
+            'push-web-control.js': fs.readFileSync(base + '/push-web-control.js'),
+            'push-midi-cc-map.js': fs.readFileSync(base + '/push-midi-cc-map.js'),
+          };
+          const expected = Object.fromEntries(Object.entries(files).map(([k,b]) => [k, crypto.createHash('sha256').update(b).digest('hex')]));
+          const seen = {};
+          const errors = [];
+          const browser = await chromium.launch({headless:true});
+          const context = await browser.newContext();
+          const page = await context.newPage();
+          page.on('pageerror', e => errors.push(String(e)));
+          page.on('response', async r => {
+            const u = r.url();
+            for (const f of Object.keys(files)) {
+              if (new URL(u).pathname.endsWith('/' + f)) {
+                try {
+                  const b = await r.body();
+                  seen[f] = {url:u, status:r.status(), hash:crypto.createHash('sha256').update(b).digest('hex')};
+                } catch {}
+              }
+            }
+          });
+          await page.goto(process.env.DEV_URL, {waitUntil:'networkidle', timeout:60000});
+          await page.waitForTimeout(1500);
+          const runtime = await page.evaluate(() => ({
+            updateLaunchpadLEDs: typeof window.updateLaunchpadLEDs,
+            render: typeof window.render,
+            padWebPushHandleCC: typeof window.padWebPushHandleCC,
+            controllerMap: typeof window.PUSH_MIDI_CC_MAP,
+            resources: performance.getEntriesByType('resource').map(e => e.name).filter(n => /(?:midi\.js|render\.js|push-web-control\.js|push-midi-cc-map\.js)/.test(n))
+          }));
+          for (const f of Object.keys(files)) {
+            if (!seen[f]) throw new Error('not observed by Chrome: ' + f);
+            if (seen[f].status !== 200) throw new Error('bad status ' + f + ': ' + seen[f].status);
+            if (seen[f].hash !== expected[f]) throw new Error('loaded hash mismatch ' + f + ' expected=' + expected[f] + ' actual=' + seen[f].hash);
+            console.log('CHROME_LOADED_MATCH', f, seen[f].hash, seen[f].url);
+          }
+          if (runtime.updateLaunchpadLEDs !== 'function') throw new Error('midi.js did not execute updateLaunchpadLEDs');
+          if (runtime.render !== 'function') throw new Error('render.js did not execute render');
+          console.log('CHROME_RUNTIME', JSON.stringify(runtime));
+          console.log('PAGE_ERRORS', JSON.stringify(errors));
+          await browser.close();
+          NODE
+          node /tmp/prove-loaded.mjs
+      - name: Final source guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = f144c228696b2f7af6d59b8910ae35d168ccb0d5
+          test "$(git rev-parse HEAD^{tree})" = 4e2f1efd5b882474f56bb094931aa92110286461
+          git diff --exit-code
+          git diff --cached --exit-code
+          echo 'DEV_EXACT_F144_PROOF PASS'
