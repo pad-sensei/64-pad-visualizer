@@ -42,11 +42,12 @@ replace_once(
 )
 
 # Existing identity-contract tests follow the new exact asset URL/cache generation.
-replace_once(
-    'tests/unit/push-web-cc-integration.test.js',
-    'push-web-control.js?v=1.8.0-entry-a04',
-    'push-web-control.js?v=1.8.0-entry-a04b',
-)
+p = Path('tests/unit/push-web-cc-integration.test.js')
+s = p.read_text()
+old = 'push-web-control.js?v=1.8.0-entry-a04'
+new = 'push-web-control.js?v=1.8.0-entry-a04b'
+assert s.count(old) == 3, ('tests/unit/push-web-cc-integration.test.js', s.count(old), old)
+p.write_text(s.replace(old, new))
 replace_once(
     'tests/unit/push-display-exposure.test.js',
     '64pad-v180-preview-20260913-entry-a04',
