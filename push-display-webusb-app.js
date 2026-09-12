@@ -164,27 +164,34 @@ if (enabled) {
       context.fillStyle = '#449eb4';
       context.fillRect(0, HEIGHT - 5, WIDTH, 5);
 
+      const entry = snap.chordEntry || null;
       const inputMode = snap.mode === 'input';
-      const upper = inputMode
+      const upper = entry ? entry.upper.labels : (inputMode
         ? ['', '', '', '', '', '', 'Key', 'Scale']
-        : ['', 'Tasty', 'Stock', 'Guitar', '', 'Tension', 'Key', 'Scale'];
+        : ['', 'Tasty', 'Stock', 'Guitar', '', 'Tension', 'Key', 'Scale']);
       const chordRow = snap.mode === 'chord' ? snap.chordLowerRow : null;
-      const lower = chordRow ? chordRow.labels : ['Link', 'Guitar TAB', 'Bass TAB', 'Piano', 'Relative', 'Parallel', 'Secondary', 'Available'];
-      drawControlRow(upper, 14);
-      drawControlRow(lower, 148, chordRow && chordRow.states);
+      const lower = entry ? entry.lower.labels : (chordRow ? chordRow.labels : ['Link', 'Guitar TAB', 'Bass TAB', 'Piano', 'Relative', 'Parallel', 'Secondary', 'Available']);
+      drawControlRow(upper, 14, entry ? entry.upper.states : null);
+      drawControlRow(lower, 148, entry ? entry.lower.states : (chordRow && chordRow.states));
       drawKeyScale(snap);
 
-      if (snap.chord) drawPixelText(snap.chord, 32, 42, 4, '#ffdb5c', 20);
-      if (snap.notes?.length) drawPixelText(`NOTE: ${snap.notes.join(' ')}`, 36, 82, 1, '#ccdae0', 34);
+      if (entry) {
+        drawPixelText(entry.title, 32, 42, 3, '#ffdb5c', 24);
+        drawPixelText(entry.detail, 36, 82, 2, '#ccdae0', 32);
+        drawUtf8Text(entry.hint, 430, 112, '#84c4d2', 420);
+      } else {
+        if (snap.chord) drawPixelText(snap.chord, 32, 42, 4, '#ffdb5c', 20);
+        if (snap.notes?.length) drawPixelText(`NOTE: ${snap.notes.join(' ')}`, 36, 82, 1, '#ccdae0', 34);
 
-      const detailX = 430;
-      if (snap.ust) {
-        const parts = String(snap.ust).split(' / ');
-        drawPixelText(`UST ${parts[0]}`, detailX, 70, 2, '#ffdb5c', 34);
-        if (parts.length > 1) drawPixelText(`/ ${parts.slice(1).join(' / ')}`, detailX, 88, 1, '#ffdb5c', 64);
+        const detailX = 430;
+        if (snap.ust) {
+          const parts = String(snap.ust).split(' / ');
+          drawPixelText(`UST ${parts[0]}`, detailX, 70, 2, '#ffdb5c', 34);
+          if (parts.length > 1) drawPixelText(`/ ${parts.slice(1).join(' / ')}`, detailX, 88, 1, '#ffdb5c', 64);
+        }
+        if (snap.shell) drawUtf8Text(`Shell: ${snap.shell}`, detailX, 104, '#ccdae0');
+        if (snap.tensions) drawUtf8Text(`Tension ${snap.tensions}`, detailX, 122, '#ffb848');
       }
-      if (snap.shell) drawUtf8Text(`Shell: ${snap.shell}`, detailX, 104, '#ccdae0');
-      if (snap.tensions) drawUtf8Text(`Tension ${snap.tensions}`, detailX, 122, '#ffb848');
 
       const modeLabel = snap.mode === 'scale' ? 'Scale' : snap.mode === 'chord' ? 'Chord' : snap.mode === 'input' ? 'Input' : snap.mode || '';
       if (modeLabel) drawPixelText(modeLabel, 870, 72, 1, '#ff6084', 8);

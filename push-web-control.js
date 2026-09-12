@@ -376,7 +376,7 @@
     if (currentMode() !== 'chord') setMode('chord');
     controlState.entryStep = step === 'quality' ? 'quality' : 'root';
     controlState.entryRoot = runtime.BuilderState && runtime.BuilderState.root !== null && runtime.BuilderState.root !== undefined
-      ? runtime.BuilderState.root : (runtime.AppState ? runtime.AppState.key : 0);
+      ? runtime.BuilderState.root : null;
     var list = qualityList();
     controlState.entryQualityIndex = 0;
     if (runtime.BuilderState && runtime.BuilderState.quality) {
@@ -388,7 +388,10 @@
 
   function cycleEntry(delta) {
     if (!controlState.entryStep) return false;
-    if (controlState.entryStep === 'root') controlState.entryRoot = wrap((controlState.entryRoot || 0) + (delta < 0 ? -1 : 1), 12);
+    if (controlState.entryStep === 'root') {
+      if (controlState.entryRoot === null || controlState.entryRoot === undefined) controlState.entryRoot = delta < 0 ? 11 : 0;
+      else controlState.entryRoot = wrap(controlState.entryRoot + (delta < 0 ? -1 : 1), 12);
+    }
     else {
       var list = qualityList();
       controlState.entryQualityIndex = wrap(controlState.entryQualityIndex + (delta < 0 ? -1 : 1), Math.max(1, list.length));
@@ -499,6 +502,48 @@
     return !!(item && builder && item.tetrad.rootPC === builder.root
       && builder.quality && item.tetrad.quality && builder.quality.name === item.tetrad.quality.name
       && !builder.tension && (builder.bass === null || builder.bass === undefined));
+  }
+
+  function entryRootLabel(pc) {
+    if (pc === null || pc === undefined) return 'None';
+    try {
+      if (typeof pcName === 'function') return pcName(pc, runtime.AppState ? runtime.AppState.key : pc);
+    } catch (_) {}
+    var names = typeof NOTE_NAMES_SHARP !== 'undefined' ? NOTE_NAMES_SHARP : global.NOTE_NAMES_SHARP;
+    return names && names[pc] ? names[pc] : String(pc);
+  }
+
+  function chordEntryDisplay() {
+    if (global.IS_DESKTOP_MODE || !controlState.entryStep) return null;
+    var labels = new Array(16).fill('');
+    var states = new Array(16).fill(null);
+    var activeIndex = -1;
+    if (controlState.entryStep === 'root') {
+      activeIndex = controlState.entryRoot === null || controlState.entryRoot === undefined ? -1 : controlState.entryRoot;
+      for (var i = 0; i < 12; i++) {
+        labels[i] = entryRootLabel(i);
+        states[i] = i === activeIndex;
+      }
+    } else {
+      var qualities = qualityList();
+      activeIndex = controlState.entryQualityIndex;
+      for (var q = 0; q < Math.min(16, qualities.length); q++) {
+        labels[q] = qualities[q] && qualities[q].name ? qualities[q].name : '';
+        states[q] = q === activeIndex;
+      }
+    }
+    var title = controlState.entryStep === 'root' ? 'Select Root' : 'Select Quality';
+    var detail = controlState.entryStep === 'root'
+      ? ('Root: ' + entryRootLabel(controlState.entryRoot))
+      : ('Quality: ' + (labels[activeIndex] || ''));
+    return {
+      step: controlState.entryStep,
+      title: title,
+      detail: detail,
+      hint: 'Display buttons choose / Jog moves / Press confirms',
+      upper: { labels: labels.slice(0, 8), states: states.slice(0, 8) },
+      lower: { labels: labels.slice(8, 16), states: states.slice(8, 16) },
+    };
   }
 
   function chordLowerRow() {
@@ -981,6 +1026,7 @@
   global.padWebHandlePushMidiCc = handleMidiCc;
   global.padWebPushControlWillHandlePad = handlePad;
   global.padWebPushControlState = controlState;
+  global.padWebGetPushChordEntryDisplay = chordEntryDisplay;
   global.padWebGetPushChordLowerRow = chordLowerRow;
   global.padWebSyncPushButtonLeds = syncButtonLeds;
   global.padWebResetPushButtonLedState = resetButtonLedState;
