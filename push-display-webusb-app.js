@@ -168,7 +168,7 @@ if (enabled) {
       const inputMode = snap.mode === 'input';
       const upper = entry ? entry.upper.labels : (inputMode
         ? ['', '', '', '', '', '', 'Key', 'Scale']
-        : ['', 'Tasty', 'Stock', 'Guitar', '', 'Tension', 'Key', 'Scale']);
+        : ['Root', 'Tasty', 'Stock', 'Guitar', 'Quality', 'Tension', 'Key', 'Scale']);
       const chordRow = snap.mode === 'chord' ? snap.chordLowerRow : null;
       const lower = entry ? entry.lower.labels : (chordRow ? chordRow.labels : ['Link', 'Guitar TAB', 'Bass TAB', 'Piano', 'Relative', 'Parallel', 'Secondary', 'Available']);
       drawControlRow(upper, 14, entry ? entry.upper.states : null);
