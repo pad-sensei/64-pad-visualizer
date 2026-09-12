@@ -1,0 +1,126 @@
+name: Probe unchanged 64PE browser sustain f460
+on:
+  push:
+    branches: [tuner/64pe-sustain-browser-probe-f460-20260912]
+    paths: [.github/workflows/probe-sustain-browser-f460.yml]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: f4605772d88311df63164c7880e1ce87aa5e4d2b
+          submodules: recursive
+          persist-credentials: false
+      - name: Assert exact unchanged source and install locked test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = f4605772d88311df63164c7880e1ce87aa5e4d2b
+          test "$(git rev-parse HEAD^{tree})" = 7bb832831f2a5285ca282a73d262275f63969974
+          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+          npm ci
+          command -v google-chrome
+      - name: Observe real page and worklet with synthetic MIDI ingress only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 _nocache_server.py 8080 > "$RUNNER_TEMP/64pe-sustain-server.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          node <<'JS'
+          const { chromium } = require('@playwright/test');
+          const assert = require('node:assert/strict');
+          const fs = require('node:fs');
+          const { execFileSync } = require('node:child_process');
+          (async () => {
+            const chrome = execFileSync('which', ['google-chrome'], {encoding:'utf8'}).trim();
+            const browser = await chromium.launch({executablePath:chrome, headless:true, args:['--autoplay-policy=no-user-gesture-required']});
+            try {
+              const context = await browser.newContext();
+              await context.addInitScript(() => {
+                class Port extends EventTarget {
+                  constructor(id, type) { super(); this.id=id; this.type=type; this.name='Ableton Push 3 Live Port'; this.manufacturer='Probe'; this.state='connected'; this.connection='open'; this.onmidimessage=null; }
+                  async open() { return this; }
+                  async close() { return this; }
+                  send() {}
+                  clear() {}
+                }
+                const input=new Port('probe-live-input','input'), output=new Port('probe-live-output','output');
+                const access={inputs:new Map([[input.id,input]]),outputs:new Map([[output.id,output]]),sysexEnabled:true,onstatechange:null};
+                Object.defineProperty(navigator,'requestMIDIAccess',{configurable:true,value:async()=>access});
+                window.__probeEmit=data=>{const e=new MessageEvent('midimessage',{data:Uint8Array.from(data)}); if(input.onmidimessage) input.onmidimessage(e); input.dispatchEvent(e);};
+                window.__probeMessages=[];
+                const Original=window.AudioWorkletNode;
+                if(Original) window.AudioWorkletNode=class extends Original {
+                  constructor(...args) {
+                    super(...args);
+                    const post=this.port.postMessage.bind(this.port);
+                    this.port.postMessage=(message,...rest)=>{
+                      if(['sustain','noteOn','noteOff','fdtdTables'].includes(message?.type)) {
+                        const safe={...message}; delete safe.attackData; delete safe.manifest;
+                        if(message.attackData) safe.attackBytes=message.attackData.byteLength;
+                        window.__probeMessages.push({t:performance.now(),...safe});
+                      }
+                      return post(message,...rest);
+                    };
+                  }
+                };
+              });
+              const page=await context.newPage();
+              const errors=[], audioLogs=[], failures=[];
+              page.on('pageerror',e=>errors.push(String(e)));
+              page.on('console',m=>{if(/FDTD|EP-Engine|worklet|AudioContext/i.test(m.text())) audioLogs.push(m.text());});
+              page.on('requestfailed',r=>failures.push({url:r.url(),error:r.failure()?.errorText}));
+              const response=await page.goto('http://127.0.0.1:8080/?pushdiag',{waitUntil:'load',timeout:60000});
+              assert.equal(response.status(),200);
+              await page.waitForFunction(()=>window.__64PE_PUSH_MIDI_DIAG__?.boundInputs?.includes('Ableton Push 3 Live Port'),{timeout:15000});
+              await page.evaluate(async()=>{
+                selectSound('epiano:Rhodes DI');
+                ensureAudioResumed();
+                await audioCtx.resume();
+                window.__probeOut=audioCtx.createAnalyser(); __probeOut.fftSize=2048;
+                masterGain.connect(__probeOut);
+              });
+              async function state(label) {
+                const value=await page.evaluate(label=>{
+                  const data=new Float32Array(__probeOut.fftSize); __probeOut.getFloatTimeDomainData(data);
+                  const rms=Math.sqrt(data.reduce((s,x)=>s+x*x,0)/data.length);
+                  let directRms=null;
+                  if(window.__probeDirect){const d=new Float32Array(__probeDirect.fftSize);__probeDirect.getFloatTimeDomainData(d);directRms=Math.sqrt(d.reduce((s,x)=>s+x*x,0)/d.length);}
+                  return {label,time:audioCtx.currentTime,context:audioCtx.state,muted:_soundMuted,engine:AudioState.presetKey,mode:AppState.mode,midi:_midiSustainOn,audio:_sustainOn,worklet:_epw_sustainOn,workletReady:_epw_initialized,useWorklet:_useEpianoWorklet,voices:activeVoices.size,deferred:[..._sustainDeferredNotes],held:[...midiActiveNotes],rms,directRms,messages:window.__probeMessages.slice(-12),diag:window.__64PE_PUSH_MIDI_DIAG__};
+                },label);
+                console.log('SUSTAIN_SNAPSHOT='+JSON.stringify(value)); return value;
+              }
+              const emit=data=>page.evaluate(data=>__probeEmit(data),data);
+              await state('initial');
+              // Cold pedal-first order exercises real asynchronous worklet bootstrap.
+              await emit([0xb0,64,127]); await emit([0x90,60,100]);
+              await page.waitForFunction(()=>_epw_initialized===true,{timeout:20000});
+              await page.evaluate(()=>{window.__probeDirect=audioCtx.createAnalyser();__probeDirect.fftSize=2048;_epw_node.connect(__probeDirect);});
+              await page.waitForTimeout(700); await state('cold-note-held-pedal-down');
+              await emit([0x80,60,0]); await page.waitForTimeout(600); const cold=await state('cold-key-up-pedal-down');
+              assert.equal(cold.midi,true); assert.equal(cold.audio,true); assert.equal(cold.worklet,true);
+              await emit([0xb0,64,0]); await page.waitForTimeout(1200); const released=await state('cold-pedal-up');
+              assert.equal(released.midi,false); assert.equal(released.audio,false); assert.equal(released.worklet,false);
+              // Allow normal repository FDTD fetch/transfer to settle, then repeat warm.
+              await page.waitForTimeout(2000);
+              for(const pedal of [false,true]) {
+                await emit([0xb0,64,pedal?127:0]); await emit([0x90,60,100]);
+                await page.waitForTimeout(500); await state(pedal?'warm-pedal-attack':'warm-no-pedal-attack');
+                await emit([0x80,60,0]); await page.waitForTimeout(700); await state(pedal?'warm-key-up-pedal-down':'warm-key-up-no-pedal');
+                await emit([0xb0,64,0]); await page.waitForTimeout(1500);
+              }
+              await state('final');
+              console.log('BROWSER_SUSTAIN_DIAGNOSTIC='+JSON.stringify({errors,audioLogs,failures,fdtdTransmitted:await page.evaluate(()=>__probeMessages.some(m=>m.type==='fdtdTables')),limitations:'Unchanged local candidate in hosted Chrome; synthetic Live MIDI only; actual worklet/graph PCM observation, not physical pedal, speaker or owner acceptance.'}));
+              assert.equal(errors.length,0,'Unexpected real-page error');
+            } finally { await browser.close(); }
+          })().catch(e=>{console.error(e);process.exitCode=1;});
+          JS
+          git diff --exit-code
+          git diff --cached --exit-code
+          test "$(git rev-parse HEAD)" = f4605772d88311df63164c7880e1ce87aa5e4d2b
