@@ -1,0 +1,37 @@
+name: Prepare bounded candidate tree
+on:
+  push:
+    branches: [codex/web-v180-semitone-preparation]
+    paths: [.github/workflows/prepare-human-fixes.yml]
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          path: prep
+      - uses: actions/checkout@v4
+        with:
+          ref: 62bc8f2a92f041a43bb4a5334a2fb69f009ef4d6
+          submodules: recursive
+          persist-credentials: false
+          path: candidate
+      - name: Build tree object only
+        working-directory: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 ../prep/.github/prepare-human-fixes.py
+      - name: Check prepared source syntax and semitone behavior
+        working-directory: candidate
+        run: |
+          node --check push-web-control.js
+          node --check render.js
+          node --check push-display-webusb-app.js
+          node tests/push-standalone-parity.cjs
+          git diff --check
+          echo 'Preparation only: no commit, ref update, audit, or deployment.' >> "$GITHUB_STEP_SUMMARY"
