@@ -34,6 +34,7 @@
     entryStep: null,
     entryRoot: null,
     entryQualityIndex: 0,
+    chordLowerLayerIndex: 0,
     tensionMode: false,
     inputPadLayout: false,
     changingLayout: false,
@@ -149,6 +150,8 @@
       });
     }
     if (performBankContext()) return [false, false, false, false, false, false, null, null];
+    var chordRow = chordLowerRow();
+    if (chordRow) return chordRow.states;
     var app = runtime.AppState || {};
     return [
       domButtonActive('inst-toggle-link', runtime.linkMode),
@@ -434,7 +437,107 @@
     } catch (_) { return false; }
   }
 
+  // S1: same layer vocabulary as Standalone. Chord generation stays in pad-core.
+  function chordLowerLayers() {
+    var app = runtime.AppState, scales = runtime.SCALES;
+    if (!app || !scales || typeof global.getDiatonicTetrads !== 'function') return [];
+    var count = app.diatonicMode === 'triad' ? 3 : 4;
+    var layers = [], seen = Object.create(null);
+    function add(label, scaleIndex, key) {
+      var scale = scales[scaleIndex], signature = label + ':' + scaleIndex + ':' + key;
+      if (!scale || !scale.pcs || scale.pcs.length !== 7 || seen[signature]) return;
+      seen[signature] = true;
+      layers.push({ label: label, items: global.getDiatonicTetrads(scale.pcs, key, count).map(function(chord, degree) {
+        return { tetrad: chord, degreeIdx: degree, label: chord.chordName || String(degree + 1), isSecDom: false };
+      }) });
+    }
+    add('Diatonic', app.scaleIdx, app.key);
+    if (app.scaleIdx === 0) {
+      var relative = wrap(app.key + 9, 12);
+      add('Relative', 5, relative);
+      add('Harmonic Minor', 7, relative);
+      add('Melodic Minor', 14, relative);
+      add('Parallel', 5, app.key);
+    } else if ([5, 7, 14].indexOf(app.scaleIdx) !== -1) {
+      add('Natural Minor', 5, app.key);
+      add('Harmonic Minor', 7, app.key);
+      add('Melodic Minor', 14, app.key);
+      add('Parallel', 0, app.key);
+    } else {
+      add('Parallel', 5, app.key);
+    }
+    var scale = scales[app.scaleIdx];
+    var dominant = qualityList().filter(function(q) { return q.name === '7'; })[0];
+    if (dominant && scale && scale.pcs && scale.pcs.length === 7) {
+      var tones = new Set(scale.pcs.map(function(pc) { return wrap(pc + app.key, 12); }));
+      layers.push({ label: 'Secondary', items: global.getDiatonicTetrads(scale.pcs, app.key, count).map(function(chord, degree) {
+        var root = wrap(chord.rootPC + 7, 12);
+        if (degree === 0 || !tones.has(root)) return null;
+        var name = String(root);
+        var spellings = typeof KEY_SPELLINGS !== 'undefined' ? KEY_SPELLINGS : global.KEY_SPELLINGS;
+        var sharpNames = typeof NOTE_NAMES_SHARP !== 'undefined' ? NOTE_NAMES_SHARP : global.NOTE_NAMES_SHARP;
+        var parent = typeof global.padGetParentMajorKey === 'function' ? global.padGetParentMajorKey(0, app.key) : 0;
+        if (spellings && spellings[parent]) name = spellings[parent][root];
+        else if (sharpNames) name = sharpNames[root] || name;
+        name += '7';
+        return { tetrad: { rootPC: root, pcs: dominant.pcs, quality: dominant, chordName: name, degree: 'V7/' + (degree + 1) },
+          degreeIdx: degree, label: name, isSecDom: true,
+          targetIsMajor: !(chord.quality && String(chord.quality.name || '').indexOf('m') === 0) };
+      }) });
+    }
+    return layers;
+  }
+
+  function activeChordLowerLayer() {
+    var layers = chordLowerLayers();
+    var index = wrap(controlState.chordLowerLayerIndex || 0, Math.max(1, layers.length));
+    return layers[index] || { label: 'Diatonic', items: [] };
+  }
+
+  function chordLowerItemSelected(item) {
+    var builder = runtime.BuilderState;
+    return !!(item && builder && item.tetrad.rootPC === builder.root
+      && builder.quality && item.tetrad.quality && builder.quality.name === item.tetrad.quality.name
+      && !builder.tension && (builder.bass === null || builder.bass === undefined));
+  }
+
+  function chordLowerRow() {
+    if (global.IS_DESKTOP_MODE || currentMode() !== 'chord' || controlState.entryStep || controlState.setupActive) return null;
+    var layer = activeChordLowerLayer();
+    var labels = [layer.label], states = [true];
+    for (var i = 0; i < 7; i++) {
+      var item = layer.items[i];
+      labels.push(item ? item.label : '');
+      states.push(item ? chordLowerItemSelected(item) : null);
+    }
+    return { labels: labels, states: states };
+  }
+
+  function selectChordLower(index) {
+    if (index === 0) {
+      var layers = chordLowerLayers();
+      if (layers.length) controlState.chordLowerLayerIndex = wrap((controlState.chordLowerLayerIndex || 0) + 1, layers.length);
+      refresh();
+      return true;
+    }
+    var item = activeChordLowerLayer().items[index - 1];
+    if (!item || typeof global.onDiatonicClick !== 'function' || !runtime.BuilderState) return true;
+    // onDiatonicClick deliberately preserves the incoming Secondary flag.
+    // Explicitly clear it for a subsequent ordinary degree (not a new music rule).
+    runtime.BuilderState._fromSecDom = !!item.isSecDom;
+    runtime.BuilderState._secDomTargetIsMajor = item.isSecDom ? item.targetIsMajor : undefined;
+    if (item.isSecDom) {
+      runtime.AppState.psSortMode = 'practical';
+      runtime.AppState.showParentScales = true;
+    }
+    global.onDiatonicClick(item.tetrad, item.degreeIdx);
+    if (item.isSecDom) runtime.BuilderState._fromDiatonic = false;
+    refresh();
+    return true;
+  }
+
   function lowerSwitch(index) {
+    if (currentMode() === 'chord') return selectChordLower(index);
     var perform = currentMode() === 'input' && runtime.memoryViewMode === 'perform';
     if (perform) {
       if (index === 0) call('playMemorySlots');
@@ -878,6 +981,7 @@
   global.padWebHandlePushMidiCc = handleMidiCc;
   global.padWebPushControlWillHandlePad = handlePad;
   global.padWebPushControlState = controlState;
+  global.padWebGetPushChordLowerRow = chordLowerRow;
   global.padWebSyncPushButtonLeds = syncButtonLeds;
   global.padWebResetPushButtonLedState = resetButtonLedState;
 
