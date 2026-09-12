@@ -29,7 +29,8 @@ function browser() {
   const read = source => JSON.parse(run('JSON.stringify(' + source + ')'));
   for (const file of ['pad-core/data.js','pad-core/theory.js','pad-core/builder-ui.js','data.js',
     'instruments.js','plain.js','perform.js','builder.js','theory.js','push-midi-cc-map.js',
-    'push-web-control.js','midi-input-state.js','push-midi-port-contract.js','midi.js']) {
+    'push-web-control.js','pad-core/observed-structure.js','observed-ust-consumer.js',
+    'midi-input-state.js','push-midi-port-contract.js','midi.js']) {
     vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),c,{filename:file});
   }
   for (const name of ['updateChordDisplay','updatePlainDisplay','updatePlainUI','updateMemorySlotUI','updateBankUI',
@@ -103,7 +104,7 @@ describe('S1 A01-A03: Chord lower buttons', () => {
     expect(b.row().labels[1]).toBe(''); expect(b.row().states[1]).toBeNull(); expect(b.leds.get(21)).toBe('off');
     const before=b.state(), soundCount=b.played.length; b.cc(21);
     expect(b.state()).toEqual(before); expect(b.played.length).toBe(soundCount);
-    b.cc(22); // V7/II in C = A7, minor target.
+    b.cc(22);
     expect(b.read('[BuilderState.root,BuilderState.quality.name,BuilderState._fromSecDom,BuilderState._fromDiatonic,BuilderState._secDomTargetIsMajor]')).toEqual([9,'7',true,false,false]);
     expect(JSON.parse(b.storage.get('64pad-settings')).showParentScales).toBe(true);
     b.cc(20); b.cc(21);
