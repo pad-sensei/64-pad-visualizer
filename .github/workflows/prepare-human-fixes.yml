@@ -13,7 +13,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
-          persist-credentials: false
           path: prep
       - uses: actions/checkout@v4
         with:
@@ -21,17 +20,24 @@ jobs:
           submodules: recursive
           persist-credentials: false
           path: candidate
-      - name: Build tree object only
-        working-directory: candidate
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 ../prep/.github/prepare-human-fixes.py
-      - name: Check prepared source syntax and semitone behavior
+      - name: Prepare and check source
         working-directory: candidate
         run: |
+          set -euo pipefail
+          python3 ../prep/.github/prepare-human-fixes.py
           node --check push-web-control.js
           node --check render.js
           node --check push-display-webusb-app.js
           node tests/push-standalone-parity.cjs
-          git diff --check
-          echo 'Preparation only: no commit, ref update, audit, or deployment.' >> "$GITHUB_STEP_SUMMARY"
+          git diff --exit-code
+      - name: Publish only preparation branch
+        working-directory: prep
+        run: |
+          set -euo pipefail
+          git fetch --no-tags ../candidate HEAD
+          tree=$(git rev-parse FETCH_HEAD^{tree})
+          prepared=$(printf '%s\n' 'prepare: bounded candidate tree, no PR branch update' | git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit-tree "$tree" -p "$GITHUB_SHA")
+          git push origin "$prepared":refs/heads/codex/web-v180-semitone-preparation
+          echo "PREPARED_TREE=$tree"
+          echo "PREPARATION_COMMIT=$prepared"
+          echo 'No PR ref change, audit, or deployment. Candidate exact-head checks run separately.' >> "$GITHUB_STEP_SUMMARY"
