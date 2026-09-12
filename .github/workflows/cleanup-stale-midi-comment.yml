@@ -28,15 +28,8 @@ jobs:
           from pathlib import Path
           p = Path('midi.js')
           s = p.read_text()
-          old = """  // urinami 2026-04-14: PUSH は楽器としての scale 表示に徹する。render.js で
-  // padApplyScaleOnlyOverride を通した state が渡ってくるので、ここでは
-  // 通常の音階パッドは維持。明示的な Memory/Perform slot layout だけは
-  // _padColorToLP が同じ controller state を参照して16スロットを描く。
-"""
-          new = """  // Push pad LEDs follow the rendered controller state. _padColorToLP applies
-  // the current Scale / Chord / Memory / Perform presentation, including exact
-  // Chord-position overlays and the scale background defined by the current view.
-"""
+          old = "  // urinami 2026-04-14: PUSH は楽器としての scale 表示に徹する。render.js で\n  // padApplyScaleOnlyOverride を通した state が渡ってくるので、ここでは\n  // 通常の音階パッドは維持。明示的な Memory/Perform slot layout だけは\n  // _padColorToLP が同じ controller state を参照して16スロットを描く。\n"
+          new = "  // Push pad LEDs follow the rendered controller state. _padColorToLP applies\n  // the current Scale / Chord / Memory / Perform presentation, including exact\n  // Chord-position overlays and the scale background defined by the current view.\n"
           assert s.count(old) == 1, s.count(old)
           p.write_text(s.replace(old, new))
           PY
