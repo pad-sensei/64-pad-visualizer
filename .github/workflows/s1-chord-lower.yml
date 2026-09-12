@@ -45,14 +45,17 @@ jobs:
           npm ci
           python3 - <<'PY'
           from pathlib import Path
-          # Correct the test's case typo against actual core quality Maj7.
-          # Both old-source negatives and the corrected candidate use these
-          # identical test bytes. No runtime quality or assertion is removed.
+          # Both old-source negatives and corrected candidate use identical tests.
           for name in ['s1-lower.test.js','s1-lower.spec.js']:
               p=Path('../control/.github')/name
               s=p.read_text()
               assert s.count("'maj7'")==1, name
               p.write_text(s.replace("'maj7'", "'Maj7'"))
+          # Actual transport module exports WIDTH/HEIGHT, not prefixed names.
+          p=Path('../control/.github/s1-lower.spec.js');s=p.read_text()
+          old='PUSH_DISPLAY_WIDTH, PUSH_DISPLAY_HEIGHT, encodePushDisplayFrame'
+          assert s.count(old)==1
+          p.write_text(s.replace(old,'WIDTH, HEIGHT, encodePushDisplayFrame'))
           PY
       - name: Old product plus new tests must fail for the two intended defects
         working-directory: product
@@ -93,8 +96,15 @@ jobs:
           assert old in s
           s=s.replace(old,'    // S1 changes both the SW generation and the affected asset identities.\n    // Install fetches fresh asset bytes; this is not loaded-browser evidence.')
           p.write_text(s)
+          p=Path('tests/unit/push-web-cc-integration.test.js');s=p.read_text()
+          for asset,count in [('push-web-control.js',3),('midi.js',1)]:
+              old=asset+'?v=1.8.0-parity2'
+              assert s.count(old)==count, asset
+              s=s.replace(old,asset+'?v=1.8.0-chord-lower-s1')
+          p.write_text(s)
           PY
           cmp ../control/.github/s1-lower.test.js tests/unit/push-chord-lower.test.js
+          cmp ../control/.github/s1-lower.spec.js tests/e2e/push-chord-lower.spec.js
           git diff --check
           git add push-web-control.js midi.js push-display-webusb-app.js index.html sw.js tests/unit tests/e2e/push-chord-lower.spec.js docs/PUSH_CHORD_LOWER_S1.md
           test -z "$(git diff --cached --name-only -- .github pad-core audio-core)"
@@ -143,7 +153,7 @@ jobs:
           server=$!
           trap 'kill "$server" 2>/dev/null || true' EXIT
           for i in $(seq 1 30); do curl -fsS http://localhost:8080/ >/dev/null && break || sleep 1; done
-          npx playwright test tests/e2e/push-chord-lower.spec.js --project=chromium --workers=1 --reporter=line
+          npx playwright test tests/e2e/push-chord-lower.spec.js --project=chromium --workers=1 --retries=0 --reporter=line
       - name: Final identity and publish only the verified candidate branch
         working-directory: product
         shell: bash
