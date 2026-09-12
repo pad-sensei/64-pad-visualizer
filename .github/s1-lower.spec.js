@@ -4,7 +4,7 @@ const { test, expect } = require('@playwright/test');
 // encoder. Only MIDI hardware, USB transport and audio scheduling are fixtures.
 test('S1 A01-A03 real MIDI ingress, selected chord, OLED pixels and saved settings', async ({ page }, testInfo) => {
   const errors=[], localFailures=[];
-  page.on('pageerror', e=>errors.push(e.message));
+  page.on('pageerror', e=>{ errors.push(e.message); console.log('S1_PAGE_ERROR '+e.message); });
   page.on('response', r=>{ if(new URL(r.url()).hostname==='localhost' && r.status()>=400) localFailures.push([r.status(),r.url()]); });
   await page.setViewportSize({width:1280,height:900});
   await page.addInitScript(() => {
@@ -36,6 +36,11 @@ test('S1 A01-A03 real MIDI ingress, selected chord, OLED pixels and saved settin
   });
   await page.goto('./');
   await page.waitForFunction(()=>typeof padWebGetPushDisplaySnapshot==='function' && typeof getDiatonicTetrads==='function');
+  // Follow the application's actual start gesture. Do not hide the overlay,
+  // force the covered button, or weaken the click/actionability assertions.
+  const startOverlay=page.locator('#audio-start-overlay.active');
+  if(await startOverlay.count()) await startOverlay.click();
+  await expect(page.locator('#audio-start-overlay')).not.toHaveClass(/active/);
   await page.evaluate(async()=>{
     document.getElementById('midi-device-select').value='all';
     if(!window.__s1Input.onmidimessage) initWebMIDI();
