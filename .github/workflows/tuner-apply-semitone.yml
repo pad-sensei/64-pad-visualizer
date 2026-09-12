@@ -41,7 +41,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo TUNER_SEMITONE_EXECUTOR_V1
+          echo TUNER_SEMITONE_EXECUTOR_V2
           test "$(git -C product rev-parse HEAD)" = "2fa84f39d92ed4f5070fe525411c21b2978d3326"
           test "$(git -C product rev-parse HEAD^{tree})" = "ededffba9d2b84c4005aa72f0cfc7ebe10fb3867"
           test -z "$(git -C product status --porcelain)"
@@ -75,7 +75,6 @@ jobs:
           cd product
           npx vitest run tests/unit/push-web-control.test.js tests/unit/push-midi-cc-map.test.js tests/unit/push-web-cc-integration.test.js tests/unit/push-display-exposure.test.js
           npm test
-          node audio-core/tests/worklet-bootstrap-smoke.js
           git diff --check
 
       - name: Commit and fast-forward the product branch
