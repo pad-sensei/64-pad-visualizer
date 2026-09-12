@@ -1,148 +1,85 @@
-# 64 Pad Explorer v1.8.0 — Push 3 Chrome Human Gate 引き継ぎ
+# 64 Pad Explorer v1.8.0 — Push 修正・dev・実機Gate 引き継ぎ
 
-## 対象
+更新: 2026-09-12。作業の再開記録であり、製品設計の新しいSSOTではない。最新のPR head・監査コメント・Actionsを読み直してから再開する。
 
-- repo: `pad-sensei/64-pad-visualizer`
-- parent PR: #20 `feat(push): bring Push 2 / Push 3 parity to Web v1.8.0`
-- parent exact head at handoff: `348404360df602b737f9f43353f1d9e8a08bd7f6`
-- follow-up Issue: #21 `v1.8.0 follow-up: Push 3 sustain + jog/back/layout Human Gate blockers`
-- follow-up branch: `codex/web-v180-push-human-gate-followup`
-- browser target for owner Human Gate: Chrome + HTTPS dev URL `/apps/64-pad-dev/`
+## 再開先と製品目標
 
-この follow-up は PR #20 の残り Human Gate だけを扱う。PR #20 で既に通っている display / function LED / Live-Port ownership / WebUSB manual-connect contract を壊さない。
+- Web repo: `pad-sensei/64-pad-visualizer`
+- Issue #21 / Draft PR #22。branch: `codex/web-v180-push-human-gate-followup`
+- stacked base: PR #20、`codex/web-v180-push-cc-parity` / `348404360df602b737f9f43353f1d9e8a08bd7f6`
+- Desktop repo: `pad-sensei/64-pad-explorer-desktop`。ペダル Issue #54、版統合 Issue #58 / Draft PR #59。
+- 公開製品名・版: **64 Pad Explorer v1.8.0**。Web / Standalone / VST3 / AUは別バージョン系列にしない。内部cache番号とcore SHAは製品版ではない。
+- 操作の基準はStandaloneの既存動作。Web独自の割り当てを作らない。ただし現在のStandaloneを「ペダル成功済み」とみなさない。
 
-## 2026-09-12 実機 Human Gate 現物
+## 実機報告を優先する
 
-### PASS
+| 項目 | 現在の証拠 |
+| --- | --- |
+| 普通の音の切れ方 | owner: 問題なし。維持する |
+| Jog / カーソル | owner: 動くようになった。操作の全項目PASSではない |
+| Pedal 2 | owner: 効かない。現在のWeb候補は一度も可聴成功していない |
+| 半音上下 | owner: 「D-Session」「ROUTEの変更になる」。語を勝手に確定・置換せず、モード・押下中スロット・実際のhandlerを照合する |
+| キー / スケール表示 | owner: Push Displayに変更が反映されない。表示修正を実装したが、まだ実機未受理 |
+| 過去の成功例 | Keys Standaloneと初期64PEでは難しくなく動いたというowner情報あり。正確な成功時native binary/commitは未特定 |
 
-- 通常 dev URL で `Push Display` が表示される。`?webusb=1` は不要。
-- Chrome から Push 3 を選択すると **物理ディスプレイが表示される**。
-- **機能キー LED は点灯する**。
+「すべて出来た」という語から、明示されたペダルFAILや半音FAILを消さない。テスト/監査の緑を音・手触り・実機画素のPASSに置き換えない。ユーザーは前回の要求された実機確認を終えている。同じ未修正候補で同じ確認を求めない。
 
-### OPEN / FAIL
+## コード・監査・配備を分ける
 
-1. **サステインペダルは Web Human Gate で一度も成功していない。**
-   - 以前の実機診断で Pedal 2 の CC64 は Push 3 **Live Port** からブラウザまで届くことを確認済み。
-   - したがって MIDI port discovery や物理ペダル故障を最初の仮説に戻さない。
-   - accepted CC64 → Web sustain state → `pad-audio-core` → 実際に選ばれている engine / voice の end-to-end を追う。
-   - sampler / WebAudioFont / non-worklet / e-piano worklet を、実際に Web UI から選択できる経路ごとに確認する。
-   - pedal-up の release と reconnect / topology reset の release も検証する。
+1. `7777b005dd2b61cfd54c90e1898523755b1f5804`: Standalone操作差の修正。**最後に配備成功を確認したdev runtime**。run `34647879489`（trigger SHAは別。ログ内でcandidateを生成・検証・配備した過去方式）。
+2. `62bc8f2a92f041a43bb4a5334a2fb69f009ef4d6`: 検証2ファイルだけ追加。独立監査 **PASS / BLOCKER 0 / CONFIRM 0 / MINOR 2**、comment `5640917311`。exact-head run `34649273076`、18ケースと全Web286件PASS。完了した監査を再び待ち扱いにしない。
+3. `f30d0e00c0fba72fb1785d32994b47310c74ca88`: `#pad-grid`描画も観測する表示更新修正。exact-head run `34671114106`、表示5件・全Web291件PASS。**未配備**。監査comment `5643304002`は完了し、**BLOCKER 0 / CONFIRM 1 / MINOR 2**。未接続でもrenderごとに描画する点をdeploy前に是正する指摘。
+4. **本書と同じcommit**: f30を親とし、表示sessionが`running` / `recovering`の時だけobserver経由で描画するガードを追加。表示テストを10件へ拡張。cacheを`64pad-v180-preview-20260912-display-active-4`へ更新。本書執筆時点ではcommit後のCI・是正差分監査・dev配備は未確認。**PR #22の最新コメントで結果とexact SHAを読む。**
 
-2. **ジョグ／ナビゲーションの実機操作が不足している。**
-   - 現状、owner が期待する **転回系操作** と **戻る / Back 系操作** が Push Web の実機ワークフローから使えない。
-   - Desktop / Standalone の現在の logical control vocabulary と handler を fresh state で照合し、Web 独自 mapping を作らない。
-   - raw CC map が存在しても handler / state transition が繋がっていない可能性を分けて調べる。
+本書と同じcommitの差分はdisplay consumer、display state test、cache、exposure test、本書の5ファイル。音・MIDI handler・操作割り当て・core pin・製品版・workflowは変更しない。
 
-3. **Layout ボタンで layout/view 切り替えができるか調査する。**
-   - これは owner の明示的な要望。
-   - 既存 canonical Web state/function と Desktop/Standalone semantics を優先する。
-   - 新しい概念や隠しモードを作らず、既存の layout/view の切替として成立するなら実装する。
-   - 既存契約上できない場合は、実装せず根拠を Issue #21 に残す。
+### 表示ガードの証拠と限界
 
-## 絶対に維持する契約
+10ケースは、稼働中のkey-only / scale-only / 往復 / detect更新、未接続・接続待ち・停止中・エラーで追加描画なし、WebUSB無し/非secure環境で追加描画なし、idle中の変更後の明示接続、stop/reconnect、recovering、Desktop除外を確認する。canvas readback / encode / setFrameの呼出数を観測し、接続しないだけでなく仕事をしないことを検証する。
 
-### Push MIDI ownership
+f30のexact app blob `7be9ef15951fbec5357efc92d8a0ecb11bf69036`に新テストを当てると **6 PASS / 4 FAIL**。ガード追加後は **10 PASS**。ローカルではテストimportだけNode標準runnerに置き換えて実行した。正式Vitestと全suiteの結果はcommit後のActionsを確認する。これは実機・実ブラウザの性能測定ではない。既存の初回1フレーム生成は変更していない。
 
-- supported Push の Note / CC / pad LED / button LED の operational path は **Live Port only**。
-- User / External は ordinary performance input / ordinary LED output にしない。
-- `All Devices` でも operational Push input は1つだけ。
-- topology rebinding は `id/name/state` を正本にし、send/open による connection churn で再 bind しない。
+### Cache方針（今回のpreview限定、監査MINOR-1への明記）
 
-### Pedal/CV
+この2段階の表示修正は`push-display-webusb-app.js?v=webusb-20260912-11`を維持し、**SW cache generationを更新identity**として扱う。既存installの`fetch(..., {cache:'reload'})`で新cacheへ各assetを取り直す。これは通常の「ファイル内容変更に合わせqueryを更新」からの明示的な例外であり、製品全体の新規version policyではない。index/SWのURL一致を維持する。CIのliteral一致だけで実際の配備/読込を保証したとは言わない。配備後はserved sourceとcache名を確認し、既存タブが新コードを実行していることをGate前に確認する。
 
-- **Push Pedal/CV 設定 SysEx を自動送信しない。**
-- `initializePush3PedalMode` を戻さない。
-- `0x37, 0x26, 0x50` の Pedal/CV write を戻さない。
-- public Web page はユーザーのハード設定を保存する。
-- CC64 は普通の performance MIDI として扱う。
+PWA既知債務: local static JS/CSSは40URL、precache39、既存`error-logger.js`だけ欠落。数値版だけの旧checkerは32件。既存債務を今回の表示修正と混ぜて拡大しない。
 
-### WebUSB display
+## dev更新と次のHuman Gate
 
-- v1.8.0 の supported/recommended path は **Chrome + HTTPS**。
-- Firefox / Safari などで Push Display を見せる必要はない。cross-browser WebUSB parity は release requirement ではない。
-- WebUSB display は **manual / explicit**。ユーザーが `Push Display` を押した時だけ chooser を出す。
-- `getDevices()` で silent reconnect しない。
-- WebUSB display ownership と Web MIDI pad/CC ownership を混ぜない。
-- display stop/hide で pad LED を勝手に clear しない。
+owner方針: **是正・必要な監査が終わった改善はdevへ反映する。ペダルまで全件解決するのを待たない。Human Gateを返す時は先にdevを更新する。** 本番公開の承認とは別。
 
-### 既に通った Human Gate を退行させない
+次の順序:
 
-- Push 3 physical display: PASS
-- function-button LED illumination: PASS
-- Live-Port routing / pad LED existing behavior: preserve
+1. PR #22のfresh headと最新監査を読む。追加ガードの狭い是正差分だけをレビュー対象にし、過去の監査を繰り返さない。
+2. exact-head `Verify Push parity (exact head)`が緑で、必要な是正受理が揃ったら、既存 `.github/workflows/deploy-dev.yml` をその対象refで実行。開始時SHA、checkout、test、配備内容が同一であることを証拠化する。途中でbranchが動けば結果を混同しない。
+3. deployment runと対象SHA、served app内容/cache generationを照合してから、通常のHTTPS devをownerへ示す。古い配備記録だけで「新修正が入った」と報告しない。
+4. 最初の表示Gateは、**音を弾かず、モードを切り替えず、キーとスケールだけを変えてPush表示が追従するか**。必要な物理操作/耳だけをownerへ渡す。GitHub操作、console script、build、手動キャッシュ削除はownerへ押し付けない。
+5. FAILはIssue #21へ具体的な操作・観測として戻す。ペダル・半音は別の未解決項目のまま保持。
 
-## Audio / sustain 現在地
+現セッションのGitHubツールにはworkflow dispatch操作が見つからなかった。利用可能な実行経路で解決し、必要ならTUNER監督点へ既存workflowの実行を渡す。**read用fetchをPOST代わりに使わない、無承認の本番mergeで代用しない、テスト中に製品コードを書き換えるcarrier方式へ戻らない。** これはownerの作業ではない。
 
-shared `pad-audio-core` の Web pin:
+## ペダルを再開する際の具体的な境界
 
-`99a2538c0ec829aae6f82ac824a2692224dd76a8`
+- 既に確認済み: Push 3 Live PortのCC64がブラウザに到達した過去の実機証拠。故障仮説やport discoveryからやり直さない。
+- 未確定: 直近のFAILで実際に読まれたasset、選択音色、受理CC64の値/時刻、MIDI/audio/Worklet state、鳴っているvoiceへの伝播。その同一動作を結びつける。
+- 既存`midi.js`の`__64PE_PUSH_MIDI_DIAG__` / `padWebRenderPushMidiDiag`には、lastCC/lastPedal、MIDI/audio/worklet sustain、selected engine、workletReady、rebinds、errorの観測口がある。新しい大きな仕組みを作る前に使う。読込identityと後続reset/releaseの時刻も照合する。追加instrumentationが必要なら小さな独立差分で行う。
+- Webのvoice管理とnativeのhosted-plugin経路は別。MK1の`instrument.setSustain`成功を64PEのcollector/hosted-plugin成功へ流用しない。
+- 初回Web実装は`e7af1b0fc7009c4f8ef5f25e9552a6252a9c6ba9`。参考にはなるが成功時native binaryと同一扱いしない。
+- audio-core pin: `dd1ef52e7681eb459bb35c729226063c5638c506`。bootstrap修正は本当の欠陥修正だが、今回の可聴FAIL全体の原因確定ではない。既存18-case VM/PCMテストはFDTD資産・実デバイス・実際の出力を含まない。
 
-この pin には sustain fix と、それ以前の e-piano voicing / spring / 73-key changes が含まれる。sustain fix の意図は:
+## 共有依存・統合
 
-- non-worklet voice: pedal-down 中は NoteOff defer
-- pedal-up で deferred release
-- same-note retrigger / `noteOffAll()` cleanup
-- e-piano AudioWorklet は DSP 側 sustain authoritative
-- stale state は stuck note より release を優先
+pad-coreは`eded0b6f1108a75f889b5e62ac8198e2b27de3d0`。audio-coreの旧pin `99a2538c0ec829aae6f82ac824a2692224dd76a8`から現pinまでの全5commitはPR #22本文に列挙済み。今回pin前進なし。今後前進する場合も跨ぐ全commitを開示し、音・見た目・操作が変わるconsumer hostごとに必要な実機Gateを持つ。
 
-しかし owner 実機では audible sustain が一度も成功していない。**unit smoke が通っていることを実機 PASS とみなさない。**
+Desktop #59のPR本文には古いSHAが残った時期がある。`webui-source-pin.json`とbranch headをfreshで照合し、generated `WebUI/`を手編集しない。版統合ができても音源実装や実機受理が同一になるわけではない。
 
-次の browser session は、まず Web 側の CC64 dispatch と実際の engine selection / voice path を instrument / source-read して、「CC64 は来ているが sustain state へ届かない」「state は変わるが voice が defer されない」「worklet pathだけ別挙動」などを切り分ける。
+## 固定境界
 
-## 次セッション開始時に必ず fresh read
+通常Chat / GitHub実行経路。Work/Coworkなし。TUNERは差配/監督、設計判断はSolへ戻す。Routine運用契約と対象製品契約を読む。製品哲学・Human rulingの正本はVault、code/checksの正本はGitHub。共有manifest mirrorを新しい製品SSOTにしない。
 
-1. PR #20 current state
-2. Issue #21
-3. follow-up PR current state
-4. branch head
-5. `midi.js`
-6. `push-midi-cc-map.js`
-7. `push-midi-port-contract.js`
-8. `push-web-control.js`
-9. `main.js`
-10. `host-adapter.js`
-11. `audio-core/audio-voice.js`
-12. e-piano worklet/engine sustain handling
-13. relevant unit tests
-14. Desktop/Standalone current Push logical handler for jog/back/layout parity
+Operational Push MIDIはLive Portのみ。User/Externalを通常の演奏/LED経路へ戻さない。**Pedal/CV自動SysEx禁止**（`initializePush3PedalMode` / `0x37,0x26,0x50`を戻さない）。Layoutからペダルイベントを捏造しない。WebUSBは明示接続、Chrome+HTTPS、他ブラウザparity不要。表示stopだけでMIDI/LED所有を壊さない。
 
-古い引き継ぎ SHA を fresh state より優先しない。
+既存runnerはscope/labelsが合うrepoで使う。DOJOの`dojo-mac-local`をWeb repoのrunnerとみなさない。既存Web verificationのUbuntu/Node22経路を変更していない。runner再登録、scheduler追加、サービス/cap/reset/cache/backoff変更、勝手なbootstrapなし。
 
-## 実装ループ
-
-通常 Chat / browser GitHub flow で進める。Work/Cowork は使わない。
-
-1. current state を読む
-2. 3課題を root cause 単位に分ける
-3. machine-fixable なものは permanent focused test を先に足す
-4. 実装
-5. focused test
-6. full `npm test`
-7. PWA/cache contract
-8. Pedal/CV negative guards
-9. dev deploy `/apps/64-pad-dev/`
-10. exact-head independent audit
-11. PASS 後だけ owner Human Gate に戻す
-
-Human Gate で FAIL したら、その結果を software blocker として Issue/PR に記録し、再び machine fix へ戻る。
-
-## 今回の完了条件
-
-Push 3 / Chrome 実機で:
-
-- Pedal 2 で audible sustain が効く。
-- pedal-up で正しく release する。
-- jog/navigation から既存 product vocabulary に沿った inversion/back 操作が使える。
-- Layout button の切替は、実装可能なら実機で動く。採用しない場合は根拠が Issue #21 に残る。
-- display / function LEDs / Live-Port / pad LEDs が退行していない。
-
-## 禁止
-
-- production merge / deploy
-- tag / GitHub Release
-- R2 / Gumroad publication
-- Desktop package release
-- force-push
-- admin override
-- Pedal/CV auto-configuration SysEx の復活
-- Human Gate を unit test / audit で代替すること
+本番merge/deploy、tag/release、Desktop最終パッケージ公開、R2/Gumroad publication、force-push、admin overrideは禁止。devへの配備許可を本番承認へ拡張しない。次の担当者も、確認済み/未確認/配備済みを分けて短く報告する。

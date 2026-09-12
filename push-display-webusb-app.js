@@ -217,6 +217,10 @@ if (enabled) {
     });
 
     const refreshFrame = () => {
+      // Grid renders also occur while playing without a connected Push display.
+      // Do not read/encode/copy a frame until the explicit display session is active.
+      const state = button.dataset.state;
+      if (state !== 'running' && state !== 'recovering') return;
       try { probe.setFrame(drawFrame()); } catch (_) {}
     };
     // Key/scale edits (including hardware controls) render the canonical pad
