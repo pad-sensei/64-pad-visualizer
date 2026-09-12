@@ -32,6 +32,9 @@ jobs:
                   ("64pad-v180-preview-20260912-chord-lower-s1", "64pad-v180-preview-20260913-chord-pad-led2"),
                   ('midi.js?v=1.8.0-chord-pad-led', 'midi.js?v=1.8.0-chord-pad-led2'),
               ],
+              'tests/unit/push-display-exposure.test.js': [
+                  ("64pad-v180-preview-20260912-chord-lower-s1", "64pad-v180-preview-20260913-chord-pad-led2"),
+              ],
           }
           for name, pairs in replacements.items():
               p = Path(name); s = p.read_text()
@@ -41,7 +44,7 @@ jobs:
               p.write_text(s)
           PY
           git diff --check
-          git diff -- index.html sw.js
+          git diff -- index.html sw.js tests/unit/push-display-exposure.test.js
       - name: Verify complete Web regression
         shell: bash
         run: |
@@ -59,8 +62,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git add index.html sw.js
-          test "$(git diff --cached --name-only | tr '\n' ' ')" = 'index.html sw.js '
+          git add index.html sw.js tests/unit/push-display-exposure.test.js
+          test "$(git diff --cached --name-only | tr '\n' ' ')" = 'index.html sw.js tests/unit/push-display-exposure.test.js '
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'fix(pwa): bump Chord pad LED cache identity'
