@@ -1,0 +1,192 @@
+name: Check signed semitone delta candidate
+
+on:
+  push:
+    branches: [tuner/64pe-signed-delta-check-20260912]
+    paths: [.github/workflows/check-signed-delta.yml]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: 64pe-signed-delta-candidate
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE_HEAD: f4605772d88311df63164c7880e1ce87aa5e4d2b
+      BASE_TREE: 7bb832831f2a5285ca282a73d262275f63969974
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: f4605772d88311df63164c7880e1ce87aa5e4d2b
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Prepare immutable candidate after exact source and reference checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$BASE_HEAD"
+          test "$(git rev-parse HEAD^{tree})" = "$BASE_TREE"
+          python3 <<'PY'
+          import base64, json, os, pathlib, re, subprocess
+          repo = 'pad-sensei/64-pad-visualizer'
+          base = os.environ['BASE_HEAD']
+          def api(path, payload=None):
+              args = ['gh', 'api', path]
+              if payload is not None:
+                  args += ['--method', 'POST', '--input', '-']
+              result = subprocess.run(args, input=None if payload is None else json.dumps(payload), text=True, capture_output=True, check=True)
+              return json.loads(result.stdout)
+          pr = api('repos/' + repo + '/pulls/22')
+          assert pr['state'] == 'open' and pr['draft'] and pr['head']['sha'] == base
+          assert pr['base']['sha'] == '348404360df602b737f9f43353f1d9e8a08bd7f6'
+          audit = api('repos/' + repo + '/issues/comments/5644773510')
+          assert base in audit['body'] and 'RESULT: PASS' in audit['body']
+          native = api('repos/pad-sensei/64-pad-explorer-desktop/contents/Source/PluginEditor.cpp?ref=9ebe324a4eb4d7652c20cb04d2a0b7c8624f42a1')
+          native_source = base64.b64decode(native['content']).decode()
+          start = native_source.index('function _pushNudgeChordRoot(')
+          finish = native_source.index('\nfunction ', start + 10)
+          reference = native_source[start:finish]
+          assert re.search(r'BuilderState\.root\s*=\s*_pushWrapIndex\(BuilderState\.root\s*\+\s*delta,\s*12\)', reference)
+          assert re.search(r'BuilderState\.bass\s*=\s*_pushWrapIndex\(BuilderState\.bass\s*\+\s*delta,\s*12\)', reference)
+          print('NATIVE_REFERENCE_BLOB=' + native['sha'])
+          print('NATIVE_SIGNED_DELTA_REFERENCE=' + reference)
+          p = pathlib.Path('push-web-control.js')
+          source = p.read_text()
+          old = "    var step = delta < 0 ? -1 : 1;\n    if (runtime.TastyState"
+          assert source.count(old) == 1
+          source = source.replace(old, "    // Preserve the signed relative-encoder magnitude, as Standalone does.\n    if (runtime.TastyState", 1)
+          for old, new in [('runtime.BuilderState.root + step, 12)', 'runtime.BuilderState.root + delta, 12)'), ('runtime.BuilderState.bass + step, 12)', 'runtime.BuilderState.bass + delta, 12)')]:
+              assert source.count(old) == 1
+              source = source.replace(old, new, 1)
+          p.write_text(source)
+          addition = r'''
+          // Signed-magnitude parity: exercise the actual raw CC77 root encoder and
+          // logical semitone action against live lexical BuilderState, not a spy.
+          for (const [raw, root, bass] of [[3,2,7],[125,8,1],[12,11,4],[116,11,4],[63,2,7],[65,8,1]]) {
+            test(`signed magnitude: raw root encoder ${raw} preserves chord and slash bass`, () => {
+              const b = browser();
+              b.run("AppState.mode='chord'; BuilderState.root=11; BuilderState.quality={name:'m7',pcs:[0,3,7,10]}; BuilderState.tension={label:'9'}; BuilderState.bass=4; globalThis.deltaQuality=BuilderState.quality; globalThis.deltaTension=BuilderState.tension;");
+              assert.equal(b.context.AppState, undefined);
+              b.cc(77, raw);
+              assert.deepEqual(b.read('[BuilderState.root,BuilderState.bass]'), [root,bass]);
+              assert.equal(b.read('BuilderState.quality===deltaQuality && BuilderState.tension===deltaTension'), true);
+            });
+          }
+          for (const [delta, root, bass] of [[3,2,7],[-3,8,1]]) {
+            test(`signed magnitude: logical semitone ${delta} preserves chord state`, () => {
+              const b = browser();
+              b.run("AppState.mode='chord'; BuilderState.root=11; BuilderState.quality={name:'7',pcs:[0,4,7,10]}; BuilderState.tension={label:'13'}; BuilderState.bass=4;");
+              assert.equal(b.context.padWebHandlePushControl(35,delta), true);
+              assert.deepEqual(b.read('[BuilderState.root,BuilderState.bass,BuilderState.quality.name,BuilderState.tension.label]'), [root,bass,'7','13']);
+            });
+          }
+          test('semitone boundary: physical D-pad remains one semitone per press', () => {
+            const b = browser();
+            b.run("AppState.mode='chord'; BuilderState.root=11; BuilderState.quality={name:'m7',pcs:[0,3,7,10]}; BuilderState.bass=null;");
+            b.cc(45);
+            assert.deepEqual(b.read('[BuilderState.root,BuilderState.bass]'), [0,null]);
+            b.cc(44);
+            assert.deepEqual(b.read('[BuilderState.root,BuilderState.bass]'), [11,null]);
+          });
+          test('semitone boundary: zero raw encoder packet leaves chord and voicing untouched', () => {
+            const b = browser();
+            b.run("AppState.mode='chord'; BuilderState.root=11; BuilderState.quality={name:'m7',pcs:[0,3,7,10]}; BuilderState.bass=4; VoicingState.selectedBoxIdx=2;");
+            b.cc(77,0);
+            assert.deepEqual(b.read('[BuilderState.root,BuilderState.bass,VoicingState.selectedBoxIdx]'), [11,4,2]);
+          });
+          test('semitone boundary: Scale encoder policy and hidden chord remain unchanged', () => {
+            const b = browser();
+            b.run("AppState.mode='scale'; AppState.key=11; BuilderState.root=5; BuilderState.quality={name:'m7',pcs:[0,3,7,10]}; BuilderState.bass=9;");
+            b.cc(77,3);
+            assert.deepEqual(b.read('[AppState.key,BuilderState.root,BuilderState.bass]'), [0,5,9]);
+            b.cc(77,125);
+            assert.deepEqual(b.read('[AppState.key,BuilderState.root,BuilderState.bass]'), [11,5,9]);
+          });
+          '''
+          import textwrap
+          test_file = pathlib.Path('tests/push-standalone-parity.cjs')
+          test_file.write_text(test_file.read_text() + textwrap.dedent(addition))
+          for name in ['sw.js','tests/unit/push-display-exposure.test.js']:
+              p = pathlib.Path(name)
+              text = p.read_text()
+              assert text.count('64pad-v180-preview-20260912-semitone-5') == 1
+              p.write_text(text.replace('64pad-v180-preview-20260912-semitone-5','64pad-v180-preview-20260912-semitone-delta-6'))
+          files = ['push-web-control.js','tests/push-standalone-parity.cjs','sw.js','tests/unit/push-display-exposure.test.js']
+          changed = subprocess.check_output(['git','diff','--name-only'], text=True).splitlines()
+          assert sorted(changed) == sorted(files)
+          subprocess.run(['git','diff','--check'], check=True)
+          subprocess.run(['bash','./tools/sw-assets-check.sh'], check=True)
+          subprocess.run(['git','add','--'] + files, check=True)
+          local_tree = subprocess.check_output(['git','write-tree'], text=True).strip()
+          entries = []
+          for name in files:
+              text = pathlib.Path(name).read_text()
+              blob = api('repos/' + repo + '/git/blobs', {'content':text,'encoding':'utf-8'})
+              expected = subprocess.check_output(['git','hash-object',name], text=True).strip()
+              assert blob['sha'] == expected
+              entries.append({'path':name,'mode':'100644','type':'blob','sha':expected})
+          tree = api('repos/' + repo + '/git/trees', {'base_tree':os.environ['BASE_TREE'],'tree':entries})
+          assert tree['sha'] == local_tree
+          candidate = api('repos/' + repo + '/git/commits', {'message':'fix(push): preserve signed magnitude for completed-chord transposition','tree':local_tree,'parents':[base]})
+          assert candidate['tree']['sha'] == local_tree
+          print('IMMUTABLE_CANDIDATE=' + candidate['sha'])
+          print('IMMUTABLE_TREE=' + local_tree)
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write('CANDIDATE_HEAD=' + candidate['sha'] + '\nCANDIDATE_TREE=' + local_tree + '\n')
+          # Only Git objects were created. No branch, PR, deploy or release write.
+          subprocess.run(['git','fetch','--no-tags','origin',candidate['sha']], check=True)
+          subprocess.run(['git','checkout','--detach',candidate['sha']], check=True)
+          subprocess.run(['git','diff','--exit-code'], check=True)
+          subprocess.run(['git','diff','--cached','--exit-code'], check=True)
+          PY
+      - name: Reproduce eight magnitude failures in separate old-source scratch tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          NEGATIVE="$(mktemp -d "$RUNNER_TEMP/64pe-negative.XXXXXX")"
+          git archive HEAD | tar -x -C "$NEGATIVE"
+          mkdir -p "$NEGATIVE/pad-core" "$NEGATIVE/audio-core"
+          cp -a pad-core/. "$NEGATIVE/pad-core/"
+          cp -a audio-core/. "$NEGATIVE/audio-core/"
+          git show "$BASE_HEAD:push-web-control.js" > "$NEGATIVE/push-web-control.js"
+          set +e
+          node --test --test-name-pattern='^signed magnitude:' "$NEGATIVE/tests/push-standalone-parity.cjs" > "$RUNNER_TEMP/signed-delta-negative.tap" 2>&1
+          result=$?
+          set -e
+          cat "$RUNNER_TEMP/signed-delta-negative.tap"
+          test "$result" -ne 0
+          grep -Eq '^# fail 8$' "$RUNNER_TEMP/signed-delta-negative.tap"
+          echo 'NEGATIVE_CONTROL=8 reproduced magnitude failures; immutable candidate unmodified'
+      - name: Verify exact immutable candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_HEAD"
+          test "$(git rev-parse HEAD^{tree})" = "$CANDIDATE_TREE"
+          node --check push-web-control.js
+          node tests/push-standalone-parity.cjs
+          node audio-core/tests/worklet-sustain-bootstrap-smoke.cjs
+          npm test
+          ./tools/sw-assets-check.sh
+          git diff --check "$BASE_HEAD" HEAD
+          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+          git diff --exit-code
+          git diff --cached --exit-code
+          git diff --stat "$BASE_HEAD" HEAD
+          printf 'SIGNED_DELTA_MACHINE_PASS head=%s tree=%s\n' "$CANDIDATE_HEAD" "$CANDIDATE_TREE"
+          echo 'No product branch, deployment, release or hardware setting changed.'
