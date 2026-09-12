@@ -25,7 +25,7 @@ jobs:
           test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
           npm ci
           command -v google-chrome
-      - name: Observe real page and worklet with synthetic MIDI ingress only
+      - name: Observe actual master bus and served audio with synthetic MIDI ingress only
         shell: bash
         run: |
           set -euo pipefail
@@ -33,92 +33,101 @@ jobs:
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
           node <<'JS'
-          const { chromium } = require('@playwright/test');
-          const assert = require('node:assert/strict');
-          const fs = require('node:fs');
-          const { execFileSync } = require('node:child_process');
-          (async () => {
-            const chrome = execFileSync('which', ['google-chrome'], {encoding:'utf8'}).trim();
-            const browser = await chromium.launch({executablePath:chrome, headless:true, args:['--autoplay-policy=no-user-gesture-required']});
+          const {chromium}=require('@playwright/test');
+          const assert=require('node:assert/strict');
+          const fs=require('node:fs');
+          const crypto=require('node:crypto');
+          const {execFileSync}=require('node:child_process');
+          const hash=x=>crypto.createHash('sha256').update(x).digest('hex');
+          const audioFiles=['host-adapter.js','midi.js','audio-core/audio-master.js','audio-core/audio-voice.js','audio-core/epiano-worklet-engine.js'];
+          (async()=>{
+            const chrome=execFileSync('which',['google-chrome'],{encoding:'utf8'}).trim();
+            const browser=await chromium.launch({executablePath:chrome,headless:true,args:['--autoplay-policy=no-user-gesture-required']});
             try {
-              const context = await browser.newContext();
-              await context.addInitScript(() => {
-                class Port extends EventTarget {
-                  constructor(id, type) { super(); this.id=id; this.type=type; this.name='Ableton Push 3 Live Port'; this.manufacturer='Probe'; this.state='connected'; this.connection='open'; this.onmidimessage=null; }
-                  async open() { return this; }
-                  async close() { return this; }
-                  send() {}
-                  clear() {}
-                }
-                const input=new Port('probe-live-input','input'), output=new Port('probe-live-output','output');
-                const access={inputs:new Map([[input.id,input]]),outputs:new Map([[output.id,output]]),sysexEnabled:true,onstatechange:null};
-                Object.defineProperty(navigator,'requestMIDIAccess',{configurable:true,value:async()=>access});
-                window.__probeEmit=data=>{const e=new MessageEvent('midimessage',{data:Uint8Array.from(data)}); if(input.onmidimessage) input.onmidimessage(e); input.dispatchEvent(e);};
-                window.__probeMessages=[];
-                const Original=window.AudioWorkletNode;
-                if(Original) window.AudioWorkletNode=class extends Original {
-                  constructor(...args) {
-                    super(...args);
-                    const post=this.port.postMessage.bind(this.port);
-                    this.port.postMessage=(message,...rest)=>{
-                      if(['sustain','noteOn','noteOff','fdtdTables'].includes(message?.type)) {
-                        const safe={...message}; delete safe.attackData; delete safe.manifest;
-                        if(message.attackData) safe.attackBytes=message.attackData.byteLength;
-                        window.__probeMessages.push({t:performance.now(),...safe});
-                      }
-                      return post(message,...rest);
-                    };
+              for(const target of [
+                {name:'local-f460',base:'http://127.0.0.1:8080/'},
+                {name:'deployed-dev-audio-subset',base:'https://murinaikurashi.com/apps/64-pad-dev/'}
+              ]) {
+                const context=await browser.newContext();
+                await context.addInitScript(()=>{
+                  class Port extends EventTarget {
+                    constructor(id,type){super();this.id=id;this.type=type;this.name='Ableton Push 3 Live Port';this.state='connected';this.connection='open';this.onmidimessage=null;}
+                    async open(){return this;} async close(){return this;} send(){} clear(){}
                   }
-                };
-              });
-              const page=await context.newPage();
-              const errors=[], audioLogs=[], failures=[];
-              page.on('pageerror',e=>errors.push(String(e)));
-              page.on('console',m=>{if(/FDTD|EP-Engine|worklet|AudioContext/i.test(m.text())) audioLogs.push(m.text());});
-              page.on('requestfailed',r=>failures.push({url:r.url(),error:r.failure()?.errorText}));
-              const response=await page.goto('http://127.0.0.1:8080/?pushdiag',{waitUntil:'load',timeout:60000});
-              assert.equal(response.status(),200);
-              await page.waitForFunction(()=>window.__64PE_PUSH_MIDI_DIAG__?.boundInputs?.includes('Ableton Push 3 Live Port'),{timeout:15000});
-              await page.evaluate(async()=>{
-                selectSound('epiano:Rhodes DI');
-                ensureAudioResumed();
-                await audioCtx.resume();
-                window.__probeOut=audioCtx.createAnalyser(); __probeOut.fftSize=2048;
-                masterGain.connect(__probeOut);
-              });
-              async function state(label) {
-                const value=await page.evaluate(label=>{
-                  const data=new Float32Array(__probeOut.fftSize); __probeOut.getFloatTimeDomainData(data);
-                  const rms=Math.sqrt(data.reduce((s,x)=>s+x*x,0)/data.length);
-                  let directRms=null;
-                  if(window.__probeDirect){const d=new Float32Array(__probeDirect.fftSize);__probeDirect.getFloatTimeDomainData(d);directRms=Math.sqrt(d.reduce((s,x)=>s+x*x,0)/d.length);}
-                  return {label,time:audioCtx.currentTime,context:audioCtx.state,muted:_soundMuted,engine:AudioState.presetKey,mode:AppState.mode,midi:_midiSustainOn,audio:_sustainOn,worklet:_epw_sustainOn,workletReady:_epw_initialized,useWorklet:_useEpianoWorklet,voices:activeVoices.size,deferred:[..._sustainDeferredNotes],held:[...midiActiveNotes],rms,directRms,messages:window.__probeMessages.slice(-12),diag:window.__64PE_PUSH_MIDI_DIAG__};
-                },label);
-                console.log('SUSTAIN_SNAPSHOT='+JSON.stringify(value)); return value;
+                  const input=new Port('probe-in','input'),output=new Port('probe-out','output');
+                  const access={inputs:new Map([[input.id,input]]),outputs:new Map([[output.id,output]]),sysexEnabled:true,onstatechange:null};
+                  Object.defineProperty(navigator,'requestMIDIAccess',{configurable:true,value:async()=>access});
+                  window.__probeEmit=data=>{const e=new MessageEvent('midimessage',{data:Uint8Array.from(data)});if(input.onmidimessage)input.onmidimessage(e);input.dispatchEvent(e);};
+                  window.__probeMessages=[];
+                  const Original=window.AudioWorkletNode;
+                  if(Original)window.AudioWorkletNode=class extends Original {
+                    constructor(...args){super(...args);const post=this.port.postMessage.bind(this.port);this.port.postMessage=(m,...rest)=>{
+                      if(['sustain','noteOn','noteOff','fdtdTables'].includes(m?.type))window.__probeMessages.push({time:performance.now(),type:m.type,on:m.on,midi:m.midi,attackBytes:m.attackData?.byteLength});
+                      return post(m,...rest);
+                    };}
+                  };
+                });
+                const page=await context.newPage(),errors=[],audioLogs=[];
+                page.on('pageerror',e=>errors.push(String(e)));
+                page.on('console',m=>{if(/FDTD|EP-Engine/i.test(m.text()))audioLogs.push(m.text());});
+                const cdp=await context.newCDPSession(page),parsed=new Map();
+                cdp.on('Debugger.scriptParsed',e=>{if(e.url)parsed.set(e.scriptId,e.url);});
+                await cdp.send('Debugger.enable');
+                assert.equal((await page.goto(target.base+'?pushdiag',{waitUntil:'load',timeout:60000})).status(),200);
+                await page.waitForFunction(()=>window.__64PE_PUSH_MIDI_DIAG__?.boundInputs?.includes('Ableton Push 3 Live Port'),null,{timeout:15000});
+                const identities=[];
+                for(const file of audioFiles){
+                  const scripts=[...parsed].filter(([,url])=>new URL(url).pathname===new URL(file,target.base).pathname);
+                  assert.ok(scripts.length>0,'Not parsed: '+file);
+                  for(const [scriptId,url] of scripts){
+                    const source=(await cdp.send('Debugger.getScriptSource',{scriptId})).scriptSource;
+                    assert.equal(source,fs.readFileSync(file,'utf8'),'Actual browser source differs: '+url);
+                    identities.push({file,sha256:hash(source),parsedMatch:true});
+                  }
+                }
+                const processor=await context.request.get(target.base+'audio-core/epiano-worklet-processor.js?v=6.7.61');
+                assert.equal(processor.status(),200);
+                assert.deepEqual(await processor.body(),fs.readFileSync('audio-core/epiano-worklet-processor.js'));
+                console.log('AUDIO_IDENTITY='+JSON.stringify({target:target.name,identities,processorSha256:hash(await processor.body()),processorCacheControl:processor.headers()['cache-control']}));
+                await page.evaluate(async()=>{selectSound('epiano:Rhodes DI');ensureAudioResumed();await audioCtx.resume();window.__probeFinal=audioCtx.createAnalyser();__probeFinal.fftSize=2048;masterBus.connect(__probeFinal);});
+                const emit=data=>page.evaluate(data=>__probeEmit(data),data);
+                const press=async cc=>{await emit([0xb0,cc,127]);await emit([0xb0,cc,0]);await page.waitForTimeout(210);};
+                async function sample(label){return await page.evaluate(async label=>{
+                  let squares=0,count=0;const samples=[];
+                  for(let i=0;i<6;i++){const a=new Float32Array(__probeFinal.fftSize);__probeFinal.getFloatTimeDomainData(a);let s=0;for(const x of a)s+=x*x;squares+=s;count+=a.length;samples.push(Math.sqrt(s/a.length));await new Promise(r=>setTimeout(r,20));}
+                  return {label,time:audioCtx.currentTime,rms:Math.sqrt(squares/count),samples,context:audioCtx.state,engine:AudioState.presetKey,mode:AppState.mode,view:memoryViewMode,slotLayout:padWebPushSlotLayoutActive(),midi:_midiSustainOn,audio:_sustainOn,worklet:_epw_sustainOn,held:[...midiActiveNotes],voices:activeVoices.size,rebinds:__64PE_PUSH_MIDI_DIAG__.rebindCount,eventCount:__64PE_PUSH_MIDI_DIAG__.eventCount};
+                },label);}
+                // Warm up actual processor/assets; this is not a fake DSP engine.
+                await emit([0x90,60,100]);await page.waitForFunction(()=>_epw_initialized&&__probeMessages.some(m=>m.type==='fdtdTables'),null,{timeout:20000});await emit([0x80,60,0]);await page.waitForTimeout(1500);
+                const results=[];
+                for(const mode of ['chord','scale','input','memory','perform']){
+                  if(mode==='scale')await press(58);
+                  if(mode==='input')await press(86);
+                  if(mode==='memory'){
+                    await page.evaluate(()=>{PlainState.memory[0]=makeMemorySlot([60,64,67],'C',null);syncMemoryToActiveBank();});
+                    await press(31);
+                  }
+                  if(mode==='perform')await press(31);
+                  const pair={mode};
+                  for(const pedal of [false,true]){
+                    await emit([0xb0,64,pedal?127:0]);await emit([0x90,60,100]);await page.waitForTimeout(400);
+                    const attack=await sample('attack');
+                    await emit([0x80,60,0]);await page.waitForTimeout(650);const keyUp=await sample('key-up');
+                    await emit([0xb0,64,0]);await page.waitForTimeout(1300);const released=await sample('pedal-up');
+                    pair[pedal?'pedal':'noPedal']={attack,keyUp,released};
+                    assert.equal(keyUp.midi,pedal);assert.equal(keyUp.audio,pedal);assert.equal(keyUp.worklet,pedal);
+                  }
+                  pair.sustainRatio=pair.pedal.keyUp.rms/Math.max(pair.noPedal.keyUp.rms,1e-12);
+                  console.log('MASTER_BUS_SUSTAIN='+JSON.stringify({target:target.name,...pair}));
+                  assert.ok(pair.pedal.attack.rms>1e-5,'No attack reached master bus in '+mode);
+                  assert.ok(pair.sustainRatio>5,'Investigate weak sustain distinction in '+mode);
+                  results.push(pair);
+                }
+                console.log('REAL_BROWSER_SUSTAIN_REPORT='+JSON.stringify({target:target.name,results:results.map(x=>({mode:x.mode,ratio:x.sustainRatio,heldRms:x.pedal.keyUp.rms,releasedRms:x.pedal.released.rms})),errors,audioLogs,fdtd:await page.evaluate(()=>__probeMessages.filter(m=>m.type==='fdtdTables')),limitations:'Synthetic MIDI, selected Rhodes DI only. Actual masterBus waveform windows in isolated Chrome; not real hardware, owner profile, speaker perception, all presets, channels or topology behavior. Served dev identity covers listed unchanged audio subset, not deployment of f460 semitone code.'}));
+                assert.equal(errors.length,0);
+                await context.close();
               }
-              const emit=data=>page.evaluate(data=>__probeEmit(data),data);
-              await state('initial');
-              // Cold pedal-first order exercises real asynchronous worklet bootstrap.
-              await emit([0xb0,64,127]); await emit([0x90,60,100]);
-              await page.waitForFunction(()=>_epw_initialized===true,{timeout:20000});
-              await page.evaluate(()=>{window.__probeDirect=audioCtx.createAnalyser();__probeDirect.fftSize=2048;_epw_node.connect(__probeDirect);});
-              await page.waitForTimeout(700); await state('cold-note-held-pedal-down');
-              await emit([0x80,60,0]); await page.waitForTimeout(600); const cold=await state('cold-key-up-pedal-down');
-              assert.equal(cold.midi,true); assert.equal(cold.audio,true); assert.equal(cold.worklet,true);
-              await emit([0xb0,64,0]); await page.waitForTimeout(1200); const released=await state('cold-pedal-up');
-              assert.equal(released.midi,false); assert.equal(released.audio,false); assert.equal(released.worklet,false);
-              // Allow normal repository FDTD fetch/transfer to settle, then repeat warm.
-              await page.waitForTimeout(2000);
-              for(const pedal of [false,true]) {
-                await emit([0xb0,64,pedal?127:0]); await emit([0x90,60,100]);
-                await page.waitForTimeout(500); await state(pedal?'warm-pedal-attack':'warm-no-pedal-attack');
-                await emit([0x80,60,0]); await page.waitForTimeout(700); await state(pedal?'warm-key-up-pedal-down':'warm-key-up-no-pedal');
-                await emit([0xb0,64,0]); await page.waitForTimeout(1500);
-              }
-              await state('final');
-              console.log('BROWSER_SUSTAIN_DIAGNOSTIC='+JSON.stringify({errors,audioLogs,failures,fdtdTransmitted:await page.evaluate(()=>__probeMessages.some(m=>m.type==='fdtdTables')),limitations:'Unchanged local candidate in hosted Chrome; synthetic Live MIDI only; actual worklet/graph PCM observation, not physical pedal, speaker or owner acceptance.'}));
-              assert.equal(errors.length,0,'Unexpected real-page error');
-            } finally { await browser.close(); }
+            }finally{await browser.close();}
           })().catch(e=>{console.error(e);process.exitCode=1;});
           JS
           git diff --exit-code
