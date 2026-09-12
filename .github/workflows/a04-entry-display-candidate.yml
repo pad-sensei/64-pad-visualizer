@@ -14,9 +14,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: f144c228696b2f7af6d59b8910ae35d168ccb0d5
-          submodules: recursive
+          ref: tuner/a04-entry-display-inspect-20260913
+          submodules: false
           fetch-depth: 2
+      - name: Preserve transformer and switch to exact accepted parent
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/a04-entry-display.py /tmp/a04-entry-display.py
+          git fetch --depth 2 origin f144c228696b2f7af6d59b8910ae35d168ccb0d5
+          git checkout --detach f144c228696b2f7af6d59b8910ae35d168ccb0d5
+          git submodule update --init --recursive --depth 2
+          test "$(git rev-parse HEAD)" = f144c228696b2f7af6d59b8910ae35d168ccb0d5
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -28,7 +37,7 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          src = Path('.github/a04-entry-display.py').read_text()
+          src = Path('/tmp/a04-entry-display.py').read_text()
           marker = "Path('tests/unit/push-chord-entry-display.test.js').write_text(r'''"
           start = src.index(marker) + len(marker)
           end = src.index("''')\n", start)
@@ -46,7 +55,7 @@ jobs:
       - name: Apply bounded A04 transformer
         run: |
           set -euo pipefail
-          python3 .github/a04-entry-display.py
+          python3 /tmp/a04-entry-display.py
           git diff --check
           git diff --name-only
           test "$(git diff --name-only | sort | tr '\n' ' ')" = 'index.html midi.js push-display-webusb-app.js push-web-control.js sw.js tests/unit/push-chord-entry-display.test.js tests/unit/push-display-exposure.test.js '
