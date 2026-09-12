@@ -1,0 +1,82 @@
+name: Build A04 entry display candidate
+on:
+  push:
+    branches: [tuner/a04-entry-display-inspect-20260913]
+    paths:
+      - .github/a04-entry-display.py
+      - .github/workflows/a04-entry-display-candidate.yml
+permissions:
+  contents: write
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: f144c228696b2f7af6d59b8910ae35d168ccb0d5
+          submodules: recursive
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Install new test only and prove old exact head fails
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('.github/a04-entry-display.py').read_text()
+          marker = "Path('tests/unit/push-chord-entry-display.test.js').write_text(r'''"
+          start = src.index(marker) + len(marker)
+          end = src.index("''')\n", start)
+          Path('tests/unit/push-chord-entry-display.test.js').write_text(src[start:end])
+          PY
+          set +e
+          npx vitest run tests/unit/push-chord-entry-display.test.js > /tmp/negative.log 2>&1
+          rc=$?
+          set -e
+          cat /tmp/negative.log
+          test $rc -ne 0
+          grep -E 'chordEntry|Select Root|Cannot read|expected' /tmp/negative.log >/dev/null
+          rm tests/unit/push-chord-entry-display.test.js
+          git diff --exit-code
+      - name: Apply bounded A04 transformer
+        run: |
+          set -euo pipefail
+          python3 .github/a04-entry-display.py
+          git diff --check
+          git diff --name-only
+          test "$(git diff --name-only | sort | tr '\n' ' ')" = 'index.html midi.js push-display-webusb-app.js push-web-control.js sw.js tests/unit/push-chord-entry-display.test.js tests/unit/push-display-exposure.test.js '
+      - name: Focused and full verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check push-web-control.js
+          node --check midi.js
+          npx vitest run tests/unit/push-chord-entry-display.test.js tests/unit/push-chord-lower.test.js tests/unit/push-display-state-sync.test.js tests/unit/push-display-exposure.test.js tests/unit/push-midi-output-routing.test.js
+          node tests/push-standalone-parity.cjs
+          node audio-core/tests/worklet-sustain-bootstrap-smoke.cjs
+          npm test
+          ./tools/sw-assets-check.sh
+          grep -F 'push-web-control.js?v=1.8.0-entry-a04' index.html >/dev/null
+          grep -F 'midi.js?v=1.8.0-entry-a04' index.html >/dev/null
+          grep -F 'push-display-webusb-app.js?v=webusb-20260913-a04' index.html >/dev/null
+          grep -F "64pad-v180-preview-20260913-entry-a04" sw.js >/dev/null
+          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+      - name: Commit and publish candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add index.html midi.js push-display-webusb-app.js push-web-control.js sw.js tests/unit/push-chord-entry-display.test.js tests/unit/push-display-exposure.test.js
+          test "$(git diff --cached --name-only | sort | tr '\n' ' ')" = 'index.html midi.js push-display-webusb-app.js push-web-control.js sw.js tests/unit/push-chord-entry-display.test.js tests/unit/push-display-exposure.test.js '
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat(push): show Root and Quality entry candidates'
+          git diff --exit-code
+          git diff --cached --exit-code
+          echo "A04_CANDIDATE $(git rev-parse HEAD) $(git rev-parse HEAD^{tree})"
+          git push origin HEAD:refs/heads/tuner/a04-entry-display-candidate-20260913
