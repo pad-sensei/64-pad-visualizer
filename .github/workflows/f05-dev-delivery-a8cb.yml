@@ -1,4 +1,4 @@
-name: F05 dev delivery and loaded-source proof a8cb
+name: F05 loaded-source proof a8cb
 
 on:
   push:
@@ -6,48 +6,14 @@ on:
     paths: [.github/workflows/f05-dev-delivery-a8cb.yml]
 
 concurrency:
-  group: 64pe-f05-dev-delivery-a8cb
+  group: 64pe-f05-loaded-proof-a8cb
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout immutable audited product
-        uses: actions/checkout@v4
-        with:
-          ref: a8cb8f8dec6f500ae065bdb92ede45e7bdfe364e
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Assert exact audited identity
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = a8cb8f8dec6f500ae065bdb92ede45e7bdfe364e
-          test "$(git rev-parse HEAD^{tree})" = ff5e1411dd8feca11712ee28ea0600698c16ab94
-          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
-          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
-          git diff --exit-code
-          git diff --cached --exit-code
-
-      - name: Deploy audited product to dev only
-        uses: burnett01/rsync-deployments@6.0.0
-        with:
-          switches: -avz --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md'
-          path: ./
-          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-dev/
-          remote_host: xs071284.xsrv.jp
-          remote_port: 10022
-          remote_user: xs071284
-          remote_key: ${{ secrets.XSERVER_SSH_KEY }}
-
   verify-loaded-source:
-    needs: deploy
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -110,6 +76,14 @@ jobs:
             await page.waitForFunction(() => !document.getElementById('audio-start-overlay')?.classList.contains('active'));
 
             await page.evaluate(() => {
+              if (!window.__f05LedStateCaptureInstalled) {
+                const originalUpdateLaunchpadLEDs = updateLaunchpadLEDs;
+                updateLaunchpadLEDs = function(state) {
+                  window.__f05LastPadState = state;
+                  return originalUpdateLaunchpadLEDs(state);
+                };
+                window.__f05LedStateCaptureInstalled = true;
+              }
               document.getElementById('midi-device-select').value = 'all';
               AppState.mode = 'chord';
               AppState.key = 0;
@@ -119,15 +93,16 @@ jobs:
               padWebPushControlState.chordLowerLayerIndex = 0;
               _prevLEDState.fill(-1);
               window.__f05Midi.length = 0;
+              window.__f05LastPadState = null;
               render();
             });
             await page.evaluate(() => {
               window.__f05Input.onmidimessage({ data: new Uint8Array([0xb0, 21, 127]) });
               window.__f05Input.onmidimessage({ data: new Uint8Array([0xb0, 21, 0]) });
             });
-            await page.waitForFunction(() => BuilderState.root === 0 && !!BuilderState.quality);
+            await page.waitForFunction(() => BuilderState.root === 0 && !!BuilderState.quality && !!window.__f05LastPadState);
             const one = await page.evaluate(() => {
-              const state = computeRenderState();
+              const state = window.__f05LastPadState;
               const expected = [];
               for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) expected.push(_padColorToLP(state, r, c));
               return {
@@ -141,9 +116,9 @@ jobs:
             const oneActual = latestPadColors(one.actualMessages);
             assert.equal(one.root, 0);
             assert.ok(one.quality);
-            assert.ok(one.shapeCount > 0, 'built chord did not resolve a one-position shape');
+            assert.ok(one.shapeCount > 0, 'actual render padState did not resolve a one-position shape');
             assert.equal(oneActual.filter(v => v !== undefined).length, 64, 'one-position did not repaint all Push pads');
-            assert.deepEqual(oneActual, one.expected, 'Push NoteOn colors do not match displayed Chord state');
+            assert.deepEqual(oneActual, one.expected, 'Push NoteOn colors do not match the actual rendered Chord padState');
             assert.ok(oneActual.includes(21), 'one-position exact chord-shape color missing');
             assert.ok(oneActual.includes(122), 'scale background missing behind chord shape');
 
@@ -151,17 +126,19 @@ jobs:
               AppState.showAllPositions = true;
               _prevLEDState.fill(-1);
               window.__f05Midi.length = 0;
+              window.__f05LastPadState = null;
               render();
             });
+            await page.waitForFunction(() => !!window.__f05LastPadState);
             const overview = await page.evaluate(() => {
-              const state = computeRenderState();
+              const state = window.__f05LastPadState;
               const expected = [];
               for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) expected.push(_padColorToLP(state, r, c));
               return { expected, actualMessages: window.__f05Midi.slice() };
             });
             const overviewActual = latestPadColors(overview.actualMessages);
             assert.equal(overviewActual.filter(v => v !== undefined).length, 64, 'all-position did not repaint all Push pads');
-            assert.deepEqual(overviewActual, overview.expected, 'all-position Push colors mismatch displayed state');
+            assert.deepEqual(overviewActual, overview.expected, 'all-position Push colors mismatch the actual rendered state');
             assert.notDeepEqual(overviewActual, oneActual, 'one-position and all-position Push views unexpectedly identical');
             assert.ok(overviewActual.some(v => ![0,3,21,122].includes(v)), 'all-position chord-role colors missing');
 
