@@ -38,9 +38,22 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: product/package-lock.json
-      - name: Dependencies
+      - name: Dependencies and explicit fixture spelling correction
         working-directory: product
-        run: npm ci
+        run: |
+          set -euo pipefail
+          npm ci
+          python3 - <<'PY'
+          from pathlib import Path
+          # Correct the test's case typo against actual core quality Maj7.
+          # Both old-source negatives and the corrected candidate use these
+          # identical test bytes. No runtime quality or assertion is removed.
+          for name in ['s1-lower.test.js','s1-lower.spec.js']:
+              p=Path('../control/.github')/name
+              s=p.read_text()
+              assert s.count("'maj7'")==1, name
+              p.write_text(s.replace("'maj7'", "'Maj7'"))
+          PY
       - name: Old product plus new tests must fail for the two intended defects
         working-directory: product
         shell: bash
@@ -71,6 +84,17 @@ jobs:
         run: |
           set -euo pipefail
           python3 ../control/.github/s1-implement.py "$PWD"
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/unit/push-display-exposure.test.js');s=p.read_text()
+          assert s.count('push-display-webusb-app.js?v=webusb-20260912-11')==2
+          s=s.replace('push-display-webusb-app.js?v=webusb-20260912-11','push-display-webusb-app.js?v=webusb-20260912-s1')
+          old='    // This preview uses the SW cache generation, not a new product version or\n    // per-file query, as its update identity. Install fetches fresh asset bytes.'
+          assert old in s
+          s=s.replace(old,'    // S1 changes both the SW generation and the affected asset identities.\n    // Install fetches fresh asset bytes; this is not loaded-browser evidence.')
+          p.write_text(s)
+          PY
+          cmp ../control/.github/s1-lower.test.js tests/unit/push-chord-lower.test.js
           git diff --check
           git add push-web-control.js midi.js push-display-webusb-app.js index.html sw.js tests/unit tests/e2e/push-chord-lower.spec.js docs/PUSH_CHORD_LOWER_S1.md
           test -z "$(git diff --cached --name-only -- .github pad-core audio-core)"
