@@ -1,0 +1,138 @@
+name: S1 Chord lower candidate
+on:
+  push:
+    branches: [tuner/s1-chord-lower-20260912]
+    paths: [.github/workflows/s1-chord-lower.yml, .github/s1-implement.py, .github/s1-lower.test.js, .github/s1-lower.spec.js]
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 3a880c172214972b3143cfff5b59ddad94b33abc
+          path: product
+          submodules: recursive
+          fetch-depth: 2
+      - name: Admission and unchanged dependency identities
+        working-directory: product
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 3a880c172214972b3143cfff5b59ddad94b33abc
+          test "$(git rev-parse HEAD^{tree})" = e8e8e19f45839387ec0b9fbef7f0741092a60ff4
+          test "$(git ls-remote origin refs/heads/codex/web-v180-push-human-gate-followup | cut -f1)" = 3a880c172214972b3143cfff5b59ddad94b33abc
+          test -z "$(git ls-remote origin refs/heads/tuner/s1-chord-lower-candidate-20260912)"
+          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+          git status --short
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: product/package-lock.json
+      - name: Dependencies
+        working-directory: product
+        run: npm ci
+      - name: Old product plus new tests must fail for the two intended defects
+        working-directory: product
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp ../control/.github/s1-lower.test.js tests/unit/push-chord-lower.test.js
+          set +e
+          npx vitest run tests/unit/push-chord-lower.test.js -t 'old-source negative' --reporter=json --outputFile="$RUNNER_TEMP/s1-negative.json" > "$RUNNER_TEMP/s1-negative.log" 2>&1
+          code=$?
+          set -e
+          cat "$RUNNER_TEMP/s1-negative.log"
+          test "$code" -ne 0
+          python3 - <<'PY'
+          import os,json
+          r=json.load(open(os.environ['RUNNER_TEMP']+'/s1-negative.json'))
+          failed=[a for t in r['testResults'] for a in t['assertionResults'] if a['status']=='failed']
+          print('S1_NEGATIVE',json.dumps(failed,ensure_ascii=False))
+          assert len(failed)==2
+          assert all('old-source negative' in a['title'] for a in failed)
+          for a in failed:
+              text='\n'.join(a['failureMessages'])
+              assert 'AssertionError' in text and 'ReferenceError' not in text and 'TypeError' not in text
+          PY
+          git diff --exit-code
+      - name: Generate product-only candidate and freeze its exact identity before tests
+        working-directory: product
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ../control/.github/s1-implement.py "$PWD"
+          git diff --check
+          git add push-web-control.js midi.js push-display-webusb-app.js index.html sw.js tests/unit tests/e2e/push-chord-lower.spec.js docs/PUSH_CHORD_LOWER_S1.md
+          test -z "$(git diff --cached --name-only -- .github pad-core audio-core)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(push): connect Chord lower layer selection, labels and LEDs'
+          echo "PRODUCT_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "PRODUCT_TREE=$(git rev-parse HEAD^{tree})" >> "$GITHUB_ENV"
+          git show --stat --oneline HEAD
+          git rev-parse HEAD HEAD^{tree} HEAD^
+      - name: Focused S1 real scripts and existing parity floor
+        working-directory: product
+        run: |
+          set -euo pipefail
+          node --check push-web-control.js
+          node --check midi.js
+          node --check push-display-webusb-app.js
+          npx vitest run tests/unit/push-chord-lower.test.js --reporter=verbose
+          node tests/push-standalone-parity.cjs
+          node audio-core/tests/worklet-sustain-bootstrap-smoke.cjs
+      - name: Full unit regression and PWA guard
+        working-directory: product
+        run: |
+          set -euo pipefail
+          npm test
+          bash tools/sw-assets-check.sh
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          html=Path('index.html').read_text();sw=Path('sw.js').read_text()
+          urls=set(re.findall(r'(?:src|href)=[\"\']([^\"\']+\.(?:js|css)(?:\?[^\"\']*)?)[\"\']',html))
+          urls={u for u in urls if not re.match(r'^(?:https?:)?//',u)}
+          missing=sorted(u for u in urls if u not in sw)
+          print('S1_STATIC_ASSETS',len(urls),'missing',missing)
+          assert missing==['error-logger.js']
+          controller=Path('push-web-control.js').read_text()
+          assert 'Pedal/CV' not in controller
+          PY
+      - name: Real browser at fixed viewport and captured OLED canvas
+        working-directory: product
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+          python3 _nocache_server.py 8080 > "$RUNNER_TEMP/s1-http.log" 2>&1 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://localhost:8080/ >/dev/null && break || sleep 1; done
+          npx playwright test tests/e2e/push-chord-lower.spec.js --project=chromium --workers=1 --reporter=line
+      - name: Final identity and publish only the verified candidate branch
+        working-directory: product
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PRODUCT_HEAD"
+          test "$(git rev-parse HEAD^{tree})" = "$PRODUCT_TREE"
+          test "$(git rev-parse HEAD^)" = 3a880c172214972b3143cfff5b59ddad94b33abc
+          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+          git diff --exit-code
+          git diff --cached --exit-code
+          test "$(git ls-remote origin refs/heads/codex/web-v180-push-human-gate-followup | cut -f1)" = 3a880c172214972b3143cfff5b59ddad94b33abc
+          test -z "$(git ls-remote origin refs/heads/tuner/s1-chord-lower-candidate-20260912)"
+          git push origin HEAD:refs/heads/tuner/s1-chord-lower-candidate-20260912
+          echo "S1_VERIFIED_CANDIDATE $PRODUCT_HEAD $PRODUCT_TREE"
