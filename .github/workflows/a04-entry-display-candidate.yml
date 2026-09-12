@@ -4,6 +4,7 @@ on:
     branches: [tuner/a04-entry-display-inspect-20260913]
     paths:
       - .github/a04-entry-display.py
+      - .github/a04-entry-display-followup.py
       - .github/workflows/a04-entry-display-candidate.yml
 permissions:
   contents: write
@@ -22,6 +23,7 @@ jobs:
         run: |
           set -euo pipefail
           cp .github/a04-entry-display.py /tmp/a04-entry-display.py
+          cp .github/a04-entry-display-followup.py /tmp/a04-entry-display-followup.py
           git fetch --depth 2 origin f144c228696b2f7af6d59b8910ae35d168ccb0d5
           git checkout --detach f144c228696b2f7af6d59b8910ae35d168ccb0d5
           git submodule update --init --recursive --depth 2
@@ -56,6 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 /tmp/a04-entry-display.py
+          python3 /tmp/a04-entry-display-followup.py
           git diff --check
           { git diff --name-only; git ls-files --others --exclude-standard; } | sort | tee /tmp/a04-files.txt
           test "$(tr '\n' ' ' < /tmp/a04-files.txt)" = 'index.html midi.js push-display-webusb-app.js push-web-control.js sw.js tests/unit/push-chord-entry-display.test.js tests/unit/push-display-exposure.test.js '
