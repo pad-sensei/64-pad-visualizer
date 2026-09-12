@@ -61,14 +61,14 @@ jobs:
           python3 /tmp/a04-entry-display-followup.py
           git diff --check
           { git diff --name-only; git ls-files --others --exclude-standard; } | sort | tee /tmp/a04-files.txt
-          test "$(tr '\n' ' ' < /tmp/a04-files.txt)" = 'index.html midi.js push-display-webusb-app.js push-web-control.js sw.js tests/unit/push-chord-entry-display.test.js tests/unit/push-display-exposure.test.js '
+          test "$(tr '\n' ' ' < /tmp/a04-files.txt)" = 'index.html midi.js push-display-webusb-app.js push-web-control.js sw.js tests/unit/push-chord-entry-display.test.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js '
       - name: Focused and full verification
         shell: bash
         run: |
           set -euo pipefail
           node --check push-web-control.js
           node --check midi.js
-          npx vitest run tests/unit/push-chord-entry-display.test.js tests/unit/push-chord-lower.test.js tests/unit/push-display-state-sync.test.js tests/unit/push-display-exposure.test.js tests/unit/push-midi-output-routing.test.js
+          npx vitest run tests/unit/push-chord-entry-display.test.js tests/unit/push-chord-lower.test.js tests/unit/push-display-state-sync.test.js tests/unit/push-display-exposure.test.js tests/unit/push-midi-output-routing.test.js tests/unit/push-web-cc-integration.test.js
           node tests/push-standalone-parity.cjs
           node audio-core/tests/worklet-sustain-bootstrap-smoke.cjs
           npm test
@@ -83,8 +83,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git add index.html midi.js push-display-webusb-app.js push-web-control.js sw.js tests/unit/push-chord-entry-display.test.js tests/unit/push-display-exposure.test.js
-          test "$(git diff --cached --name-only | sort | tr '\n' ' ')" = 'index.html midi.js push-display-webusb-app.js push-web-control.js sw.js tests/unit/push-chord-entry-display.test.js tests/unit/push-display-exposure.test.js '
+          git add index.html midi.js push-display-webusb-app.js push-web-control.js sw.js tests/unit/push-chord-entry-display.test.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js
+          test "$(git diff --cached --name-only | sort | tr '\n' ' ')" = 'index.html midi.js push-display-webusb-app.js push-web-control.js sw.js tests/unit/push-chord-entry-display.test.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js '
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'feat(push): show Root and Quality entry candidates'
