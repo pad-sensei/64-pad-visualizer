@@ -265,12 +265,11 @@
 
   function nudgeChordRoot(delta) {
     if (!runtime.BuilderState || runtime.BuilderState.root === null || runtime.BuilderState.root === undefined || !runtime.BuilderState.quality) return false;
-    var step = delta < 0 ? -1 : 1;
     if (runtime.TastyState && runtime.TastyState.enabled) call('disableTasty');
     if (runtime.StockState && runtime.StockState.enabled) call('disableStock');
-    runtime.BuilderState.root = wrap(runtime.BuilderState.root + step, 12);
+    runtime.BuilderState.root = wrap(runtime.BuilderState.root + delta, 12);
     if (runtime.BuilderState.bass !== null && runtime.BuilderState.bass !== undefined) {
-      runtime.BuilderState.bass = wrap(runtime.BuilderState.bass + step, 12);
+      runtime.BuilderState.bass = wrap(runtime.BuilderState.bass + delta, 12);
     }
     // Match Standalone: semitone navigation keeps the completed chord intact.
     // selectRoot() is an entry action and would clear quality/tension/bass.

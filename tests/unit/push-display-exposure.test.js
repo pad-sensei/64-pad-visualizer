@@ -19,7 +19,7 @@ describe('v1.8.0 Push Display exposure contract', () => {
     // This preview uses the SW cache generation, not a new product version or
     // per-file query, as its update identity. Install fetches fresh asset bytes.
     // See the current handover; this is not proof of a browser-loaded update.
-    expect(sw).toContain("var CACHE_NAME = '64pad-v180-preview-20260912-semitone-5';");
+    expect(sw).toContain("var CACHE_NAME = '64pad-v180-preview-20260912-semitone-delta-6';");
     expect(sw).not.toContain("var CACHE_NAME = '64pad-v180-preview-20260912-display-active-4';");
     expect(sw).toContain("fetch(url, { cache: 'reload' })");
     expect(index).not.toContain('push-display-webusb-app.js?v=webusb-20260911-10');

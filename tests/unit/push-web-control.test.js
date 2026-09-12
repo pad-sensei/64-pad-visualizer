@@ -131,4 +131,27 @@ describe('Push Web logical control behavior', () => {
     expect(globalThis.StockState.enabled).toBe(false);
   });
 
+
+  it('preserves signed relative magnitude for D-pad completed-chord semitone moves', () => {
+    globalThis.AppState = { mode: 'chord' };
+    globalThis.BuilderState = { root: 10, quality: { name: 'maj7', pcs: [0, 4, 7, 11] }, tension: '9', bass: 2 };
+
+    expect(handleLogical(35, 3)).toBe(true);
+    expect(globalThis.BuilderState.root).toBe(1);
+    expect(globalThis.BuilderState.bass).toBe(5);
+
+    expect(handleLogical(35, -4)).toBe(true);
+    expect(globalThis.BuilderState.root).toBe(9);
+    expect(globalThis.BuilderState.bass).toBe(1);
+  });
+
+  it('preserves signed relative magnitude on the chord-root encoder path', () => {
+    globalThis.AppState = { mode: 'chord' };
+    globalThis.BuilderState = { root: 1, quality: { name: 'm7', pcs: [0, 3, 7, 10] }, tension: null, bass: 8 };
+
+    expect(handleLogical(56, 5)).toBe(true);
+    expect(globalThis.BuilderState.root).toBe(6);
+    expect(globalThis.BuilderState.bass).toBe(1);
+  });
+
 });
