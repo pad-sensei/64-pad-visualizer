@@ -1,0 +1,173 @@
+name: Accepted semitone dev delivery 3a880c17
+on:
+  push:
+    branches: [tuner/64pe-dev-accepted-3a880c17-20260912]
+    paths: [.github/workflows/accepted-dev-3a880c17.yml]
+concurrency:
+  group: 64pe-dev-accepted-3a880c17
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      actions: write
+    steps:
+      - name: Guard accepted identity and dispatch existing dev workflow at most once
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import json, subprocess, time
+          repo='pad-sensei/64-pad-visualizer'
+          head='3a880c172214972b3143cfff5b59ddad94b33abc'
+          tree='e8e8e19f45839387ec0b9fbef7f0741092a60ff4'
+          ref='codex/web-v180-push-human-gate-followup'
+          def api(path, payload=None):
+              args=['gh','api','repos/'+repo+'/'+path]
+              if payload is not None: args += ['--method','POST','--input','-']
+              p=subprocess.run(args,input=None if payload is None else json.dumps(payload),text=True,capture_output=True,check=True)
+              return json.loads(p.stdout) if p.stdout.strip() else None
+          def guard():
+              pr=api('pulls/22')
+              assert pr['state']=='open' and pr['draft'] and pr['head']['sha']==head
+              assert pr['head']['ref']==ref and pr['base']['sha']=='348404360df602b737f9f43353f1d9e8a08bd7f6'
+              assert api('git/commits/'+head)['tree']['sha']==tree
+              body=api('issues/comments/5645038965')['body']
+              assert head in body and tree in body and 'RESULT: PASS' in body
+              assert 'BLOCKER 0 / CONFIRM 0 / MINOR 2' in body
+              check=api('actions/runs/34685921940')
+              assert check['head_sha']==head and check['conclusion']=='success'
+          guard()
+          def runs():
+              return api('actions/workflows/deploy-dev.yml/runs?head_sha='+head+'&event=workflow_dispatch&per_page=100')['workflow_runs']
+          current=runs()
+          assert len(current)<=1, 'Multiple dev runs require inspection'
+          if not current:
+              guard()
+              api('actions/workflows/deploy-dev.yml/dispatches',{'ref':ref})
+              print('Existing dev workflow dispatched',flush=True)
+          deadline=time.monotonic()+240
+          while time.monotonic()<deadline:
+              current=runs()
+              assert len(current)<=1, 'Concurrent dev run detected'
+              if current:
+                  run=current[0]
+                  assert run['head_sha']==head
+                  print('DEV_RUN='+str(run['id'])+' STATUS='+run['status']+' RESULT='+str(run['conclusion']),flush=True)
+                  if run['status']=='completed':
+                      assert run['conclusion']=='success', 'Dev workflow did not succeed; do not retry automatically'
+                      guard()
+                      break
+              time.sleep(5)
+          else: raise RuntimeError('Existing dev run is not completed; no duplicate dispatch')
+          PY
+  verify:
+    needs: dispatch
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 3a880c172214972b3143cfff5b59ddad94b33abc
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Assert immutable product and install locked browser tooling
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 3a880c172214972b3143cfff5b59ddad94b33abc
+          test "$(git rev-parse HEAD^{tree})" = e8e8e19f45839387ec0b9fbef7f0741092a60ff4
+          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+          npm ci
+          command -v google-chrome
+      - name: Verify served bytes and actual Chrome execution on fresh load and reload
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const {chromium}=require('@playwright/test');
+          const assert=require('node:assert/strict');
+          const fs=require('node:fs');
+          const crypto=require('node:crypto');
+          const {execFileSync}=require('node:child_process');
+          const base='https://murinaikurashi.com/apps/64-pad-dev/';
+          const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
+          (async()=>{
+            const browser=await chromium.launch({executablePath:execFileSync('which',['google-chrome'],{encoding:'utf8'}).trim(),headless:true});
+            try {
+              const context=await browser.newContext();
+              const identityFiles=['index.html','sw.js','push-web-control.js','push-midi-cc-map.js','push-display-webusb-app.js'];
+              for(const file of identityFiles){
+                const response=await context.request.get(base+file);
+                assert.equal(response.status(),200,file);
+                const bytes=await response.body();
+                assert.deepEqual(bytes,fs.readFileSync(file),'Served source mismatch: '+file);
+                const cc=response.headers()['cache-control']||'';
+                if(file==='push-web-control.js')assert.ok(/no-store/i.test(cc),'Changed dev script is not no-store');
+                console.log('SERVED_IDENTITY='+JSON.stringify({file,sha256:hash(bytes),cacheControl:cc}));
+              }
+              const page=await context.newPage();
+              const errors=[]; page.on('pageerror',e=>errors.push(String(e)));
+              const cdp=await context.newCDPSession(page),parsed=new Map();
+              cdp.on('Debugger.scriptParsed',e=>{if(e.url)parsed.set(e.scriptId,e.url);});
+              await cdp.send('Debugger.enable'); await cdp.send('Profiler.enable');
+              await cdp.send('Profiler.startPreciseCoverage',{callCount:true,detailed:true});
+              for(const phase of ['fresh','reload']){
+                parsed.clear();
+                const response=phase==='fresh'?await page.goto(base,{waitUntil:'load',timeout:60000}):await page.reload({waitUntil:'load',timeout:60000});
+                assert.equal(response.status(),200);
+                await page.waitForFunction(()=>typeof padWebHandlePushControl==='function'&&typeof BUILDER_QUALITIES!=='undefined');
+                const matched=[];
+                for(const file of ['push-web-control.js','push-midi-cc-map.js','push-display-webusb-app.js']){
+                  const scripts=[...parsed].filter(([,url])=>new URL(url).pathname===new URL(file,base).pathname);
+                  assert.ok(scripts.length>0,'Not browser-parsed: '+file);
+                  for(const [scriptId,url] of scripts){
+                    const source=(await cdp.send('Debugger.getScriptSource',{scriptId})).scriptSource;
+                    assert.equal(source,fs.readFileSync(file,'utf8'),'Browser loaded different source: '+url);
+                    matched.push({file,sha256:hash(source)});
+                  }
+                }
+                const states=await page.evaluate(()=>{
+                  setMode('chord');
+                  const quality=BUILDER_QUALITIES.find(q=>Array.isArray(q.pcs)&&q.pcs.length>=3);
+                  if(!quality)throw new Error('No real chord quality available');
+                  Object.assign(BuilderState,{root:10,quality,tension:null,bass:2});
+                  const out=[];
+                  for(const [code,delta] of [[35,3],[35,-4],[56,5]]){
+                    const handled=padWebHandlePushControl(code,delta);
+                    out.push({code,delta,handled,root:BuilderState.root,bass:BuilderState.bass,qualityPreserved:BuilderState.quality===quality});
+                  }
+                  return out;
+                });
+                assert.deepEqual(states.map(s=>[s.root,s.bass]),[[1,5],[9,1],[2,6]]);
+                assert.ok(states.every(s=>s.handled&&s.qualityPreserved));
+                const coverage=(await cdp.send('Profiler.takePreciseCoverage')).result;
+                const control=coverage.filter(s=>s.url&&new URL(s.url).pathname===new URL('push-web-control.js',base).pathname);
+                const called=control.flatMap(s=>s.functions).filter(f=>f.functionName==='nudgeChordRoot').flatMap(f=>f.ranges).filter(r=>r.count>0);
+                assert.ok(called.length>0,'Corrected function was not executed');
+                const sw=await page.evaluate(async()=>({controller:navigator.serviceWorker.controller?.scriptURL||null,registrations:(await navigator.serviceWorker.getRegistrations()).length}));
+                assert.equal(sw.controller,null);assert.equal(sw.registrations,0);
+                assert.deepEqual(errors,[]);
+                console.log('LOADED_SEMITONE_PROOF='+JSON.stringify({phase,matched,states,executedRanges:called.length,sw,pageErrors:errors.length,limitations:'Isolated Chrome, direct logical caller observation only. Not owner profile, physical MIDI/Push, audible notes, or D-Session symptom acceptance.'}));
+              }
+              await context.close();
+            } finally {await browser.close();}
+          })().catch(e=>{console.error(e);process.exitCode=1;});
+          JS
+          test "$(git rev-parse HEAD)" = 3a880c172214972b3143cfff5b59ddad94b33abc
+          test "$(git rev-parse HEAD^{tree})" = e8e8e19f45839387ec0b9fbef7f0741092a60ff4
+          git diff --exit-code
+          git diff --cached --exit-code
