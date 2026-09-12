@@ -1019,6 +1019,36 @@ function _padColorToLP(state, row, col) {
 
   var activePCS = state.activePCS;
   var bassPC = state.bassPC;
+
+  // Chord position overlay: mirror the exact shape shown on the screen instead
+  // of expanding chord pitch classes across all duplicate pads. This follows
+  // Standalone's Stock/Tasty/Guitar/selected-box/basic-form priority.
+  var chordPadIdxs = null;
+  if (_isPush && AppState.mode === 'chord' && AppState.showAllPositions !== true) {
+    chordPadIdxs = new Set();
+    function addPositions(positions) {
+      if (!positions || !positions.length) return false;
+      positions.forEach(function(p) { chordPadIdxs.add(p.row * COLS + p.col); });
+      return chordPadIdxs.size > 0;
+    }
+    if (typeof StockState !== 'undefined' && StockState.enabled
+        && StockState.currentIndex >= 0 && addPositions(StockState.padPositions)) {
+    } else if (typeof TastyState !== 'undefined' && TastyState.enabled
+        && TastyState.currentIndex >= 0 && addPositions(TastyState.padPositions)) {
+    } else if (typeof isGuitarEngineActive === 'function' && isGuitarEngineActive()
+        && typeof _instrumentPadSet !== 'undefined' && _instrumentPadSet && _instrumentPadSet.size) {
+      _instrumentPadSet.forEach(function(idx) { chordPadIdxs.add(idx); });
+    } else if (typeof VoicingState !== 'undefined' && VoicingState.lastBoxes
+        && VoicingState.selectedBoxIdx !== null
+        && VoicingState.lastBoxes[VoicingState.selectedBoxIdx]) {
+      var selectedBox = VoicingState.lastBoxes[VoicingState.selectedBoxIdx];
+      var selectedAlt = selectedBox.alternatives && selectedBox.alternatives[selectedBox.currentAlt];
+      if (selectedAlt && selectedAlt.positions) addPositions(selectedAlt.positions);
+    } else if (state.basicFormPadSet && state.basicFormPadSet.size) {
+      state.basicFormPadSet.forEach(function(idx) { chordPadIdxs.add(idx); });
+    }
+    if (chordPadIdxs.size === 0) chordPadIdxs = null;
+  }
   var omittedPCS = state.omittedPCS;
   var guide3PCS = state.guide3PCS;
   var guide7PCS = state.guide7PCS;
@@ -1040,20 +1070,35 @@ function _padColorToLP(state, row, col) {
   var isTension = AppState.mode === 'chord' && tensionPCS.has(pc) && !isRoot && !isGuide3 && !isGuide7;
   var isAvoid = AppState.mode === 'chord' && avoidPCS.has(pc) && !isRoot;
 
-  if (AppState.mode === 'scale' || (_isPush && cFixed)) {
+  if (AppState.mode === 'scale') {
     if (pc === scaleRoot) return AppState.pushScaleRootColor || 3;
     if (scalePCS.has(pc)) return AppState.pushScaleToneColor || 122;
     return 0;
   }
-  if (isRoot && isActive) return AppState.pushScaleRootColor || 3;
-  if (isBass) return AppState.pushScaleRootColor || 3;
-  if (isGuide3) return 26;                // Push: hot pink — guide tone 3rd
-  if (isGuide7) return 10;                // Push: bright green — guide tone 7th
-  if (isAvoid) return 25;                 // Push: pink-red — avoid note
-  if (isTension) return 16;               // Push: cyan — tension
-  if (isActive) return 18;                // Push: sky blue — chord tone
-  if (overlayPCS && overlayPCS.has(pc)) return 121; // Push: dim white — selected scale overlay
-  return 0;                                // Off
+
+  if (_isPush && AppState.mode === 'chord' && chordPadIdxs) {
+    if (chordPadIdxs.has(row * COLS + col)) return 21;
+    if (pc === scaleRoot) return AppState.pushScaleRootColor || 3;
+    if (scalePCS.has(pc)) return AppState.pushScaleToneColor || 122;
+    return 0;
+  }
+
+  var chordColor = 0;
+  if (isRoot && isActive) chordColor = AppState.pushScaleRootColor || 3;
+  else if (isBass) chordColor = AppState.pushScaleRootColor || 3;
+  else if (isGuide3) chordColor = 26;
+  else if (isGuide7) chordColor = 10;
+  else if (isAvoid) chordColor = 25;
+  else if (isTension) chordColor = 16;
+  else if (isActive) chordColor = 18;
+  else if (overlayPCS && overlayPCS.has(pc)) chordColor = 121;
+  if (chordColor) return chordColor;
+
+  if (_isPush && AppState.mode === 'chord' && AppState.showAllPositions === true) {
+    if (pc === scaleRoot) return AppState.pushScaleRootColor || 3;
+    if (scalePCS.has(pc)) return AppState.pushScaleToneColor || 122;
+  }
+  return 0;
 }
 
 function _pushPaletteColors64(first) {

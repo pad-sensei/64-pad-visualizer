@@ -14,7 +14,7 @@ describe('Web Push control integration contract', () => {
     expect(html.indexOf('push-midi-port-contract.js?v=1.8.0-liveport3')).toBeGreaterThan(0);
     expect(html.indexOf('push-midi-cc-map.js?v=1.8.0')).toBeGreaterThan(html.indexOf('push-midi-port-contract.js?v=1.8.0-liveport3'));
     expect(html.indexOf('push-web-control.js?v=1.8.0-chord-lower-s1')).toBeGreaterThan(html.indexOf('push-midi-cc-map.js?v=1.8.0'));
-    expect(html.indexOf('midi.js?v=1.8.0-chord-lower-s1')).toBeGreaterThan(html.indexOf('push-web-control.js?v=1.8.0-chord-lower-s1'));
+    expect(html.indexOf('midi.js?v=1.8.0-chord-pad-led')).toBeGreaterThan(html.indexOf('push-web-control.js?v=1.8.0-chord-lower-s1'));
     expect(sw).toContain("'push-midi-port-contract.js?v=1.8.0-liveport3'");
     expect(sw).toContain("'push-midi-cc-map.js?v=1.8.0'");
     expect(sw).toContain("'push-web-control.js?v=1.8.0-chord-lower-s1'");
