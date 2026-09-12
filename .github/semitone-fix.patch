@@ -1,0 +1,380 @@
+diff --git a/.github/workflows/deploy-dev.yml b/.github/workflows/deploy-dev.yml
+index 7f7b89a..58a3657 100644
+--- a/.github/workflows/deploy-dev.yml
++++ b/.github/workflows/deploy-dev.yml
+@@ -1,8 +1,15 @@
+ name: Deploy to Xserver (Dev)
+ 
+ on:
++  # Explicit branch-local deployment request; unrelated pushes do not deploy.
++  push:
++    branches: [codex/web-v180-push-human-gate-followup]
++    paths: [.github/workflows/deploy-dev.yml]
+   workflow_dispatch:
+ 
++permissions:
++  contents: read
++
+ jobs:
+   test:
+     runs-on: ubuntu-latest
+@@ -10,6 +17,8 @@ jobs:
+       - name: Checkout
+         uses: actions/checkout@v4
+         with:
++          ref: ${{ github.sha }}
++          persist-credentials: false
+           submodules: recursive
+ 
+       - name: Setup Node.js
+@@ -22,7 +31,34 @@ jobs:
+         run: npm ci
+ 
+       - name: Run tests
+-        run: npm test
++        run: |
++          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
++          npm test
++          ./tools/sw-assets-check.sh
++
++      - name: Install Chromium for full-page audio verification
++        run: npx playwright install --with-deps chromium
++
++      - name: Full-page MIDI to audio verification
++        run: |
++          set -euo pipefail
++          python3 _nocache_server.py 8080 > /tmp/64pe-web-test.log 2>&1 &
++          server=$!
++          trap 'kill "$server" || true' EXIT
++          for attempt in $(seq 1 30); do
++            if curl --fail --silent http://localhost:8080/ > /dev/null; then break; fi
++            sleep 1
++          done
++          npx playwright test tests/e2e/push-pedal-fullpage.spec.js --reporter=line
++          git diff --exit-code
++
++      - name: Retain browser failure details
++        if: failure()
++        uses: actions/upload-artifact@v4
++        with:
++          name: fullpage-audio-failure
++          path: test-results/
++          retention-days: 1
+ 
+   deploy:
+     needs: test
+@@ -31,6 +67,8 @@ jobs:
+       - name: Checkout
+         uses: actions/checkout@v4
+         with:
++          ref: ${{ github.sha }}
++          persist-credentials: false
+           submodules: recursive
+ 
+       - name: Deploy via rsync
+ diff --git a/index.html b/index.html
+index db6a527..99b1653 100644
+--- a/index.html
++++ b/index.html
+@@ -875,7 +875,7 @@ if (window.IS_DESKTOP_MODE || _affiliateParams.has('hps')) {
+      pad-core / theory / MIDI / render still run, only sound is absent.
+      document.write is used during parsing to preserve synchronous load order. -->
+ <script>
+-window.APP_VERSION = '6.7.61';
++window.APP_VERSION = '1.8.0';
+ if (window.AUDIO_ENABLED) {
+   var _audioScripts = [
+     'host-adapter.js',
+@@ -941,7 +941,7 @@ if (window.AUDIO_ENABLED) {
+ <script src="midi-input-state.js?v=6.7.52"></script>
+ <script src="push-midi-port-contract.js?v=1.8.0-liveport3"></script>
+ <script src="push-midi-cc-map.js?v=1.8.0"></script>
+-<script src="push-web-control.js?v=1.8.0-parity2"></script>
++<script src="push-web-control.js?v=1.8.0-semitone3"></script>
+ <script src="midi.js?v=1.8.0-parity2"></script>
+ <script src="main.js?v=6.7.55"></script>
+ <script type="module" src="push-display-webusb-app.js?v=webusb-20260912-11"></script>
+ diff --git a/push-web-control.js b/push-web-control.js
+index 363295a..3be9907 100644
+--- a/push-web-control.js
++++ b/push-web-control.js
+@@ -264,16 +264,27 @@
+   }
+ 
+   function nudgeChordRoot(delta) {
+-    if (!runtime.BuilderState || runtime.BuilderState.root === null || runtime.BuilderState.root === undefined) return false;
+-    var next = wrap(runtime.BuilderState.root + (delta < 0 ? -1 : 1), 12);
+-    if (typeof global.selectRoot === 'function') {
+-      global.selectRoot(next);
+-    } else {
+-      runtime.BuilderState.root = next;
+-      if (runtime.BuilderState.bass !== null && runtime.BuilderState.bass !== undefined) {
+-        runtime.BuilderState.bass = wrap(runtime.BuilderState.bass + (delta < 0 ? -1 : 1), 12);
+-      }
+-    }
++    // Standalone _pushNudgeChordRoot: transpose a completed chord. selectRoot()
++    // is a different action: it clears quality/tension/bass and re-enters input.
++    var builder = runtime.BuilderState;
++    if (currentMode() !== 'chord' || !builder || !builder.quality
++        || builder.root === null || builder.root === undefined || !delta) return false;
++    var step = delta < 0 ? -1 : 1;
++    if (runtime.TastyState && runtime.TastyState.enabled) call('disableTasty');
++    if (runtime.StockState && runtime.StockState.enabled) call('disableStock');
++    builder.root = wrap(builder.root + step, 12);
++    if (builder.bass !== null && builder.bass !== undefined) {
++      builder.bass = wrap(builder.bass + step, 12);
++    }
++    builder._fromDiatonic = false;
++    builder._diatonicScaleIdx = undefined;
++    builder._fromSecDom = false;
++    builder._secDomTargetIsMajor = undefined;
++    call('resetVoicingSelection');
++    call('updateKeyButtons');
++    call('updateRootButtons');
++    call('updateChordDisplay');
++    call('renderParentScales');
+     refresh();
+     return true;
+   }
+ diff --git a/sw.js b/sw.js
+index 4c3c133..bc39f19 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,4 +1,4 @@
+-var CACHE_NAME = '64pad-v180-preview-20260912-standalone-parity-2';
++var CACHE_NAME = '64pad-v180-preview-20260912-semitone-3';
+ var ASSETS = [
+   './',
+   'index.html',
+@@ -10,18 +10,18 @@ var ASSETS = [
+   'pad-core/builder-ui.js?v=6.7.52',
+   'pad-core/incremental.js?v=6.7.52',
+   'data.js?v=6.7.52',
+-  'host-adapter.js?v=6.7.61',
+-  'audio-core/audio-master.js?v=6.7.61',
+-  'audio-core/audio-effects.js?v=6.7.61',
+-  'audio-core/audio-reverb.js?v=6.7.61',
+-  'audio-core/audio-sampler.js?v=6.7.61',
+-  'audio-core/audio-engines.js?v=6.7.61',
+-  'audio-core/audio-persistence.js?v=6.7.61',
+-  'audio-core/audio-overlay.js?v=6.7.61',
+-  'audio-core/audio-voice.js?v=6.7.61',
+-  'audio-core/audio.js?v=6.7.61',
+-  'master-tail.js?v=6.7.61',
+-  'audio-ui-binding.js?v=6.7.61',
++  'host-adapter.js?v=1.8.0',
++  'audio-core/audio-master.js?v=1.8.0',
++  'audio-core/audio-effects.js?v=1.8.0',
++  'audio-core/audio-reverb.js?v=1.8.0',
++  'audio-core/audio-sampler.js?v=1.8.0',
++  'audio-core/audio-engines.js?v=1.8.0',
++  'audio-core/audio-persistence.js?v=1.8.0',
++  'audio-core/audio-overlay.js?v=1.8.0',
++  'audio-core/audio-voice.js?v=1.8.0',
++  'audio-core/audio.js?v=1.8.0',
++  'master-tail.js?v=1.8.0',
++  'audio-ui-binding.js?v=1.8.0',
+   'theory.js?v=6.7.52',
+   'tasty-stock.js?v=6.7.52',
+   'staff.js?v=6.7.52',
+@@ -37,7 +37,7 @@ var ASSETS = [
+   'midi-input-state.js?v=6.7.52',
+   'push-midi-port-contract.js?v=1.8.0-liveport3',
+   'push-midi-cc-map.js?v=1.8.0',
+-  'push-web-control.js?v=1.8.0-parity2',
++  'push-web-control.js?v=1.8.0-semitone3',
+   'midi.js?v=1.8.0-parity2',
+   'push-display-webusb.js?v=webusb-20260911-10',
+   'push-surface-cleanup.js?v=webusb-20260911-7',
+@@ -57,16 +57,16 @@ var ASSETS = [
+   'lang-de.js?v=6.7.52',
+   'lang-ko.js?v=6.7.52',
+   'lang-it.js?v=6.7.52',
+-  'audio-core/epiano-engine.js?v=6.7.61',
+-  'audio-core/epiano-worklet-engine.js?v=6.7.61',
+-  'audio-core/epiano-worklet-processor.js?v=6.7.61',
++  'audio-core/epiano-engine.js?v=1.8.0',
++  'audio-core/epiano-worklet-engine.js?v=1.8.0',
++  'audio-core/epiano-worklet-processor.js?v=1.8.0',
+   'audio-core/spring-reverb-processor.js',
+   'data/tasty-recipes.json?v=6.7.52',
+   'favicon.svg',
+   'img/icon-192.png',
+   'img/icon-512.png',
+-  'audio-core/assets/fdtd/attack_tables.bin?v=6.7.61',
+-  'audio-core/assets/fdtd/manifest.json?v=6.7.61',
++  'audio-core/assets/fdtd/attack_tables.bin?v=1.8.0',
++  'audio-core/assets/fdtd/manifest.json?v=1.8.0',
+   'audio-core/assets/twin-cab-ir.wav',
+ ];
+ 
+ diff --git a/tests/e2e/push-pedal-fullpage.spec.js b/tests/e2e/push-pedal-fullpage.spec.js
+new file mode 100644
+index 0000000..378583a
+--- /dev/null
++++ b/tests/e2e/push-pedal-fullpage.spec.js
+@@ -0,0 +1,66 @@
++const { test, expect } = require('@playwright/test');
++
++// Only the physical MIDI transport is simulated. Load the real page, selected
++// preset, DOM handlers, async AudioWorklet with FDTD assets available; do not replace the
++// audio/voice code as the VM fixture does. This is not a physical Human Gate.
++test('full page routes Live-Port CC64 to e-piano PCM hold and release', async ({ page }) => {
++  const errors = [];
++  page.on('pageerror', error => errors.push(error.message));
++  await page.addInitScript(() => {
++    const input = { id: 'test-live', name: 'Ableton Push 3 Live Port', manufacturer: 'Ableton',
++      state: 'connected', connection: 'open', type: 'input', onmidimessage: null,
++      async open() { return this; }, async close() { return this; } };
++    const output = { ...input, id: 'test-out', type: 'output', send() {}, clear() {} };
++    const access = { inputs: new Map([[input.id, input]]), outputs: new Map([[output.id, output]]),
++      sysexEnabled: true, onstatechange: null, addEventListener() {}, removeEventListener() {} };
++    Object.defineProperty(navigator, 'requestMIDIAccess', { value: async () => access, configurable: true });
++    window.__testMidi = data => {
++      if (!input.onmidimessage) throw new Error('Live Port listener not bound');
++      input.onmidimessage({ data: new Uint8Array(data), timeStamp: performance.now() });
++    };
++  });
++  // External analytics/fonts/CDN samples are not part of this local e-piano
++  // test. All same-origin application scripts and FDTD assets load normally.
++  await page.route('**/*', route => {
++    const hostname = new URL(route.request().url()).hostname;
++    return ['localhost', '127.0.0.1'].includes(hostname) ? route.continue() : route.abort();
++  });
++  await page.goto('./?pushdiag=1', { waitUntil: 'load' });
++  await page.waitForFunction(() => typeof setSustain === 'function' && typeof initWebMIDI === 'function');
++  await page.evaluate(() => { dismissAudioOverlay(); selectSound('epiano:Rhodes DI'); });
++  await page.waitForFunction(() => _epw_initialized && audioCtx.state === 'running');
++  await page.evaluate(() => {
++    window.__testAnalyser = audioCtx.createAnalyser();
++    __testAnalyser.fftSize = 2048;
++    _epw_node.connect(__testAnalyser);
++    __testMidi([0xb0, 64, 127]);
++    __testMidi([0x90, 60, 100]);
++  });
++  await page.waitForTimeout(150);
++  await page.evaluate(() => __testMidi([0x80, 60, 0]));
++  await page.waitForTimeout(250);
++  const held = await page.evaluate(() => {
++    const pcm = new Float32Array(__testAnalyser.fftSize);
++    __testAnalyser.getFloatTimeDomainData(pcm);
++    return { rms: Math.sqrt(pcm.reduce((sum, x) => sum + x * x, 0) / pcm.length),
++      flags: [_midiSustainOn, _sustainOn, _epw_sustainOn], version: APP_VERSION,
++      preset: AudioState.presetKey, pedal: window.__64PE_PUSH_MIDI_DIAG__.lastPedal };
++  });
++  expect(held.version).toBe('1.8.0');
++  expect(held.preset).toBe('Rhodes DI');
++  expect(held.flags).toEqual([true, true, true]);
++  expect(Number.isFinite(held.rms)).toBe(true);
++  expect(held.rms).toBeGreaterThan(0.000001);
++  await page.evaluate(() => __testMidi([0xb0, 64, 0]));
++  await page.waitForTimeout(450);
++  const released = await page.evaluate(() => {
++    const pcm = new Float32Array(__testAnalyser.fftSize);
++    __testAnalyser.getFloatTimeDomainData(pcm);
++    return { rms: Math.sqrt(pcm.reduce((sum, x) => sum + x * x, 0) / pcm.length),
++      flags: [_midiSustainOn, _sustainOn, _epw_sustainOn] };
++  });
++  expect(released.flags).toEqual([false, false, false]);
++  expect(released.rms).toBeLessThan(held.rms * 0.1);
++  expect(errors).toEqual([]);
++  console.log(JSON.stringify({ held, released }));
++});
+ diff --git a/tests/push-standalone-parity.cjs b/tests/push-standalone-parity.cjs
+index 50d0a8e..e696b49 100644
+--- a/tests/push-standalone-parity.cjs
++++ b/tests/push-standalone-parity.cjs
+@@ -294,3 +294,27 @@ test('held pitch edits clamp MIDI bounds and never modify another slot',()=>{
+   b.up(); b.slot(0,[0,3,7]); b.down(); b.cc(54);
+   assert.deepEqual(b.read('PlainState.memory[0].midiNotes'),[0,0,0]);
+ });
++
++test('Chord D-pad semitone keeps quality, tensions and slash bass instead of starting root entry', () => {
++  const b = browser();
++  b.run("AppState.mode='chord'; AppState.key=0; BuilderState.root=11; BuilderState.quality={name:'7',pcs:[0,4,7,10]}; BuilderState.tension={label:'9',pcs:[2]}; BuilderState.bass=6; BuilderState.step=2; BuilderState._fromDiatonic=true; BuilderState._diatonicScaleIdx=0; BuilderState._fromSecDom=true; BuilderState._secDomTargetIsMajor=true;");
++  const quality=b.read('BuilderState.quality'), tension=b.read('BuilderState.tension');
++  b.cc(45); // physical D-pad right
++  assert.deepEqual(b.read('BuilderState.quality'),quality,'semitone movement must not call the destructive root-selection action');
++  assert.deepEqual(b.read('BuilderState.tension'),tension);
++  assert.deepEqual(b.read('[BuilderState.root,BuilderState.bass,BuilderState.step,AppState.key]'),[0,7,2,0]);
++  assert.deepEqual(b.read('[BuilderState._fromDiatonic,BuilderState._fromSecDom]'),[false,false]);
++  b.cc(44); // physical D-pad left, including C/B wrap
++  assert.deepEqual(b.read('[BuilderState.root,BuilderState.bass,BuilderState.step]'),[11,6,2]);
++  assert.deepEqual(b.read('BuilderState.quality'),quality);
++  assert.deepEqual(b.read('BuilderState.tension'),tension);
++});
++
++test('Chord semitone is a completed-chord action, not an implicit root-entry cursor', () => {
++  const b=browser();
++  b.run("AppState.mode='chord'; BuilderState.root=2; BuilderState.quality=null; BuilderState.step=1;");
++  b.cc(45);
++  assert.equal(b.read('BuilderState.root'),2,'an incomplete chord must keep its selected root');
++  b.run('BuilderState.root=null;'); b.cc(44);
++  assert.equal(b.read('BuilderState.root'),null);
++});
+ diff --git a/tests/unit/push-display-exposure.test.js b/tests/unit/push-display-exposure.test.js
+index 70af0d0..c86246a 100644
+--- a/tests/unit/push-display-exposure.test.js
++++ b/tests/unit/push-display-exposure.test.js
+@@ -18,7 +18,7 @@ describe('v1.8.0 Push Display exposure contract', () => {
+     expect(sw).toContain("'push-display-webusb-app.js?v=webusb-20260912-11'");
+     // The display exposure stays unchanged; the shell must refresh the new
+     // controller/MIDI scripts and the pinned audio-core for returning clients.
+-    expect(sw).toContain("var CACHE_NAME = '64pad-v180-preview-20260912-standalone-parity-2';");
++    expect(sw).toContain("var CACHE_NAME = '64pad-v180-preview-20260912-semitone-3';");
+     expect(sw).not.toContain("var CACHE_NAME = '64pad-v180-preview-20260912-webusb-exposure-1';");
+     expect(index).not.toContain('push-display-webusb-app.js?v=webusb-20260911-10');
+   });
+ diff --git a/tests/unit/push-standalone-parity.test.js b/tests/unit/push-standalone-parity.test.js
+index dd7f21c..9e491fe 100644
+--- a/tests/unit/push-standalone-parity.test.js
++++ b/tests/unit/push-standalone-parity.test.js
+@@ -4,7 +4,7 @@ import path from 'node:path';
+ 
+ // The Node suite replaces spy-only tests. Fail closed if cases disappear or
+ // stop executing: '# fail 0' alone also accepts an empty/skipped suite.
+-const requiredTotals = { tests: 18, pass: 18, fail: 0, cancelled: 0, skipped: 0, todo: 0 };
++const requiredTotals = { tests: 20, pass: 20, fail: 0, cancelled: 0, skipped: 0, todo: 0 };
+ function expectCompleteParityRun(output) {
+   for (const [key, value] of Object.entries(requiredTotals)) {
+     expect(output, `Standalone parity TAP total: ${key}`).toMatch(
+@@ -13,7 +13,7 @@ function expectCompleteParityRun(output) {
+   }
+ }
+ 
+-it('executes all 18 real classic-script Standalone gesture and MIDI-to-audio regressions', () => {
++it('executes all 20 real classic-script Standalone gesture and MIDI-to-audio regressions', () => {
+   const output = execFileSync(process.execPath, [path.resolve('tests/push-standalone-parity.cjs')], {
+     encoding: 'utf8', timeout: 30000,
+   });
+@@ -27,13 +27,13 @@ it('rejects empty, shortened, skipped or incomplete parity runs even with zero f
+   for (const incomplete of [
+     '',
+     '# tests 0\n# pass 0\n# fail 0',
+-    complete.replace('# tests 18', '# tests 17').replace('# pass 18', '# pass 17'),
+-    complete.replace('# pass 18', '# pass 17').replace('# skipped 0', '# skipped 1'),
++    complete.replace('# tests 20', '# tests 19').replace('# pass 20', '# pass 19'),
++    complete.replace('# pass 20', '# pass 19').replace('# skipped 0', '# skipped 1'),
+     complete.replace('# cancelled 0', '# cancelled 1'),
+     complete.replace('# todo 0', '# todo 1'),
+     complete.replace('# fail 0', '# fail 1'),
+-    complete.replace('# pass 18', '# pass 180'),
+-    complete.replace('# tests 18', 'diagnostic: # tests 18'),
++    complete.replace('# pass 20', '# pass 200'),
++    complete.replace('# tests 20', 'diagnostic: # tests 20'),
+   ]) {
+     expect(() => expectCompleteParityRun(incomplete)).toThrow();
+   }
+ diff --git a/tests/unit/v180-web-contract.test.js b/tests/unit/v180-web-contract.test.js
+index f3da793..1ee742b 100644
+--- a/tests/unit/v180-web-contract.test.js
++++ b/tests/unit/v180-web-contract.test.js
+@@ -21,6 +21,8 @@ describe('v1.8.0 Web product contract', () => {
+ 
+   it('shows one product version for Web', () => {
+     expect(html).toContain('<span class="version-tag">v1.8.0</span>');
++    const runtimeVersions = [...html.matchAll(/window\.APP_VERSION\s*=\s*'([^']+)'/g)].map(match => match[1]);
++    expect(runtimeVersions).toEqual(['1.8.0']);
+     expect(html).toContain('"softwareVersion":"1.8.0"');
+   });
+ 
