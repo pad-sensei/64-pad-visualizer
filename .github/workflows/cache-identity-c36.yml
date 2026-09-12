@@ -1,0 +1,70 @@
+name: Cache identity follow-up
+on:
+  push:
+    branches: [tuner/cache-identity-c36-20260913]
+    paths: [.github/workflows/cache-identity-c36.yml]
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: c36f24363ff8e88ae04170b771e49bdb6b62dd9c
+          submodules: recursive
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Apply cache identity bump
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          replacements = {
+              'index.html': [('midi.js?v=1.8.0-chord-pad-led', 'midi.js?v=1.8.0-chord-pad-led2')],
+              'sw.js': [
+                  ("64pad-v180-preview-20260912-chord-lower-s1", "64pad-v180-preview-20260913-chord-pad-led2"),
+                  ('midi.js?v=1.8.0-chord-pad-led', 'midi.js?v=1.8.0-chord-pad-led2'),
+              ],
+          }
+          for name, pairs in replacements.items():
+              p = Path(name); s = p.read_text()
+              for old, new in pairs:
+                  assert s.count(old) == 1, (name, old, s.count(old))
+                  s = s.replace(old, new)
+              p.write_text(s)
+          PY
+          git diff --check
+          git diff -- index.html sw.js
+      - name: Verify complete Web regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test
+          node tests/push-standalone-parity.cjs
+          node audio-core/tests/worklet-sustain-bootstrap-smoke.cjs
+          ./tools/sw-assets-check.sh
+          grep -F 'midi.js?v=1.8.0-chord-pad-led2' index.html >/dev/null
+          grep -F "'midi.js?v=1.8.0-chord-pad-led2'" sw.js >/dev/null
+          grep -F "64pad-v180-preview-20260913-chord-pad-led2" sw.js >/dev/null
+          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+      - name: Commit and publish candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add index.html sw.js
+          test "$(git diff --cached --name-only | tr '\n' ' ')" = 'index.html sw.js '
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(pwa): bump Chord pad LED cache identity'
+          git diff --exit-code
+          git diff --cached --exit-code
+          echo "CACHE_IDENTITY_CANDIDATE $(git rev-parse HEAD) $(git rev-parse HEAD^{tree})"
+          git push origin HEAD:refs/heads/tuner/cache-identity-c36-candidate-20260913
