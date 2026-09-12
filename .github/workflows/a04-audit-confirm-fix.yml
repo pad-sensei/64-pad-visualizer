@@ -1,0 +1,68 @@
+name: Build A04 audit-confirm repair
+on:
+  push:
+    branches: [tuner/a04-audit-confirm-fix-20260913]
+    paths:
+      - .github/a04-audit-confirm-fix.py
+      - .github/workflows/a04-audit-confirm-fix.yml
+permissions:
+  contents: write
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tuner/a04-audit-confirm-fix-20260913
+          submodules: false
+          fetch-depth: 2
+      - name: Preserve transformer and switch to exact audited parent
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/a04-audit-confirm-fix.py /tmp/a04-audit-confirm-fix.py
+          git fetch --depth 2 origin e2e5ed48530256bfab2a97dbc66c34f10daece86
+          git checkout --detach e2e5ed48530256bfab2a97dbc66c34f10daece86
+          git submodule update --init --recursive --depth 2
+          test "$(git rev-parse HEAD)" = e2e5ed48530256bfab2a97dbc66c34f10daece86
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Apply bounded A04 audit fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 /tmp/a04-audit-confirm-fix.py
+          git diff --check
+          { git diff --name-only; git ls-files --others --exclude-standard; } | sort | tee /tmp/files.txt
+          test "$(tr '\n' ' ' < /tmp/files.txt)" = 'index.html push-web-control.js sw.js tests/unit/push-chord-entry-display.test.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js '
+      - name: Verify A04 repair and full regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check push-web-control.js
+          npx vitest run tests/unit/push-chord-entry-display.test.js tests/unit/push-chord-lower.test.js tests/unit/push-display-state-sync.test.js tests/unit/push-display-exposure.test.js tests/unit/push-midi-output-routing.test.js tests/unit/push-web-cc-integration.test.js
+          node tests/push-standalone-parity.cjs
+          node audio-core/tests/worklet-sustain-bootstrap-smoke.cjs
+          npm test
+          ./tools/sw-assets-check.sh
+          grep -F 'push-web-control.js?v=1.8.0-entry-a04b' index.html >/dev/null
+          grep -F "64pad-v180-preview-20260913-entry-a04b" sw.js >/dev/null
+          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+      - name: Commit and publish candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add index.html push-web-control.js sw.js tests/unit/push-chord-entry-display.test.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js
+          test "$(git diff --cached --name-only | sort | tr '\n' ' ')" = 'index.html push-web-control.js sw.js tests/unit/push-chord-entry-display.test.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js '
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(push): match A04 entry confirm and Jog semantics'
+          git diff --exit-code
+          git diff --cached --exit-code
+          echo "A04_REPAIR $(git rev-parse HEAD) $(git rev-parse HEAD^{tree})"
+          git push origin HEAD:refs/heads/tuner/a04-audit-confirm-candidate-20260913
