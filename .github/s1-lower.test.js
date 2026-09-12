@@ -26,7 +26,7 @@ function browser() {
     setTimeout: () => 1, clearTimeout() {}, requestAnimationFrame: f => f(), addEventListener() {}, IS_DESKTOP_MODE: false };
   c.window = c; vm.createContext(c);
   const run = source => vm.runInContext(source,c);
-  const read = source => JSON.parse(run('JSON.stringify(' + source + ')'));
+  const read = source => { const json=run('JSON.stringify(' + source + ')'); return json === undefined ? undefined : JSON.parse(json); };
   for (const file of ['pad-core/data.js','pad-core/theory.js','pad-core/builder-ui.js','data.js',
     'instruments.js','plain.js','perform.js','builder.js','theory.js','push-midi-cc-map.js',
     'push-web-control.js','pad-core/observed-structure.js','observed-ust-consumer.js',
@@ -149,5 +149,20 @@ describe('S1 A01-A03: Chord lower buttons', () => {
     const b=browser(); b.cc(22); const before=b.state(), count=b.played.length;
     b.cc(23,0); expect(b.state()).toEqual(before); expect(b.played.length).toBe(count);
     expect(b.row().states[2]).toBe(true);
+  });
+  it('S1 selected degree flows into the existing persisted memory slot without a new schema', () => {
+    const b=browser();
+    b.cc(20); b.cc(21);
+    const notes=b.read('getCurrentChordMidiNotes()'), name=b.read('getCurrentChordName()');
+    expect(notes.length).toBe(4); expect(b.c.saveToPlainSlot(0)).toBe(true);
+    const saved=JSON.parse(b.storage.get('64pad-settings')).banks[0].memory[0];
+    expect(saved).toEqual(b.read('PlainState.memory[0]'));
+    expect(saved.midiNotes).toEqual(notes); expect(saved.chordName).toBe(name);
+    expect(b.read('[BuilderState._fromDiatonic,BuilderState._fromSecDom,BuilderState._diatonicScaleIdx]')).toEqual([true,false,0]);
+    for(let i=0;i<4;i++)b.cc(20); b.cc(22);
+    const secondary=b.read('getCurrentChordMidiNotes()'); expect(b.c.saveToPlainSlot(1)).toBe(true);
+    const saved2=JSON.parse(b.storage.get('64pad-settings')).banks[0].memory[1];
+    expect(saved2.midiNotes).toEqual(secondary); expect(saved2.chordName).toBe(b.read('getCurrentChordName()'));
+    expect(b.read('[BuilderState._fromSecDom,BuilderState._fromDiatonic,BuilderState._diatonicScaleIdx]')).toEqual([true,false,1]);
   });
 });
