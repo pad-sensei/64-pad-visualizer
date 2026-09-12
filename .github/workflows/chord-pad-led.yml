@@ -1,0 +1,103 @@
+name: Chord pad LED candidate
+on:
+  push:
+    branches: [tuner/chord-pad-led-20260913]
+    paths: [.github/chord-pad-led-implement.py, .github/chord-pad-led.test.js, .github/workflows/chord-pad-led.yml]
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 4f3197d24c8a08238a6b191cace30a41cf05519e
+          path: product
+          submodules: recursive
+          fetch-depth: 2
+      - name: Admission
+        working-directory: product
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 4f3197d24c8a08238a6b191cace30a41cf05519e
+          test "$(git rev-parse HEAD^{tree})" = 9f492241be3aa2dd4c0bb0c21c9f22243f7847d4
+          test "$(git ls-remote origin refs/heads/codex/web-v180-push-human-gate-followup | cut -f1)" = 4f3197d24c8a08238a6b191cace30a41cf05519e
+          test -z "$(git ls-remote origin refs/heads/tuner/chord-pad-led-candidate-20260913)"
+          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: product/package-lock.json
+      - name: Dependencies
+        working-directory: product
+        run: npm ci
+      - name: Old source plus new regression must fail on the reported missing Chord pad display
+        working-directory: product
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp ../control/.github/chord-pad-led.test.js tests/unit/push-chord-pad-led.test.js
+          set +e
+          npx vitest run tests/unit/push-chord-pad-led.test.js --reporter=json --outputFile="$RUNNER_TEMP/negative.json" > "$RUNNER_TEMP/negative.log" 2>&1
+          rc=$?
+          set -e
+          cat "$RUNNER_TEMP/negative.log"
+          test "$rc" -ne 0
+          python3 - <<'PY'
+          import json,os
+          r=json.load(open(os.environ['RUNNER_TEMP']+'/negative.json'))
+          failed=[a for t in r['testResults'] for a in t['assertionResults'] if a['status']=='failed']
+          print('NEGATIVE_COUNT',len(failed),[a['title'] for a in failed])
+          assert failed
+          assert any('scale-only override' in a['title'] for a in failed)
+          PY
+          git diff --exit-code
+      - name: Apply bounded fix and commit exact candidate before testing
+        working-directory: product
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ../control/.github/chord-pad-led-implement.py "$PWD"
+          git diff --check
+          git add render.js midi.js index.html sw.js tests/unit docs/PUSH_CHORD_PAD_LED_2026-09-13.md
+          test -z "$(git diff --cached --name-only -- .github pad-core audio-core)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(push): mirror Chord shapes on pad LEDs'
+          echo "PRODUCT_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "PRODUCT_TREE=$(git rev-parse HEAD^{tree})" >> "$GITHUB_ENV"
+          git show --stat --oneline HEAD
+      - name: Focused + complete regression
+        working-directory: product
+        run: |
+          set -euo pipefail
+          node --check render.js
+          node --check midi.js
+          npx vitest run tests/unit/push-chord-pad-led.test.js --reporter=verbose
+          node tests/push-standalone-parity.cjs
+          node audio-core/tests/worklet-sustain-bootstrap-smoke.cjs
+          npm test
+          ./tools/sw-assets-check.sh
+      - name: Final source and dependency identity
+        working-directory: product
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$PRODUCT_HEAD"
+          test "$(git rev-parse HEAD^{tree})" = "$PRODUCT_TREE"
+          test "$(git rev-parse HEAD^)" = 4f3197d24c8a08238a6b191cace30a41cf05519e
+          test "$(git -C pad-core rev-parse HEAD)" = eded0b6f1108a75f889b5e62ac8198e2b27de3d0
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+          git diff --exit-code
+          git diff --cached --exit-code
+          test "$(git ls-remote origin refs/heads/codex/web-v180-push-human-gate-followup | cut -f1)" = 4f3197d24c8a08238a6b191cace30a41cf05519e
+          test -z "$(git ls-remote origin refs/heads/tuner/chord-pad-led-candidate-20260913)"
+          git push origin HEAD:refs/heads/tuner/chord-pad-led-candidate-20260913
+          echo "CHORD_PAD_LED_CANDIDATE $PRODUCT_HEAD $PRODUCT_TREE"
