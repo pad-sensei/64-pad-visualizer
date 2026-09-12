@@ -1559,10 +1559,9 @@ function updateLaunchpadLEDs(state) {
   _lastLEDState = state;
   if (_isPush && _pushIsColorPickActive()) return;
   if (!midiOutput || !_lpOutputActive || !_lpProgrammerMode) return;
-  // urinami 2026-04-14: PUSH は楽器としての scale 表示に徹する。render.js で
-  // padApplyScaleOnlyOverride を通した state が渡ってくるので、ここでは
-  // 通常の音階パッドは維持。明示的な Memory/Perform slot layout だけは
-  // _padColorToLP が同じ controller state を参照して16スロットを描く。
+  // Push pad LEDs follow the rendered controller state. _padColorToLP applies
+  // the current Scale / Chord / Memory / Perform presentation, including exact
+  // Chord-position overlays and the scale background defined by the current view.
   for (var row = 0; row < ROWS; row++) {
     for (var col = 0; col < COLS; col++) {
       var idx = row * COLS + col;
