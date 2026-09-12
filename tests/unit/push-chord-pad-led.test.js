@@ -70,6 +70,17 @@ describe('Push Chord pad LEDs', () => {
     expect(runPadColor(state, app, 0, 1)).toBe(0); // C# outside scale
   });
 
+  it('one-position without a resolved shape falls back to scale background only and differs from all-position', () => {
+    const state = chordState();
+    state.basicFormPadSet = new Set();
+    const onePosition = Array.from({length:8}, (_, col) => runPadColor(state, app, 0, col));
+    const allPosition = Array.from({length:8}, (_, col) => runPadColor(state, {...app, showAllPositions:true}, 0, col));
+    expect(onePosition).toEqual([3,0,122,0,122,122,0,122]);
+    expect(onePosition).not.toEqual(allPosition);
+    expect(onePosition[4]).toBe(122); // E is only the scale background here, not guide-tone role color.
+    expect(allPosition[4]).toBe(26); // E is guide 3rd in all-position view.
+  });
+
   it('C-fixed keeps C-major background without erasing the chord shape', () => {
     const state = chordState();
     const fixed = {...app, padCFixed:true, key:7, scaleIdx:0};
