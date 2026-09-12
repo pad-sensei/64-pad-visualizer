@@ -1,0 +1,87 @@
+name: Prove Chrome loaded exact f144 source v2
+on:
+  push:
+    branches: [tuner/deploy-dev-f144-20260913]
+    paths: [.github/workflows/prove-loaded-f144-v2.yml]
+permissions:
+  contents: read
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact audited product head
+        uses: actions/checkout@v4
+        with:
+          ref: f144c228696b2f7af6d59b8910ae35d168ccb0d5
+          submodules: recursive
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Chrome actual loaded-source proof
+        shell: bash
+        env:
+          DEV_URL: https://murinaikurashi.com/apps/64-pad-dev/?proof=f144-loaded-v2
+        run: |
+          set -euo pipefail
+          cat >.prove-loaded-f144.mjs <<'NODE'
+          import { chromium } from 'playwright';
+          import fs from 'node:fs';
+          import crypto from 'node:crypto';
+          const files = {
+            'midi.js': fs.readFileSync('midi.js'),
+            'render.js': fs.readFileSync('render.js'),
+            'push-web-control.js': fs.readFileSync('push-web-control.js'),
+            'push-midi-cc-map.js': fs.readFileSync('push-midi-cc-map.js'),
+          };
+          const expected = Object.fromEntries(Object.entries(files).map(([k,b]) => [k, crypto.createHash('sha256').update(b).digest('hex')]));
+          const seen = {};
+          const errors = [];
+          const browser = await chromium.launch({headless:true});
+          const context = await browser.newContext();
+          const page = await context.newPage();
+          page.on('pageerror', e => errors.push(String(e)));
+          page.on('response', async r => {
+            const u = r.url();
+            for (const f of Object.keys(files)) {
+              if (new URL(u).pathname.endsWith('/' + f)) {
+                try {
+                  const b = await r.body();
+                  seen[f] = {url:u, status:r.status(), hash:crypto.createHash('sha256').update(b).digest('hex')};
+                } catch {}
+              }
+            }
+          });
+          await page.goto(process.env.DEV_URL, {waitUntil:'networkidle', timeout:60000});
+          await page.waitForTimeout(1500);
+          const runtime = await page.evaluate(() => ({
+            updateLaunchpadLEDs: typeof window.updateLaunchpadLEDs,
+            render: typeof window.render,
+            padWebPushHandleCC: typeof window.padWebPushHandleCC,
+            controllerMap: typeof window.PUSH_MIDI_CC_MAP,
+            resources: performance.getEntriesByType('resource').map(e => e.name).filter(n => /(?:midi\.js|render\.js|push-web-control\.js|push-midi-cc-map\.js)/.test(n))
+          }));
+          for (const f of Object.keys(files)) {
+            if (!seen[f]) throw new Error('not observed by Chrome: ' + f);
+            if (seen[f].status !== 200) throw new Error('bad status ' + f + ': ' + seen[f].status);
+            if (seen[f].hash !== expected[f]) throw new Error('loaded hash mismatch ' + f + ' expected=' + expected[f] + ' actual=' + seen[f].hash);
+            console.log('CHROME_LOADED_MATCH', f, seen[f].hash, seen[f].url);
+          }
+          if (runtime.updateLaunchpadLEDs !== 'function') throw new Error('midi.js did not execute updateLaunchpadLEDs');
+          if (runtime.render !== 'function') throw new Error('render.js did not execute render');
+          console.log('CHROME_RUNTIME', JSON.stringify(runtime));
+          console.log('PAGE_ERRORS', JSON.stringify(errors));
+          await browser.close();
+          NODE
+          node .prove-loaded-f144.mjs
+          rm .prove-loaded-f144.mjs
+          test "$(git rev-parse HEAD)" = f144c228696b2f7af6d59b8910ae35d168ccb0d5
+          test "$(git rev-parse HEAD^{tree})" = 4e2f1efd5b882474f56bb094931aa92110286461
+          git diff --exit-code
+          git diff --cached --exit-code
+          echo 'CHROME_EXACT_F144_PROOF PASS'
