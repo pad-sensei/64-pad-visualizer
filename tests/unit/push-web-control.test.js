@@ -12,7 +12,9 @@ const touched = [
   'memoryViewMode', 'localStorage', 'BuilderState', '__pushLedColorPickRole',
   'VoicingState', 'togglePerformMode', 'setInversion', 'builderBack',
   'undoMemory', 'redoMemory', 'chordBasicFormActive', 'isGuitarEngineActive',
-  'getBuilderPCS', 'cycleTasty', 'cycleStock',
+  'getBuilderPCS', 'cycleTasty', 'cycleStock', 'selectRoot',
+  'disableTasty', 'disableStock', 'resetVoicingSelection',
+  'updateKeyButtons', 'updateRootButtons', 'renderParentScales',
 ];
 
 afterEach(() => {
@@ -80,6 +82,53 @@ describe('Push Web logical control behavior', () => {
     expect(calls).toContainEqual([63, 'weak', true]);    // Page right available
     expect(calls).toContainEqual([83, 'red-soft', false]);
     expect(calls).toContainEqual([86, 'strong', true]);  // Record/Input
+  });
+
+
+  it('nudges a completed chord by semitone without resetting its chord state', () => {
+    const quality = { name: 'm7', pcs: [0, 3, 7, 10] };
+    globalThis.AppState = { mode: 'chord' };
+    globalThis.BuilderState = {
+      root: 11, quality, tension: '9', bass: 4,
+      _fromDiatonic: true, _diatonicScaleIdx: 0,
+      _fromSecDom: true, _secDomTargetIsMajor: true,
+    };
+    let selectRootCalls = 0;
+    let resetCalls = 0;
+    globalThis.selectRoot = (root) => {
+      selectRootCalls += 1;
+      globalThis.BuilderState.root = root;
+      globalThis.BuilderState.quality = null;
+      globalThis.BuilderState.tension = null;
+      globalThis.BuilderState.bass = null;
+    };
+    globalThis.resetVoicingSelection = () => { resetCalls += 1; };
+
+    expect(handleLogical(35, 1)).toBe(true);
+    expect(globalThis.BuilderState.root).toBe(0);
+    expect(globalThis.BuilderState.bass).toBe(5);
+    expect(globalThis.BuilderState.quality).toBe(quality);
+    expect(globalThis.BuilderState.tension).toBe('9');
+    expect(globalThis.BuilderState._fromDiatonic).toBe(false);
+    expect(globalThis.BuilderState._diatonicScaleIdx).toBeUndefined();
+    expect(globalThis.BuilderState._fromSecDom).toBe(false);
+    expect(globalThis.BuilderState._secDomTargetIsMajor).toBeUndefined();
+    expect(selectRootCalls).toBe(0);
+    expect(resetCalls).toBe(1);
+  });
+
+  it('matches Standalone by leaving active voicing engines before chord semitone nudge', () => {
+    globalThis.AppState = { mode: 'chord' };
+    globalThis.BuilderState = { root: 0, quality: { name: '7', pcs: [0, 4, 7, 10] }, tension: null, bass: null };
+    globalThis.TastyState = { enabled: true };
+    globalThis.StockState = { enabled: true };
+    globalThis.disableTasty = () => { globalThis.TastyState.enabled = false; };
+    globalThis.disableStock = () => { globalThis.StockState.enabled = false; };
+
+    expect(handleLogical(35, -1)).toBe(true);
+    expect(globalThis.BuilderState.root).toBe(11);
+    expect(globalThis.TastyState.enabled).toBe(false);
+    expect(globalThis.StockState.enabled).toBe(false);
   });
 
 });

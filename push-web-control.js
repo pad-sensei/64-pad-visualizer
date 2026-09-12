@@ -264,16 +264,21 @@
   }
 
   function nudgeChordRoot(delta) {
-    if (!runtime.BuilderState || runtime.BuilderState.root === null || runtime.BuilderState.root === undefined) return false;
-    var next = wrap(runtime.BuilderState.root + (delta < 0 ? -1 : 1), 12);
-    if (typeof global.selectRoot === 'function') {
-      global.selectRoot(next);
-    } else {
-      runtime.BuilderState.root = next;
-      if (runtime.BuilderState.bass !== null && runtime.BuilderState.bass !== undefined) {
-        runtime.BuilderState.bass = wrap(runtime.BuilderState.bass + (delta < 0 ? -1 : 1), 12);
-      }
+    if (!runtime.BuilderState || runtime.BuilderState.root === null || runtime.BuilderState.root === undefined || !runtime.BuilderState.quality) return false;
+    var step = delta < 0 ? -1 : 1;
+    if (runtime.TastyState && runtime.TastyState.enabled) call('disableTasty');
+    if (runtime.StockState && runtime.StockState.enabled) call('disableStock');
+    runtime.BuilderState.root = wrap(runtime.BuilderState.root + step, 12);
+    if (runtime.BuilderState.bass !== null && runtime.BuilderState.bass !== undefined) {
+      runtime.BuilderState.bass = wrap(runtime.BuilderState.bass + step, 12);
     }
+    // Match Standalone: semitone navigation keeps the completed chord intact.
+    // selectRoot() is an entry action and would clear quality/tension/bass.
+    runtime.BuilderState._fromDiatonic = false;
+    runtime.BuilderState._diatonicScaleIdx = undefined;
+    runtime.BuilderState._fromSecDom = false;
+    runtime.BuilderState._secDomTargetIsMajor = undefined;
+    call('resetVoicingSelection');
     refresh();
     return true;
   }
