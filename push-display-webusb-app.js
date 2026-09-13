@@ -171,7 +171,8 @@ if (enabled) {
         : ['Root', 'Tasty', 'Stock', 'Guitar', 'Quality', 'Tension', 'Key', 'Scale']);
       const chordRow = snap.mode === 'chord' ? snap.chordLowerRow : null;
       const lower = entry ? entry.lower.labels : (chordRow ? chordRow.labels : ['Link', 'Guitar TAB', 'Bass TAB', 'Piano', 'Relative', 'Parallel', 'Secondary', 'Available']);
-      drawControlRow(upper, 14, entry ? entry.upper.states : null);
+      const upperStates = entry ? entry.upper.states : (snap.mode === 'chord' ? window.padWebGetPushChordUpperDisplayStates?.() : null);
+      drawControlRow(upper, 14, upperStates);
       drawControlRow(lower, 148, entry ? entry.lower.states : (chordRow && chordRow.states));
       drawKeyScale(snap);
 

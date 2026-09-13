@@ -1027,8 +1027,23 @@
   global.padWebHandlePushMidiCc = handleMidiCc;
   global.padWebPushControlWillHandlePad = handlePad;
   global.padWebPushControlState = controlState;
+  function chordUpperDisplayStates() {
+    if (currentMode() !== 'chord') return null;
+    return [
+      false,
+      !!(runtime.TastyState && runtime.TastyState.enabled),
+      !!(runtime.StockState && runtime.StockState.enabled),
+      !!call('isGuitarEngineActive'),
+      false,
+      !!controlState.tensionMode,
+      keySectionVisible(),
+      false,
+    ];
+  }
+
   global.padWebGetPushChordEntryDisplay = chordEntryDisplay;
   global.padWebGetPushChordLowerRow = chordLowerRow;
+  global.padWebGetPushChordUpperDisplayStates = chordUpperDisplayStates;
   global.padWebSyncPushButtonLeds = syncButtonLeds;
   global.padWebResetPushButtonLedState = resetButtonLedState;
 
@@ -1038,6 +1053,7 @@
       slotFromRawPad: slotFromRawPad,
       syncButtonLeds: syncButtonLeds,
       resetButtonLedState: resetButtonLedState,
+      chordUpperDisplayStates: chordUpperDisplayStates,
     };
   }
 })(typeof window !== 'undefined' ? window : globalThis);

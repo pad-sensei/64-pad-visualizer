@@ -18,12 +18,12 @@ describe('v1.8.0 Push Display exposure contract', () => {
   });
 
   it('invalidates the preview through its SW generation while retaining matching asset URLs', () => {
-    expect(index).toContain('push-display-webusb-app.js?v=webusb-20260913-a04c');
-    expect(sw).toContain("'push-display-webusb-app.js?v=webusb-20260913-a04c'");
+    expect(index).toContain('push-display-webusb-app.js?v=webusb-20260913-active-color');
+    expect(sw).toContain("'push-display-webusb-app.js?v=webusb-20260913-active-color'");
     // S1 changes both the SW generation and the affected asset identities.
     // Install fetches fresh asset bytes; this is not loaded-browser evidence.
     // See the current handover; this is not proof of a browser-loaded update.
-    expect(sw).toContain("var CACHE_NAME = '64pad-v180-preview-20260913-entry-a04c';");
+    expect(sw).toContain("var CACHE_NAME = '64pad-v180-preview-20260913-active-color';");
     expect(sw).not.toContain("var CACHE_NAME = '64pad-v180-preview-20260912-display-active-4';");
     expect(sw).toContain("fetch(url, { cache: 'reload' })");
     expect(index).not.toContain('push-display-webusb-app.js?v=webusb-20260911-10');
