@@ -40,8 +40,9 @@ const GLYPHS = Object.freeze({
 });
 
 if (enabled) {
-  const host = document.getElementById('sound-header');
-  if (host) {
+  const host = document.querySelector('.header-bar');
+  const anchor = document.getElementById('tut-btn');
+  if (host && anchor && anchor.parentElement === host) {
     const button = document.createElement('button');
     button.id = 'push-webusb-display-btn';
     button.type = 'button';
@@ -51,11 +52,12 @@ if (enabled) {
 
     const status = document.createElement('span');
     status.id = 'push-webusb-display-status';
-    status.style.cssText = 'font-size:0.55rem;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    status.style.cssText = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;';
+    status.setAttribute('aria-live', 'polite');
     status.textContent = 'Push USB: ready';
 
-    host.insertBefore(button, host.firstChild);
-    host.insertBefore(status, button.nextSibling);
+    host.insertBefore(button, anchor);
+    host.insertBefore(status, anchor);
 
     const canvas = document.createElement('canvas');
     canvas.width = WIDTH;
@@ -204,6 +206,7 @@ if (enabled) {
     const probe = new PushWebUsbDisplay(navigator.usb, drawFrame(), (state, text) => {
       status.textContent = text;
       status.title = text;
+      button.title = text || 'Connect Push 2 / Push 3 display via WebUSB (Chrome)';
       button.disabled = state === 'connecting' || state === 'stopping' || state === 'blocked' || !supported;
       button.textContent = state === 'running' || state === 'recovering' ? 'Stop Push Display' : 'Push Display';
       button.dataset.state = state;
@@ -212,6 +215,7 @@ if (enabled) {
     if (!supported) {
       button.disabled = true;
       status.textContent = 'WebUSB unavailable: use Chrome over HTTPS';
+      button.title = status.textContent;
     }
 
     let cleanupStarted = false;

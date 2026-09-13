@@ -29,14 +29,19 @@ function fixture({ desktop = false, supported = true, secure = true } = {}) {
     },
   };
   function element(id) {
-    return { id, style: {}, dataset: {}, textContent: '', firstChild: null,
-      insertBefore(child) { if (child.id) elements.set(child.id, child); },
+    return { id, style: {}, dataset: {}, textContent: '', firstChild: null, parentElement: null,
+      setAttribute() {},
+      insertBefore(child) { child.parentElement = this; if (child.id) elements.set(child.id, child); },
       addEventListener(type, callback) { listeners.set(`${this.id}:${type}`, callback); },
     };
   }
   for (const id of ['sound-header', 'midi-detect', 'pad-grid', 'mode-scale', 'mode-chord', 'mode-input']) {
     elements.set(id, element(id));
   }
+  const headerBar = element('header-bar');
+  const tutorialButton = element('tut-btn');
+  tutorialButton.parentElement = headerBar;
+  elements.set('tut-btn', tutorialButton);
   class Observer {
     constructor(callback) { this.callback = callback; this.targets = new Set(); observers.push(this); }
     observe(target) { this.targets.add(target); }
@@ -56,6 +61,7 @@ function fixture({ desktop = false, supported = true, secure = true } = {}) {
     setTimeout: callback => callback(),
     document: {
       getElementById: id => elements.get(id),
+      querySelector: selector => selector === '.header-bar' ? headerBar : null,
       createElement: tag => tag === 'canvas' ? { getContext: () => context2d } : element(tag),
     },
     IS_DESKTOP_MODE: desktop, isSecureContext: secure,
