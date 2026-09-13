@@ -13,7 +13,7 @@ const touched = [
   'VoicingState', 'togglePerformMode', 'setInversion', 'builderBack',
   'undoMemory', 'redoMemory', 'chordBasicFormActive', 'isGuitarEngineActive',
   'getBuilderPCS', 'cycleTasty', 'cycleStock', 'selectRoot',
-  'disableTasty', 'disableStock', 'resetVoicingSelection',
+  'disableTasty', 'disableStock', 'toggleTasty', 'toggleStock', 'resetVoicingSelection',
   'updateKeyButtons', 'updateRootButtons', 'renderParentScales',
 ];
 
@@ -84,6 +84,85 @@ describe('Push Web logical control behavior', () => {
     expect(calls).toContainEqual([86, 'strong', true]);  // Record/Input
   });
 
+  it('routes A05 upper buttons through explicit mutually-exclusive Tasty/Stock toggles', () => {
+    globalThis.AppState = { mode: 'chord' };
+    globalThis.BuilderState = { root: 0, quality: { name: '7', pcs: [0, 4, 7, 10] } };
+    globalThis.TastyState = { enabled: false, hpsUnlocked: true };
+    globalThis.StockState = { enabled: false, hpsUnlocked: true };
+    const calls = [];
+    globalThis.toggleTasty = () => {
+      calls.push('tasty');
+      if (globalThis.TastyState.enabled) globalThis.TastyState.enabled = false;
+      else {
+        globalThis.StockState.enabled = false;
+        globalThis.TastyState.enabled = true;
+      }
+    };
+    globalThis.toggleStock = () => {
+      calls.push('stock');
+      if (globalThis.StockState.enabled) globalThis.StockState.enabled = false;
+      else {
+        globalThis.TastyState.enabled = false;
+        globalThis.StockState.enabled = true;
+      }
+    };
+
+    expect(handleLogical(21, 1)).toBe(true); // upper Tasty
+    expect(calls).toEqual(['tasty']);
+    expect(globalThis.TastyState.enabled).toBe(true);
+    expect(globalThis.StockState.enabled).toBe(false);
+
+    expect(handleLogical(21, 2)).toBe(true); // upper Stock
+    expect(calls).toEqual(['tasty', 'stock']);
+    expect(globalThis.TastyState.enabled).toBe(false);
+    expect(globalThis.StockState.enabled).toBe(true);
+
+    expect(handleLogical(21, 2)).toBe(true); // explicit Stock off
+    expect(globalThis.StockState.enabled).toBe(false);
+  });
+
+  it('keeps A05 candidate cycling inert while Tasty/Stock are disabled', () => {
+    globalThis.AppState = { mode: 'chord' };
+    globalThis.BuilderState = { root: 0, quality: { name: '7', pcs: [0, 4, 7, 10] } };
+    globalThis.TastyState = { enabled: false, hpsUnlocked: true };
+    globalThis.StockState = { enabled: false, hpsUnlocked: true };
+    const tasty = [];
+    const stock = [];
+    globalThis.cycleTasty = reverse => tasty.push(reverse);
+    globalThis.cycleStock = reverse => stock.push(reverse);
+
+    expect(handleLogical(51, 3)).toBe(true);  // dedicated Tasty encoder
+    expect(handleLogical(52, -2)).toBe(true); // dedicated Stock encoder
+    expect(handleLogical(30, 1)).toBe(true);  // Jog: no active voicing engine => inversion path
+    expect(tasty).toEqual([]);
+    expect(stock).toEqual([]);
+    expect(globalThis.TastyState.enabled).toBe(false);
+    expect(globalThis.StockState.enabled).toBe(false);
+  });
+
+  it('cycles only the active A05 engine with correct forward/reverse direction', () => {
+    globalThis.AppState = { mode: 'chord' };
+    globalThis.BuilderState = { root: 0, quality: { name: '7', pcs: [0, 4, 7, 10] } };
+    globalThis.TastyState = { enabled: true, hpsUnlocked: true };
+    globalThis.StockState = { enabled: false, hpsUnlocked: true };
+    const tasty = [];
+    const stock = [];
+    globalThis.cycleTasty = reverse => tasty.push(reverse);
+    globalThis.cycleStock = reverse => stock.push(reverse);
+
+    expect(handleLogical(51, 2)).toBe(true);
+    expect(handleLogical(51, -3)).toBe(true);
+    expect(handleLogical(30, 1)).toBe(true); // Jog follows active Tasty
+    expect(tasty).toEqual([false, true, false]);
+    expect(stock).toEqual([]);
+
+    globalThis.TastyState.enabled = false;
+    globalThis.StockState.enabled = true;
+    expect(handleLogical(52, 2)).toBe(true);
+    expect(handleLogical(52, -4)).toBe(true);
+    expect(handleLogical(30, -1)).toBe(true); // Jog follows active Stock
+    expect(stock).toEqual([false, true, true]);
+  });
 
   it('nudges a completed chord by semitone without resetting its chord state', () => {
     const quality = { name: 'm7', pcs: [0, 3, 7, 10] };
@@ -130,7 +209,6 @@ describe('Push Web logical control behavior', () => {
     expect(globalThis.TastyState.enabled).toBe(false);
     expect(globalThis.StockState.enabled).toBe(false);
   });
-
 
   it('preserves signed relative magnitude for D-pad completed-chord semitone moves', () => {
     globalThis.AppState = { mode: 'chord' };
