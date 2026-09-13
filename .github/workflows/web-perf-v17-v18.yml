@@ -1,0 +1,130 @@
+name: Benchmark v1.7 vs v1.8 Web performance
+on:
+  push:
+    branches:
+      - tuner/web-v17-v18-perf-bench-20260913
+permissions:
+  contents: read
+jobs:
+  bench:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tuner/web-v17-v18-perf-bench-20260913
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Prepare exact v1.7 and v1.8 trees
+        run: |
+          set -euo pipefail
+          git fetch --depth 2 origin 2e0dc0b06bd44b6f0b846258b123cbd6d37369d0 8d4d0af31ea76ba3261b6dff561afa477082c21d
+          git worktree add --detach /tmp/v17 2e0dc0b06bd44b6f0b846258b123cbd6d37369d0
+          git worktree add --detach /tmp/v18 8d4d0af31ea76ba3261b6dff561afa477082c21d
+          test "$(git -C /tmp/v17 rev-parse HEAD)" = 2e0dc0b06bd44b6f0b846258b123cbd6d37369d0
+          test "$(git -C /tmp/v18 rev-parse HEAD)" = 8d4d0af31ea76ba3261b6dff561afa477082c21d
+      - name: Static payload accounting
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re, gzip, json
+          refs={'v1.7':Path('/tmp/v17'),'v1.8':Path('/tmp/v18')}
+          out={}
+          for label,root in refs.items():
+              html=(root/'index.html').read_text(errors='ignore')
+              urls=[]
+              for m in re.finditer(r'(?:src|href)=["\']([^"\']+\.(?:js|css)(?:\?[^"\']*)?)["\']',html):
+                  u=m.group(1)
+                  if re.match(r'^(?:[a-z]+:)?//',u,re.I): continue
+                  p=u.split('?',1)[0].lstrip('./')
+                  if p not in urls and (root/p).is_file(): urls.append(p)
+              raw=sum((root/p).stat().st_size for p in urls)
+              gz=sum(len(gzip.compress((root/p).read_bytes(), compresslevel=9)) for p in urls)
+              js=[p for p in urls if p.endswith('.js')]
+              css=[p for p in urls if p.endswith('.css')]
+              out[label]={'asset_count':len(urls),'js_count':len(js),'css_count':len(css),'raw_bytes':raw,'gzip9_bytes':gz,'index_bytes':(root/'index.html').stat().st_size,'files':urls}
+          print('STATIC_JSON='+json.dumps(out,separators=(',',':')))
+          Path('/tmp/static.json').write_text(json.dumps(out))
+          PY
+      - name: Start local servers
+        run: |
+          python -m http.server 8017 --directory /tmp/v17 >/tmp/v17-server.log 2>&1 &
+          echo $! >/tmp/v17.pid
+          python -m http.server 8018 --directory /tmp/v18 >/tmp/v18-server.log 2>&1 &
+          echo $! >/tmp/v18.pid
+          sleep 2
+          curl -fsS http://127.0.0.1:8017/ >/dev/null
+          curl -fsS http://127.0.0.1:8018/ >/dev/null
+      - name: Browser benchmark
+        run: |
+          cat > /tmp/bench.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import fs from 'node:fs';
+          const browser=await chromium.launch({headless:true,args:['--disable-background-networking','--disable-component-update','--disable-features=Translate,MediaRouter']});
+          const targets=[['v1.7','http://127.0.0.1:8017/'],['v1.8','http://127.0.0.1:8018/']];
+          const samples={'v1.7':[],'v1.8':[]};
+          async function one(label,url){
+            const context=await browser.newContext({serviceWorkers:'block'});
+            await context.route(/https?:\/\/(?!127\.0\.0\.1).*/, route=>route.abort());
+            const page=await context.newPage();
+            const cdp=await context.newCDPSession(page);
+            await cdp.send('Performance.enable');
+            const t0=performance.now();
+            await page.goto(url,{waitUntil:'load',timeout:30000});
+            const wallLoadMs=performance.now()-t0;
+            await page.waitForTimeout(2500);
+            const nav=await page.evaluate(()=>{const n=performance.getEntriesByType('navigation')[0];return {domContentLoaded:n?.domContentLoadedEventEnd||0,loadEvent:n?.loadEventEnd||0,transferSize:n?.transferSize||0,encodedBodySize:n?.encodedBodySize||0};});
+            const res=await page.evaluate(()=>performance.getEntriesByType('resource').filter(r=>r.name.startsWith(location.origin)).map(r=>({name:r.name,transferSize:r.transferSize||0,encodedBodySize:r.encodedBodySize||0}))); 
+            const m1=Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(x=>[x.name,x.value]));
+            const h1=await page.evaluate(()=>({used:performance.memory?.usedJSHeapSize||0,total:performance.memory?.totalJSHeapSize||0}));
+            await page.waitForTimeout(5000);
+            const m2=Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(x=>[x.name,x.value]));
+            const h2=await page.evaluate(()=>({used:performance.memory?.usedJSHeapSize||0,total:performance.memory?.totalJSHeapSize||0}));
+            const sample={wallLoadMs,domContentLoadedMs:nav.domContentLoaded,loadEventMs:nav.loadEvent,localTransferBytes:nav.transferSize+res.reduce((a,b)=>a+b.transferSize,0),localEncodedBytes:nav.encodedBodySize+res.reduce((a,b)=>a+b.encodedBodySize,0),idleTaskMs5s:((m2.TaskDuration||0)-(m1.TaskDuration||0))*1000,idleScriptMs5s:((m2.ScriptDuration||0)-(m1.ScriptDuration||0))*1000,idleLayoutMs5s:((m2.LayoutDuration||0)-(m1.LayoutDuration||0))*1000,jsHeapUsedBytes:h2.used,jsHeapDelta5s:h2.used-h1.used,documents:m2.Documents||0,nodes:m2.Nodes||0,listeners:m2.JSEventListeners||0};
+            await context.close(); return sample;
+          }
+          // warm Chromium, then alternate order to reduce host drift
+          for(let round=0;round<7;round++){
+            const order=round%2?targets.slice().reverse():targets;
+            for(const [label,url] of order) samples[label].push(await one(label,url));
+          }
+          function med(arr,key){const a=arr.map(x=>x[key]).sort((x,y)=>x-y);return a[Math.floor(a.length/2)];}
+          const keys=Object.keys(samples['v1.7'][0]); const median={};
+          for(const label of Object.keys(samples)){median[label]={};for(const k of keys)median[label][k]=med(samples[label],k);}
+          console.log('BROWSER_SAMPLES_JSON='+JSON.stringify(samples));
+          console.log('BROWSER_MEDIAN_JSON='+JSON.stringify(median));
+          fs.writeFileSync('/tmp/browser.json',JSON.stringify({samples,median},null,2));
+          await browser.close();
+          JS
+          node /tmp/bench.mjs
+      - name: Report comparison
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          s=json.load(open('/tmp/static.json')); b=json.load(open('/tmp/browser.json'))['median']
+          def pct(a,c): return ((c-a)/a*100) if a else 0
+          rows=[]
+          for key,name,unit in [
+            ('gzip9_bytes','Static referenced assets (gzip-9)','KiB'),
+            ('raw_bytes','Static referenced assets (raw)','KiB')]:
+            a=s['v1.7'][key]/1024;c=s['v1.8'][key]/1024;rows.append((name,a,c,pct(a,c),unit))
+          for key,name,unit in [
+            ('localEncodedBytes','Browser local encoded body','KiB'),
+            ('wallLoadMs','Wall load','ms'),('domContentLoadedMs','DOMContentLoaded','ms'),
+            ('idleTaskMs5s','Idle main-thread task over 5s','ms'),('idleScriptMs5s','Idle script over 5s','ms'),
+            ('jsHeapUsedBytes','JS heap after settle','MiB')]:
+            div=1048576 if unit=='MiB' else 1024 if unit=='KiB' else 1
+            a=b['v1.7'][key]/div;c=b['v1.8'][key]/div;rows.append((name,a,c,pct(a,c),unit))
+          print('\nRESULT TABLE')
+          print('| Metric | v1.7 | v1.8 | Delta |')
+          print('|---|---:|---:|---:|')
+          for n,a,c,p,u in rows: print(f'| {n} | {a:.2f} {u} | {c:.2f} {u} | {p:+.1f}% |')
+          summary='\n'.join(['### v1.7 vs v1.8 Web benchmark','',f"Refs: v1.7 `2e0dc0b06bd44b6f0b846258b123cbd6d37369d0`; v1.8 `8d4d0af31ea76ba3261b6dff561afa477082c21d`.",'','Same Ubuntu runner + same headless Chromium; seven alternating runs; medians shown. External analytics/fonts blocked; service worker blocked.','', '| Metric | v1.7 | v1.8 | Delta |','|---|---:|---:|---:|']+[f'| {n} | {a:.2f} {u} | {c:.2f} {u} | {p:+.1f}% |' for n,a,c,p,u in rows]+['','Notes: idle main-thread/script are 5-second settled-window measurements. Push Display WebUSB hardware transfer is not included because CI has no Push device.'])
+          pathlib.Path('/tmp/summary.md').write_text(summary)
+          print(summary)
+          with open(__import__('os').environ['GITHUB_STEP_SUMMARY'],'a') as f:f.write(summary+'\n')
+          PY
