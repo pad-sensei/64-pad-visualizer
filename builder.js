@@ -8,6 +8,7 @@ var _onchordPianoUI = null; // padBuildPianoKeyboard return (on-chord bass)
 var _qualityUI = null;      // padBuildQualityGrid return
 var _tensionUI = null;      // padBuildTensionGrid return
 function setMode(mode) {
+  if (typeof window.padWebPushBeforeModeChange === 'function') window.padWebPushBeforeModeChange();
   // Plain → Chord: transfer detected chord to builder
   if (mode === 'chord' && AppState.mode === 'input' && PlainState.activeNotes.size >= 2) {
     if (transferToChordMode()) return; // transferToChordMode handles everything

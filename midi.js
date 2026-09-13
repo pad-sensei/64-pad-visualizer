@@ -71,14 +71,15 @@ function midiSourceMetadataForInput(input, status, rawNote, mappedMidi, isPush) 
   };
 }
 
-function releaseAllMidiHeldSources() {
+function releaseAllMidiHeldSources(preserveSustain) {
+  if (typeof window.padWebResetPushInputState === 'function' && !window.IS_DESKTOP_MODE) window.padWebResetPushInputState();
   var released = midiHeldState ? midiHeldState.clearAll() : Array.from(midiActiveNotes);
   midiActiveNotes.clear();
   released.forEach(function(note) {
     try { noteOff(note); } catch (_) {}
   });
-  if (typeof _cancelSustainDebounce === 'function') _cancelSustainDebounce();
-  if (typeof _midiSustainOn !== 'undefined' && _midiSustainOn) {
+  if (!preserveSustain && typeof _cancelSustainDebounce === 'function') _cancelSustainDebounce();
+  if (!preserveSustain && typeof _midiSustainOn !== 'undefined' && _midiSustainOn) {
     _midiSustainOn = false;
     if (typeof setSustain === 'function') {
       try { setSustain(false); } catch (_) {}
@@ -156,6 +157,12 @@ function padWebRenderPushMidiDiag() {
     'last=' + String(d.lastEvent || '-'),
     'lastCC=' + String(d.lastCC || '-'),
     'lastPedal=' + String(d.lastPedal || '-'),
+    'sustain midi/audio/worklet=' + String(typeof _midiSustainOn !== 'undefined' && _midiSustainOn)
+      + '/' + String(typeof _sustainOn !== 'undefined' && _sustainOn)
+      + '/' + String(typeof _epw_sustainOn !== 'undefined' && _epw_sustainOn),
+    'engine=' + (typeof AudioState !== 'undefined' && AudioState.instrument
+      ? (AudioState.instrument.epiano || AudioState.instrument.sampler || 'WebAudioFont') : '-')
+      + ' workletReady=' + String(typeof _epw_initialized !== 'undefined' && _epw_initialized),
     'held=' + String(d.heldNotes || 0),
     'error=' + String(d.lastError || '-'),
   ].join('\n');
@@ -787,6 +794,7 @@ function initWebMIDI() {
                 _sustainDebounceTimer = setTimeout(_resolveSustainOff, SUSTAIN_OFF_DEBOUNCE_MS);
               }
             }
+            padWebRenderPushMidiDiag();
             return;
           }
           // Push control-surface CC: raw mapping is the same contract used by
@@ -796,7 +804,7 @@ function initWebMIDI() {
               inputName: input.name || '',
               inputId: input.id || '',
               nowMs: (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(),
-              padIsHeld: midiActiveNotes.size > 0 || (typeof PlainState !== 'undefined' && PlainState.activeNotes && PlainState.activeNotes.size > 0),
+              padIsHeld: midiActiveNotes.size > 0 || (typeof window.padWebPushHeldSlotActive === 'function' && window.padWebPushHeldSlotActive()),
               padPlaybackBlocked: false,
               mpeMode: (typeof window.mpeMode !== 'undefined' && window.mpeMode === true)
                 || (typeof AppState !== 'undefined' && AppState.mpeMode === true)
@@ -811,7 +819,7 @@ function initWebMIDI() {
             if (window.padWebPushControlWillHandlePad(rawNote, _pushPadDown)) return;
           }
           // Push perform mode: serial 4x4 → slots directly (bypass fourths conversion)
-          if (isPush && memoryViewMode === 'perform' && cmd === 0x90 && velocity > 0) {
+          if (isPush && typeof window.padWebPushSlotLayoutActive !== 'function' && memoryViewMode === 'perform' && cmd === 0x90 && velocity > 0) {
             var si = rawNote - PUSH_SERIAL_BASE;
             if (si >= 0 && si < 64) {
               var sRow = Math.floor(si / 8);
@@ -978,6 +986,10 @@ function initWebMIDI() {
 // palette (for example 5=brown, 9=yellow-green). Validate on hardware first.
 function _padColorToLP(state, row, col) {
   if (_lpLEDMode === 'off') return 0;
+  if (_isPush && typeof window.padWebPushSlotPadColor === 'function') {
+    var slotColor = window.padWebPushSlotPadColor(row, col);
+    if (slotColor !== null) return slotColor;
+  }
 
   var bm = baseMidi();
   var midi = bm + row * ROW_INTERVAL + col;
@@ -1007,6 +1019,36 @@ function _padColorToLP(state, row, col) {
 
   var activePCS = state.activePCS;
   var bassPC = state.bassPC;
+
+  // Chord position overlay: mirror the exact shape shown on the screen instead
+  // of expanding chord pitch classes across all duplicate pads. This follows
+  // Standalone's Stock/Tasty/Guitar/selected-box/basic-form priority.
+  var chordPadIdxs = null;
+  if (_isPush && AppState.mode === 'chord' && AppState.showAllPositions !== true) {
+    chordPadIdxs = new Set();
+    function addPositions(positions) {
+      if (!positions || !positions.length) return false;
+      positions.forEach(function(p) { chordPadIdxs.add(p.row * COLS + p.col); });
+      return chordPadIdxs.size > 0;
+    }
+    if (typeof StockState !== 'undefined' && StockState.enabled
+        && StockState.currentIndex >= 0 && addPositions(StockState.padPositions)) {
+    } else if (typeof TastyState !== 'undefined' && TastyState.enabled
+        && TastyState.currentIndex >= 0 && addPositions(TastyState.padPositions)) {
+    } else if (typeof isGuitarEngineActive === 'function' && isGuitarEngineActive()
+        && typeof _instrumentPadSet !== 'undefined' && _instrumentPadSet && _instrumentPadSet.size) {
+      _instrumentPadSet.forEach(function(idx) { chordPadIdxs.add(idx); });
+    } else if (typeof VoicingState !== 'undefined' && VoicingState.lastBoxes
+        && VoicingState.selectedBoxIdx !== null
+        && VoicingState.lastBoxes[VoicingState.selectedBoxIdx]) {
+      var selectedBox = VoicingState.lastBoxes[VoicingState.selectedBoxIdx];
+      var selectedAlt = selectedBox.alternatives && selectedBox.alternatives[selectedBox.currentAlt];
+      if (selectedAlt && selectedAlt.positions) addPositions(selectedAlt.positions);
+    } else if (state.basicFormPadSet && state.basicFormPadSet.size) {
+      state.basicFormPadSet.forEach(function(idx) { chordPadIdxs.add(idx); });
+    }
+    if (chordPadIdxs.size === 0) chordPadIdxs = null;
+  }
   var omittedPCS = state.omittedPCS;
   var guide3PCS = state.guide3PCS;
   var guide7PCS = state.guide7PCS;
@@ -1028,20 +1070,45 @@ function _padColorToLP(state, row, col) {
   var isTension = AppState.mode === 'chord' && tensionPCS.has(pc) && !isRoot && !isGuide3 && !isGuide7;
   var isAvoid = AppState.mode === 'chord' && avoidPCS.has(pc) && !isRoot;
 
-  if (AppState.mode === 'scale' || (_isPush && cFixed)) {
+  if (AppState.mode === 'scale') {
     if (pc === scaleRoot) return AppState.pushScaleRootColor || 3;
     if (scalePCS.has(pc)) return AppState.pushScaleToneColor || 122;
     return 0;
   }
-  if (isRoot && isActive) return AppState.pushScaleRootColor || 3;
-  if (isBass) return AppState.pushScaleRootColor || 3;
-  if (isGuide3) return 26;                // Push: hot pink — guide tone 3rd
-  if (isGuide7) return 10;                // Push: bright green — guide tone 7th
-  if (isAvoid) return 25;                 // Push: pink-red — avoid note
-  if (isTension) return 16;               // Push: cyan — tension
-  if (isActive) return 18;                // Push: sky blue — chord tone
-  if (overlayPCS && overlayPCS.has(pc)) return 121; // Push: dim white — selected scale overlay
-  return 0;                                // Off
+
+  if (_isPush && AppState.mode === 'chord' && chordPadIdxs) {
+    if (chordPadIdxs.has(row * COLS + col)) return 21;
+    if (pc === scaleRoot) return AppState.pushScaleRootColor || 3;
+    if (scalePCS.has(pc)) return AppState.pushScaleToneColor || 122;
+    return 0;
+  }
+
+  // Standalone SSOT: one-position Chord view never falls through to
+  // pitch-class role colours. If no exact shape is currently available
+  // (for example while root/quality selection is incomplete), keep only
+  // the scale background until an exact shape exists.
+  if (_isPush && AppState.mode === 'chord' && AppState.showAllPositions !== true) {
+    if (pc === scaleRoot) return AppState.pushScaleRootColor || 3;
+    if (scalePCS.has(pc)) return AppState.pushScaleToneColor || 122;
+    return 0;
+  }
+
+  var chordColor = 0;
+  if (isRoot && isActive) chordColor = AppState.pushScaleRootColor || 3;
+  else if (isBass) chordColor = AppState.pushScaleRootColor || 3;
+  else if (isGuide3) chordColor = 26;
+  else if (isGuide7) chordColor = 10;
+  else if (isAvoid) chordColor = 25;
+  else if (isTension) chordColor = 16;
+  else if (isActive) chordColor = 18;
+  else if (overlayPCS && overlayPCS.has(pc)) chordColor = 121;
+  if (chordColor) return chordColor;
+
+  if (_isPush && AppState.mode === 'chord' && AppState.showAllPositions === true) {
+    if (pc === scaleRoot) return AppState.pushScaleRootColor || 3;
+    if (scalePCS.has(pc)) return AppState.pushScaleToneColor || 122;
+  }
+  return 0;
 }
 
 function _pushPaletteColors64(first) {
@@ -1371,6 +1438,7 @@ function padWebResumePushSurface() {
 }
 
 function padWebResetPushMidiRuntimeState() {
+  if (typeof window.padWebResetPushInputState === 'function' && !window.IS_DESKTOP_MODE) window.padWebResetPushInputState();
   try { if (typeof _cancelSustainDebounce === 'function') _cancelSustainDebounce(); } catch (_) {}
   try {
     if (typeof _midiSustainOn !== 'undefined') _midiSustainOn = false;
@@ -1385,6 +1453,8 @@ function padWebGetPushDisplaySnapshot() {
   var payload = (typeof padWebGetLatestObservedShellUstPayload === 'function')
     ? padWebGetLatestObservedShellUstPayload() : null;
   var notes = Array.from(midiActiveNotes).sort(function(a, b) { return a - b; });
+  var pushHeldSlot = typeof window.padWebPushHeldSlotActive === 'function' && window.padWebPushHeldSlotActive();
+  if (pushHeldSlot) notes = Array.from(PlainState.activeNotes).sort(function(a, b) { return a - b; });
   var noteNames = notes.map(function(note) {
     try { return pcName(((note % 12) + 12) % 12); }
     catch (_) { return String(note); }
@@ -1396,6 +1466,10 @@ function padWebGetPushDisplaySnapshot() {
     scale = (SCALES[AppState.scaleIdx] && SCALES[AppState.scaleIdx].name) || '';
   } catch (_) {}
   var chord = payload && payload.chord && payload.chord.name || '';
+  if (pushHeldSlot && window.padWebPushControlState) {
+    var heldSlot = PlainState.memory[window.padWebPushControlState.heldSlot];
+    chord = heldSlot ? heldSlot.chordName : '';
+  }
   if (!chord) {
     var detect = document.getElementById('midi-detect');
     var first = detect && detect.firstElementChild;
@@ -1419,6 +1493,8 @@ function padWebGetPushDisplaySnapshot() {
     shell: shell,
     ust: ust,
     tensions: tensions,
+    chordEntry: typeof window.padWebGetPushChordEntryDisplay === 'function' ? window.padWebGetPushChordEntryDisplay() : null,
+    chordLowerRow: typeof window.padWebGetPushChordLowerRow === 'function' ? window.padWebGetPushChordLowerRow() : null,
   };
 }
 
@@ -1484,9 +1560,9 @@ function updateLaunchpadLEDs(state) {
   _lastLEDState = state;
   if (_isPush && _pushIsColorPickActive()) return;
   if (!midiOutput || !_lpOutputActive || !_lpProgrammerMode) return;
-  // urinami 2026-04-14: PUSH は楽器としての scale 表示に徹する。render.js で
-  // padApplyScaleOnlyOverride を通した state が渡ってくるので、ここでは
-  // mode 分岐は行わない（常に scale 面が光る）。
+  // Push pad LEDs follow the rendered controller state. _padColorToLP applies
+  // the current Scale / Chord / Memory / Perform presentation, including exact
+  // Chord-position overlays and the scale background defined by the current view.
   for (var row = 0; row < ROWS; row++) {
     for (var col = 0; col < COLS; col++) {
       var idx = row * COLS + col;

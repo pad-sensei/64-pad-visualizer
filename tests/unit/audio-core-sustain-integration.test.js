@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
+import { execFileSync } from 'child_process';
 
 const index = fs.readFileSync('index.html', 'utf8');
 const sw = fs.readFileSync('sw.js', 'utf8');
@@ -67,5 +68,17 @@ describe('audited audio-core sustain integration', () => {
     expect(smoke).toContain('retrigger left stale deferred release');
     expect(smoke).toContain('worklet NoteOff was incorrectly deferred in host');
     expect(smoke).toContain('defensive stale deferred voice was not released');
+  });
+
+  it('preserves CC64 and first-note NoteOff ordering across async worklet bootstrap', () => {
+    const smokePath = 'audio-core/tests/worklet-sustain-bootstrap-smoke.cjs';
+    const smoke = fs.readFileSync(smokePath, 'utf8');
+    expect(workletEngine).toContain('var _epw_sustainOn = false');
+    expect(workletEngine).toContain("_epw_node.port.postMessage({ type: 'sustain', on: _epw_sustainOn });");
+    expect(smoke).toContain('sticky sustain was not replayed after worklet creation');
+    expect(smoke).toContain('deferred first-note NoteOff was lost during worklet bootstrap');
+
+    const output = execFileSync(process.execPath, [smokePath], { encoding: 'utf8' });
+    expect(output).toContain('worklet sustain bootstrap smoke: PASS');
   });
 });

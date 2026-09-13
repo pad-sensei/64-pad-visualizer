@@ -1197,13 +1197,9 @@ function render() {
   }
   _syncOverlayHighlight();
 
-  // Launchpad/PUSH LED update: always show current scale only
-  // (urinami 2026-04-14: PUSH は楽器なので scale のみ、chord/tasty/builder は出さない).
-  // C-fixed mode はさらに C Major に固定する。
-  if (typeof updateLaunchpadLEDs === 'function') {
-    var ledState = (typeof padApplyScaleOnlyOverride === 'function')
-      ? padApplyScaleOnlyOverride(state, AppState.key, AppState.scaleIdx, AppState.padCFixed === true)
-      : state;
-    updateLaunchpadLEDs(ledState);
-  }
+  // Push/Launchpad receives the same padState the screen just rendered.
+  // Scale mode remains scale-only naturally. Chord mode now preserves the
+  // selected/basic voicing positions over the educational scale background,
+  // matching Standalone and the current owner ruling (2026-09-13).
+  if (typeof updateLaunchpadLEDs === 'function') updateLaunchpadLEDs(padState);
 }

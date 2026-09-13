@@ -40,8 +40,9 @@ const GLYPHS = Object.freeze({
 });
 
 if (enabled) {
-  const host = document.getElementById('sound-header');
-  if (host) {
+  const host = document.querySelector('.header-bar');
+  const anchor = document.getElementById('tut-btn');
+  if (host && anchor && anchor.parentElement === host) {
     const button = document.createElement('button');
     button.id = 'push-webusb-display-btn';
     button.type = 'button';
@@ -51,11 +52,12 @@ if (enabled) {
 
     const status = document.createElement('span');
     status.id = 'push-webusb-display-status';
-    status.style.cssText = 'font-size:0.55rem;color:var(--text-muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    status.style.cssText = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;';
+    status.setAttribute('aria-live', 'polite');
     status.textContent = 'Push USB: ready';
 
-    host.insertBefore(button, host.firstChild);
-    host.insertBefore(status, button.nextSibling);
+    host.insertBefore(button, anchor);
+    host.insertBefore(status, anchor);
 
     const canvas = document.createElement('canvas');
     canvas.width = WIDTH;
@@ -120,10 +122,11 @@ if (enabled) {
       context.fillText(value, x, y);
     }
 
-    function drawControlRow(labels, y) {
+    function drawControlRow(labels, y, states) {
       labels.forEach((label, i) => {
         if (!label) return;
-        drawPixelText(label, 12 + i * 120, y, 1, '#84c4d2', 18);
+        const color = states && states[i] === true ? '#ffdb5c' : '#84c4d2';
+        drawPixelText(label, 12 + i * 120, y, 1, color, 18);
       });
     }
 
@@ -163,26 +166,35 @@ if (enabled) {
       context.fillStyle = '#449eb4';
       context.fillRect(0, HEIGHT - 5, WIDTH, 5);
 
+      const entry = snap.chordEntry || null;
       const inputMode = snap.mode === 'input';
-      const upper = inputMode
+      const upper = entry ? entry.upper.labels : (inputMode
         ? ['', '', '', '', '', '', 'Key', 'Scale']
-        : ['', 'Tasty', 'Stock', 'Guitar', '', 'Tension', 'Key', 'Scale'];
-      const lower = ['Link', 'Guitar TAB', 'Bass TAB', 'Piano', 'Relative', 'Parallel', 'Secondary', 'Available'];
-      drawControlRow(upper, 14);
-      drawControlRow(lower, 148);
+        : ['Root', 'Tasty', 'Stock', 'Guitar', 'Quality', 'Tension', 'Key', 'Scale']);
+      const chordRow = snap.mode === 'chord' ? snap.chordLowerRow : null;
+      const lower = entry ? entry.lower.labels : (chordRow ? chordRow.labels : ['Link', 'Guitar TAB', 'Bass TAB', 'Piano', 'Relative', 'Parallel', 'Secondary', 'Available']);
+      const upperStates = entry ? entry.upper.states : (snap.mode === 'chord' ? window.padWebGetPushChordUpperDisplayStates?.() : null);
+      drawControlRow(upper, 14, upperStates);
+      drawControlRow(lower, 148, entry ? entry.lower.states : (chordRow && chordRow.states));
       drawKeyScale(snap);
 
-      if (snap.chord) drawPixelText(snap.chord, 32, 42, 4, '#ffdb5c', 20);
-      if (snap.notes?.length) drawPixelText(`NOTE: ${snap.notes.join(' ')}`, 36, 82, 1, '#ccdae0', 34);
+      if (entry) {
+        drawPixelText(entry.title, 32, 42, 3, '#ffdb5c', 24);
+        drawPixelText(entry.detail, 36, 82, 2, '#ccdae0', 32);
+        drawUtf8Text(entry.hint, 430, 112, '#84c4d2', 420);
+      } else {
+        if (snap.chord) drawPixelText(snap.chord, 32, 42, 4, '#ffdb5c', 20);
+        if (snap.notes?.length) drawPixelText(`NOTE: ${snap.notes.join(' ')}`, 36, 82, 1, '#ccdae0', 34);
 
-      const detailX = 430;
-      if (snap.ust) {
-        const parts = String(snap.ust).split(' / ');
-        drawPixelText(`UST ${parts[0]}`, detailX, 70, 2, '#ffdb5c', 34);
-        if (parts.length > 1) drawPixelText(`/ ${parts.slice(1).join(' / ')}`, detailX, 88, 1, '#ffdb5c', 64);
+        const detailX = 430;
+        if (snap.ust) {
+          const parts = String(snap.ust).split(' / ');
+          drawPixelText(`UST ${parts[0]}`, detailX, 70, 2, '#ffdb5c', 34);
+          if (parts.length > 1) drawPixelText(`/ ${parts.slice(1).join(' / ')}`, detailX, 88, 1, '#ffdb5c', 64);
+        }
+        if (snap.shell) drawUtf8Text(`Shell: ${snap.shell}`, detailX, 104, '#ccdae0');
+        if (snap.tensions) drawUtf8Text(`Tension ${snap.tensions}`, detailX, 122, '#ffb848');
       }
-      if (snap.shell) drawUtf8Text(`Shell: ${snap.shell}`, detailX, 104, '#ccdae0');
-      if (snap.tensions) drawUtf8Text(`Tension ${snap.tensions}`, detailX, 122, '#ffb848');
 
       const modeLabel = snap.mode === 'scale' ? 'Scale' : snap.mode === 'chord' ? 'Chord' : snap.mode === 'input' ? 'Input' : snap.mode || '';
       if (modeLabel) drawPixelText(modeLabel, 870, 72, 1, '#ff6084', 8);
@@ -194,6 +206,7 @@ if (enabled) {
     const probe = new PushWebUsbDisplay(navigator.usb, drawFrame(), (state, text) => {
       status.textContent = text;
       status.title = text;
+      button.title = text || 'Connect Push 2 / Push 3 display via WebUSB (Chrome)';
       button.disabled = state === 'connecting' || state === 'stopping' || state === 'blocked' || !supported;
       button.textContent = state === 'running' || state === 'recovering' ? 'Stop Push Display' : 'Push Display';
       button.dataset.state = state;
@@ -202,6 +215,7 @@ if (enabled) {
     if (!supported) {
       button.disabled = true;
       status.textContent = 'WebUSB unavailable: use Chrome over HTTPS';
+      button.title = status.textContent;
     }
 
     let cleanupStarted = false;
@@ -217,11 +231,22 @@ if (enabled) {
     });
 
     const refreshFrame = () => {
+      // Grid renders also occur while playing without a connected Push display.
+      // Do not read/encode/copy a frame until the explicit display session is active.
+      const state = button.dataset.state;
+      if (state !== 'running' && state !== 'recovering') return;
       try { probe.setFrame(drawFrame()); } catch (_) {}
     };
-    const detect = document.getElementById('midi-detect');
-    if (detect && typeof MutationObserver !== 'undefined') {
-      new MutationObserver(refreshFrame).observe(detect, { childList: true, subtree: true, characterData: true });
+    // Key/scale edits (including hardware controls) render the canonical pad
+    // grid without necessarily changing MIDI detection or clicking a mode.
+    // Observe that completed render too; the frame still reads the same snapshot.
+    // One observer batches mutations, with no extra timer or USB connection.
+    if (typeof MutationObserver !== 'undefined') {
+      const observer = new MutationObserver(refreshFrame);
+      ['midi-detect', 'pad-grid'].forEach(id => {
+        const target = document.getElementById(id);
+        if (target) observer.observe(target, { childList: true, subtree: true, characterData: true });
+      });
     }
     ['mode-scale', 'mode-chord', 'mode-input'].forEach(id => {
       document.getElementById(id)?.addEventListener('click', () => setTimeout(refreshFrame, 0));
