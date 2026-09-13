@@ -22,10 +22,12 @@ jobs:
       - name: Switch to exact A05 head and apply repair
         run: |
           set -euo pipefail
+          git show tuner/push-display-active-color-20260913:.github/active-color.py > /tmp/active-color.py
+          git fetch --depth 2 origin 0d98e353b984a0472bbe044af4e23d4bff096dca
           git checkout --detach 0d98e353b984a0472bbe044af4e23d4bff096dca
+          git submodule update --init --recursive --depth 2
           test "$(git rev-parse HEAD)" = 0d98e353b984a0472bbe044af4e23d4bff096dca
           test "$(git rev-parse HEAD^{tree})" = 81b38b505561fbe2b48f7a335fe2fe05d4001861
-          git show tuner/push-display-active-color-20260913:.github/active-color.py > /tmp/active-color.py
           python /tmp/active-color.py
       - name: Verify bounded diff and tests
         run: |
