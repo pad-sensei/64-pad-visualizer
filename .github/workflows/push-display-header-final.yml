@@ -37,15 +37,16 @@ jobs:
           npm test
           ./tools/sw-assets-check.sh
           git diff --check
-          test "$(git status --short | wc -l | tr -d ' ')" -eq 7
-          for f in push-display-webusb-app.js index.html sw.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js tests/unit/push-display-state-sync.test.js docs/PERFORMANCE_BASELINE_v1.8_2026-09-13.md; do git status --short | grep -F "$f" >/dev/null; done
-          ! git grep -n "push-display-webusb-app.js?v=webusb-20260913-active-color" -- index.html sw.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js
+          git status --short
+          test "$(git status --short | wc -l | tr -d ' ')" -eq 6
+          for f in push-display-webusb-app.js index.html sw.js tests/unit/push-display-exposure.test.js tests/unit/push-display-state-sync.test.js docs/PERFORMANCE_BASELINE_v1.8_2026-09-13.md; do git status --short | grep -F "$f" >/dev/null; done
+          ! git grep -n "push-display-webusb-app.js?v=webusb-20260913-active-color" -- index.html sw.js tests/unit/push-display-exposure.test.js
       - name: Commit and publish candidate
         run: |
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add push-display-webusb-app.js index.html sw.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js tests/unit/push-display-state-sync.test.js docs/PERFORMANCE_BASELINE_v1.8_2026-09-13.md
+          git add push-display-webusb-app.js index.html sw.js tests/unit/push-display-exposure.test.js tests/unit/push-display-state-sync.test.js docs/PERFORMANCE_BASELINE_v1.8_2026-09-13.md
           git commit -m 'fix(ui): promote Push Display to global header'
           git branch -f tuner/push-display-header-candidate-20260913 HEAD
           git push origin tuner/push-display-header-candidate-20260913 --force-with-lease
