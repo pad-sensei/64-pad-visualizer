@@ -1,0 +1,53 @@
+name: Build final Push Display header candidate
+on:
+  push:
+    branches:
+      - tuner/push-display-header-20260913
+permissions:
+  contents: write
+jobs:
+  build-candidate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tuner/push-display-header-20260913
+          fetch-depth: 3
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Apply bounded header relocation to exact accepted head
+        run: |
+          set -euo pipefail
+          git show tuner/push-display-header-20260913:.github/push-display-header-final.py > /tmp/patch.py
+          git fetch --depth 2 origin 8d4d0af31ea76ba3261b6dff561afa477082c21d
+          git checkout --detach 8d4d0af31ea76ba3261b6dff561afa477082c21d
+          git submodule update --init --recursive --depth 2
+          test "$(git rev-parse HEAD)" = 8d4d0af31ea76ba3261b6dff561afa477082c21d
+          test "$(git rev-parse HEAD^{tree})" = a654c6add6e9b0bdc21d1e4816267e78034001dc
+          python /tmp/patch.py
+      - name: Verify final bounded diff
+        run: |
+          set -euo pipefail
+          node --check push-display-webusb-app.js
+          npx vitest run tests/unit/push-display-exposure.test.js tests/unit/push-display-state-sync.test.js tests/unit/push-display-active-color.test.js tests/unit/push-web-control.test.js
+          npm test
+          ./tools/sw-assets-check.sh
+          git diff --check
+          test "$(git status --short | wc -l | tr -d ' ')" -eq 6
+          for f in push-display-webusb-app.js index.html sw.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js docs/PERFORMANCE_BASELINE_v1.8_2026-09-13.md; do git status --short | grep -F "$f" >/dev/null; done
+          ! git grep -n "push-display-webusb-app.js?v=webusb-20260913-active-color" -- index.html sw.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js
+      - name: Commit and publish candidate
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add push-display-webusb-app.js index.html sw.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js docs/PERFORMANCE_BASELINE_v1.8_2026-09-13.md
+          git commit -m 'fix(ui): promote Push Display to global header'
+          git branch -f tuner/push-display-header-candidate-20260913 HEAD
+          git push origin tuner/push-display-header-candidate-20260913 --force-with-lease
+          echo "CANDIDATE_SHA=$(git rev-parse HEAD)"
+          echo "CANDIDATE_TREE=$(git rev-parse HEAD^{tree})"
