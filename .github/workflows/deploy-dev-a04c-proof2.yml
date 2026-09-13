@@ -1,0 +1,78 @@
+name: Deploy exact A04c to dev proof2
+on:
+  push:
+    branches:
+      - tuner/deploy-dev-a04c-20260913
+permissions:
+  contents: read
+jobs:
+  deploy-proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tuner/deploy-dev-a04c-20260913
+          fetch-depth: 2
+          submodules: false
+      - name: Switch to exact audited A04c head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --depth 2 origin 0ff49a18687e469de0542f50074c8c4f7efcd901
+          git checkout --detach 0ff49a18687e469de0542f50074c8c4f7efcd901
+          git submodule update --init --recursive --depth 2
+          test "$(git rev-parse HEAD)" = 0ff49a18687e469de0542f50074c8c4f7efcd901
+          test "$(git rev-parse HEAD^{tree})" = f79650fb69f73d511b456bfc98649c28fdb3202a
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Predeploy checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx vitest run tests/unit/push-display-exposure.test.js tests/unit/push-chord-entry-display.test.js tests/unit/push-web-cc-integration.test.js tests/unit/push-display-state-sync.test.js
+          ./tools/sw-assets-check.sh
+          sha256sum index.html sw.js push-display-webusb-app.js push-web-control.js midi.js push-midi-cc-map.js | tee /tmp/local-sha.txt
+      - name: Deploy exact head to authorized dev path
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avz --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md'
+          path: ./
+          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-dev/
+          remote_host: xs071284.xsrv.jp
+          remote_port: 10022
+          remote_user: xs071284
+          remote_key: ${{ secrets.XSERVER_SSH_KEY }}
+      - name: Served-byte proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://murinaikurashi.com/apps/64-pad-dev'
+          for f in index.html sw.js push-display-webusb-app.js push-web-control.js midi.js push-midi-cc-map.js; do
+            curl -fsS -H 'Cache-Control: no-cache' "$base/$f?proof=0ff49a1868" -o "/tmp/$f"
+            test "$(sha256sum "$f" | awk '{print $1}')" = "$(sha256sum "/tmp/$f" | awk '{print $1}')"
+          done
+          grep -F 'push-display-webusb-app.js?v=webusb-20260913-a04c' /tmp/index.html >/dev/null
+          grep -F '64pad-v180-preview-20260913-entry-a04c' /tmp/sw.js >/dev/null
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Chrome loaded-source proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/prove.mjs <<'JS'
+          import { chromium } from 'playwright'; import { createHash } from 'node:crypto'; import { readFileSync } from 'node:fs';
+          const names=['push-display-webusb-app.js','push-web-control.js','midi.js','push-midi-cc-map.js'];
+          const want=new Map(names.map(n=>[n,createHash('sha256').update(readFileSync(n)).digest('hex')]));
+          const browser=await chromium.launch({headless:true}); const page=await browser.newPage(); const seen=new Map(); const errors=[];
+          page.on('pageerror',e=>errors.push(String(e))); page.on('response',async r=>{const n=new URL(r.url()).pathname.split('/').pop(); if(!want.has(n))return; seen.set(n,createHash('sha256').update(await r.body()).digest('hex'));});
+          await page.goto('https://murinaikurashi.com/apps/64-pad-dev/?proof=0ff49a1868',{waitUntil:'networkidle'}); await page.waitForTimeout(1000);
+          for(const [n,s] of want){if(seen.get(n)!==s)throw new Error(n+' loaded SHA mismatch');}
+          const rt=await page.evaluate(()=>({entryDisplay:typeof window.padWebGetPushChordEntryDisplay,handler:typeof window.padWebHandlePushMidiCc,render:typeof window.render}));
+          console.log('RUNTIME',JSON.stringify(rt)); console.log('PAGE_ERRORS',JSON.stringify(errors));
+          if(rt.entryDisplay!=='function'||rt.handler!=='function'||rt.render!=='function'||errors.length)throw new Error('runtime proof failed');
+          await browser.close(); console.log('CHROME_EXACT_A04C_PROOF PASS');
+          JS
+          node /tmp/prove.mjs
