@@ -38,8 +38,9 @@ jobs:
           npm test
           ./tools/sw-assets-check.sh
           git diff --check
-          test "$(git diff --name-only | wc -l | tr -d ' ')" -eq 7
-          for f in push-web-control.js push-display-webusb-app.js index.html sw.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js tests/unit/push-display-active-color.test.js; do git diff --name-only | grep -Fx "$f" >/dev/null; done
+          test "$(git diff --name-only | wc -l | tr -d ' ')" -eq 6
+          for f in push-web-control.js push-display-webusb-app.js index.html sw.js tests/unit/push-display-exposure.test.js tests/unit/push-web-cc-integration.test.js; do git diff --name-only | grep -Fx "$f" >/dev/null; done
+          test "$(git ls-files --others --exclude-standard)" = tests/unit/push-display-active-color.test.js
       - name: Commit and publish candidate
         run: |
           set -euo pipefail
