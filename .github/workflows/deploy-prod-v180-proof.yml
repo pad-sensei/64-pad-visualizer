@@ -1,0 +1,149 @@
+name: Deploy 64 Pad Explorer v1.8.0 to production with proof
+on:
+  push:
+    branches:
+      - tuner/deploy-prod-v180-20260913
+permissions:
+  contents: read
+jobs:
+  deploy-prod-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tuner/deploy-prod-v180-20260913
+          fetch-depth: 2
+          submodules: false
+      - name: Switch to exact accepted v1.8 product head
+        run: |
+          set -euo pipefail
+          git fetch --depth 2 origin ad611ad22a390df8995619baac7a0e1533b55317
+          git checkout --detach ad611ad22a390df8995619baac7a0e1533b55317
+          test "$(git rev-parse HEAD)" = ad611ad22a390df8995619baac7a0e1533b55317
+          test "$(git rev-parse HEAD^{tree})" = d382bffbd1b8591084e6c7d7efa0628615aa0602
+      - name: Prepare SSH and back up current production
+        env:
+          XSERVER_SSH_KEY: ${{ secrets.XSERVER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$XSERVER_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p 10022 xs071284.xsrv.jp >> ~/.ssh/known_hosts
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          backup="64-pad-pre-v180-${stamp}.tar.gz"
+          ssh -i ~/.ssh/id_ed25519 -p 10022 xs071284@xs071284.xsrv.jp "set -eu; src=\$HOME/murinaikurashi.com/public_html/apps/64-pad; out=\$HOME/64-pad-backups; test -d \"\$src\"; mkdir -p \"\$out\"; tar -C \"\$(dirname \"\$src\")\" -czf \"\$out/$backup\" \"\$(basename \"\$src\")\"; test -s \"\$out/$backup\""
+          echo "PROD_BACKUP=$backup" >> "$GITHUB_ENV"
+          printf 'Production backup: `%s`\n' "$backup" >> "$GITHUB_STEP_SUMMARY"
+      - name: Deploy exact v1.8 head to production
+        run: |
+          set -euo pipefail
+          rsync -avz \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='CLAUDE.md' \
+            --exclude='deploy.sh' \
+            --exclude='config.sh' \
+            --exclude='*.bak' \
+            --exclude='tests' \
+            --exclude='node_modules' \
+            --exclude='package*.json' \
+            --exclude='vitest.config.*' \
+            --exclude='pad-core/tests' \
+            --exclude='pad-core/node_modules' \
+            --exclude='pad-core/package*.json' \
+            --exclude='pad-core/vitest.config.*' \
+            --exclude='pad-core/CLAUDE.md' \
+            -e 'ssh -i ~/.ssh/id_ed25519 -p 10022' \
+            ./ xs071284@xs071284.xsrv.jp:~/murinaikurashi.com/public_html/apps/64-pad/
+      - name: Prove production served exact runtime bytes
+        run: |
+          set -euo pipefail
+          base='https://murinaikurashi.com/apps/64-pad'
+          for f in index.html sw.js push-web-control.js push-display-webusb-app.js midi.js main.js; do
+            curl -fsS -H 'Cache-Control: no-cache' "$base/$f?release=ad611ad2" -o "/tmp/$f"
+            local_sha="$(sha256sum "$f" | awk '{print $1}')"
+            prod_sha="$(sha256sum "/tmp/$f" | awk '{print $1}')"
+            printf '%s local=%s prod=%s\n' "$f" "$local_sha" "$prod_sha"
+            test "$local_sha" = "$prod_sha"
+          done
+          grep -F '<span class="version-tag">v1.8.0</span>' /tmp/index.html >/dev/null
+          grep -F 'push-display-webusb-app.js?v=webusb-20260913-header' /tmp/index.html >/dev/null
+          grep -F 'push-web-control.js?v=1.8.0-active-color' /tmp/index.html >/dev/null
+          grep -F "64pad-v180-preview-20260913-header" /tmp/sw.js >/dev/null
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Prove Chrome loads v1.8 production and new header UI
+        run: |
+          cat > prove-prod.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import { createHash } from 'node:crypto';
+          import { readFileSync } from 'node:fs';
+          const targets=['index.html','sw.js','push-web-control.js','push-display-webusb-app.js'];
+          const want=new Map(targets.map(n=>[n,createHash('sha256').update(readFileSync(n)).digest('hex')]));
+          const browser=await chromium.launch({headless:true});
+          const context=await browser.newContext({serviceWorkers:'allow',viewport:{width:1440,height:900}});
+          await context.route(/https?:\/\/(?!murinaikurashi\.com).*/, route=>route.abort());
+          const page=await context.newPage();
+          const errors=[]; const seen=[];
+          page.on('pageerror',e=>errors.push(String(e)));
+          page.on('response',async r=>{
+            try {
+              const u=new URL(r.url());
+              if(!u.hostname.endsWith('murinaikurashi.com')) return;
+              const n=u.pathname.split('/').pop() || 'index.html';
+              if(want.has(n)) seen.push({name:n,url:r.url(),sha:createHash('sha256').update(await r.body()).digest('hex')});
+            } catch {}
+          });
+          const url='https://murinaikurashi.com/apps/64-pad/?release=ad611ad2';
+          await page.goto(url,{waitUntil:'load',timeout:30000});
+          await page.waitForTimeout(1200);
+          await page.evaluate(async()=>{ if('serviceWorker' in navigator) { await navigator.serviceWorker.ready; } });
+          await page.reload({waitUntil:'load',timeout:30000});
+          await page.waitForTimeout(1000);
+          const rt=await page.evaluate(()=>{
+            const button=document.getElementById('push-webusb-display-btn');
+            const tutorial=document.getElementById('tut-btn');
+            const header=document.querySelector('.header-bar');
+            const sound=document.getElementById('sound-header');
+            const version=document.querySelector('.version-tag')?.textContent?.trim();
+            const resources=performance.getEntriesByType('resource').map(r=>r.name);
+            return {
+              version,
+              buttonText:button?.textContent || null,
+              buttonParent:Boolean(button && header && button.parentElement===header),
+              beforeTutorial:Boolean(button && tutorial && (button.compareDocumentPosition(tutorial) & Node.DOCUMENT_POSITION_FOLLOWING)),
+              audioContains:Boolean(sound && button && sound.contains(button)),
+              displayAsset:resources.find(x=>x.includes('push-display-webusb-app.js')) || null,
+              controlAsset:resources.find(x=>x.includes('push-web-control.js')) || null,
+              swControlled:Boolean(navigator.serviceWorker?.controller),
+              states:typeof window.padWebGetPushChordUpperDisplayStates,
+            };
+          });
+          console.log('PROD_RUNTIME',JSON.stringify(rt));
+          console.log('PAGE_ERRORS',JSON.stringify(errors));
+          if(rt.version!=='v1.8.0') throw new Error('version mismatch');
+          if(rt.buttonText!=='Push Display'||!rt.buttonParent||!rt.beforeTutorial||rt.audioContains) throw new Error('header placement mismatch');
+          if(!rt.displayAsset?.includes('webusb-20260913-header')) throw new Error('display asset identity mismatch');
+          if(!rt.controlAsset?.includes('1.8.0-active-color')) throw new Error('control asset identity mismatch');
+          if(rt.states!=='function'||!rt.swControlled||errors.length) throw new Error('runtime proof failed');
+          await browser.close();
+          console.log('CHROME_PROD_V180_PROOF PASS');
+          JS
+          node prove-prod.mjs
+          rm prove-prod.mjs
+      - name: Record production release evidence
+        run: |
+          {
+            echo '### 64 Pad Explorer Web v1.8.0 production deployment'
+            echo '- exact product head: `ad611ad22a390df8995619baac7a0e1533b55317`'
+            echo '- exact tree: `d382bffbd1b8591084e6c7d7efa0628615aa0602`'
+            echo "- pre-deploy backup: \`$PROD_BACKUP\`"
+            echo '- production: `https://murinaikurashi.com/apps/64-pad/`'
+            echo '- served-byte equality: PASS'
+            echo '- Chrome controlled reload/runtime/header proof: PASS'
+          } >> "$GITHUB_STEP_SUMMARY"
