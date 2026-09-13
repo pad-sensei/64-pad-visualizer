@@ -1,0 +1,65 @@
+name: Prove exact A04c Chrome-loaded source
+on:
+  push:
+    branches:
+      - tuner/deploy-dev-a04c-20260913
+permissions:
+  contents: read
+jobs:
+  chrome-proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tuner/deploy-dev-a04c-20260913
+          fetch-depth: 2
+          submodules: false
+      - name: Switch to exact audited A04c head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --depth 2 origin 0ff49a18687e469de0542f50074c8c4f7efcd901
+          git checkout --detach 0ff49a18687e469de0542f50074c8c4f7efcd901
+          test "$(git rev-parse HEAD)" = 0ff49a18687e469de0542f50074c8c4f7efcd901
+          test "$(git rev-parse HEAD^{tree})" = f79650fb69f73d511b456bfc98649c28fdb3202a
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Prove Chrome actually loaded exact A04c runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > prove-loaded-a04c.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import { createHash } from 'node:crypto';
+          import { readFileSync } from 'node:fs';
+          const names=['push-display-webusb-app.js','push-web-control.js','midi.js','push-midi-cc-map.js'];
+          const want=new Map(names.map(n=>[n,createHash('sha256').update(readFileSync(n)).digest('hex')]));
+          const browser=await chromium.launch({headless:true});
+          const page=await browser.newPage();
+          const seen=new Map(); const errors=[];
+          page.on('pageerror',e=>errors.push(String(e)));
+          page.on('response',async r=>{const n=new URL(r.url()).pathname.split('/').pop(); if(!want.has(n)) return; seen.set(n,{url:r.url(),sha:createHash('sha256').update(await r.body()).digest('hex')});});
+          await page.goto('https://murinaikurashi.com/apps/64-pad-dev/?proof=0ff49a1868',{waitUntil:'networkidle'});
+          await page.waitForTimeout(1000);
+          for(const [n,s] of want){const got=seen.get(n); console.log(n,got); if(!got||got.sha!==s) throw new Error(n+' loaded SHA mismatch');}
+          const rt=await page.evaluate(()=>({
+            entryDisplay:typeof window.padWebGetPushChordEntryDisplay,
+            handler:typeof window.padWebHandlePushMidiCc,
+            render:typeof window.render,
+            resources:performance.getEntriesByType('resource').map(r=>r.name).filter(x=>/push-display-webusb-app|push-web-control|midi\.js|push-midi-cc-map/.test(x))
+          }));
+          console.log('RUNTIME',JSON.stringify(rt));
+          console.log('PAGE_ERRORS',JSON.stringify(errors));
+          if(rt.entryDisplay!=='function'||rt.handler!=='function'||rt.render!=='function') throw new Error('runtime globals missing');
+          if(errors.length) throw new Error('page errors present');
+          await browser.close();
+          console.log('CHROME_EXACT_A04C_PROOF PASS');
+          JS
+          node prove-loaded-a04c.mjs
+          rm prove-loaded-a04c.mjs
+          git diff --exit-code
+          git diff --cached --exit-code
