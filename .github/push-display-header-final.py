@@ -54,5 +54,51 @@ assert needle in s
 s = s.replace(needle, insert, 1)
 p.write_text(s)
 
+# The display-state VM fixture predates the global header host. Extend only its
+# fake DOM surface; product behavior assertions remain unchanged.
+p = Path('tests/unit/push-display-state-sync.test.js')
+s = p.read_text()
+old = """  function element(id) {
+    return { id, style: {}, dataset: {}, textContent: '', firstChild: null,
+      insertBefore(child) { if (child.id) elements.set(child.id, child); },
+      addEventListener(type, callback) { listeners.set(`${this.id}:${type}`, callback); },
+    };
+  }
+  for (const id of ['sound-header', 'midi-detect', 'pad-grid', 'mode-scale', 'mode-chord', 'mode-input']) {
+    elements.set(id, element(id));
+  }
+"""
+new = """  function element(id) {
+    return { id, style: {}, dataset: {}, textContent: '', firstChild: null, parentElement: null,
+      setAttribute() {},
+      insertBefore(child) { child.parentElement = this; if (child.id) elements.set(child.id, child); },
+      addEventListener(type, callback) { listeners.set(`${this.id}:${type}`, callback); },
+    };
+  }
+  for (const id of ['sound-header', 'midi-detect', 'pad-grid', 'mode-scale', 'mode-chord', 'mode-input']) {
+    elements.set(id, element(id));
+  }
+  const headerBar = element('header-bar');
+  const tutorialButton = element('tut-btn');
+  tutorialButton.parentElement = headerBar;
+  elements.set('tut-btn', tutorialButton);
+"""
+assert old in s
+s = s.replace(old, new, 1)
+old = """    document: {
+      getElementById: id => elements.get(id),
+      createElement: tag => tag === 'canvas' ? { getContext: () => context2d } : element(tag),
+    },
+"""
+new = """    document: {
+      getElementById: id => elements.get(id),
+      querySelector: selector => selector === '.header-bar' ? headerBar : null,
+      createElement: tag => tag === 'canvas' ? { getContext: () => context2d } : element(tag),
+    },
+"""
+assert old in s
+s = s.replace(old, new, 1)
+p.write_text(s)
+
 # Persist the measured performance baseline for future v2.x/refactor comparison.
 Path('docs/PERFORMANCE_BASELINE_v1.8_2026-09-13.md').write_text('''# 64 Pad Explorer Web performance baseline — v1.7 → v1.8\n\nDate: 2026-09-13\n\n## Compared revisions\n\n- v1.7 Web integration: `2e0dc0b06bd44b6f0b846258b123cbd6d37369d0`\n- v1.8 candidate: `8d4d0af31ea76ba3261b6dff561afa477082c21d`\n\n## Method\n\nGitHub Actions run `34734838828`, job `103664278358` (SUCCESS). Same Ubuntu 24.04 runner class and Playwright Chromium 145. Seven alternating runs; medians reported. External analytics/fonts and Service Worker were blocked to isolate local application cost.\n\n| Metric | v1.7 | v1.8 | Delta |\n|---|---:|---:|---:|\n| Referenced JS/CSS, gzip-9 | 372.55 KiB | 395.29 KiB | +6.1% |\n| Referenced JS/CSS, raw | 1344.17 KiB | 1434.19 KiB | +6.7% |\n| Browser local encoded body | 1508.99 KiB | 1611.24 KiB | +6.8% |\n| Wall load | 152.80 ms | 170.98 ms | +11.9% |\n| DOMContentLoaded | 150.40 ms | 168.90 ms | +12.3% |\n| Idle main-thread task over 5 s | 177.98 ms | 191.94 ms | +7.8% |\n| Idle script over 5 s | 0.00 ms | 0.00 ms | +0.0% |\n| JS heap after settle | 9.54 MiB | 9.54 MiB | +0.0% |\n\n## Interpretation / future use\n\nThis is the baseline for later lightweighting work, not a claim about every user's machine. The measured v1.8 increase is modest relative to the added Push control/display surface. Hardware WebUSB transfer cost and real audio-device CPU were not measured in CI. Owner physical playing acceptance found no performance problem.\n\nUse this same methodology again when a future large architecture/refactor changes the performance envelope (for example the planned v2.x code-progression-analysis work). Small v1.8 bug fixes should not trigger optimization work solely to improve these numbers.\n''')
