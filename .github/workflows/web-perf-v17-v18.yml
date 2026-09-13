@@ -61,7 +61,7 @@ jobs:
           curl -fsS http://127.0.0.1:8018/ >/dev/null
       - name: Browser benchmark
         run: |
-          cat > /tmp/bench.mjs <<'JS'
+          cat > bench-perf.mjs <<'JS'
           import { chromium } from 'playwright';
           import fs from 'node:fs';
           const browser=await chromium.launch({headless:true,args:['--disable-background-networking','--disable-component-update','--disable-features=Translate,MediaRouter']});
@@ -78,7 +78,7 @@ jobs:
             const wallLoadMs=performance.now()-t0;
             await page.waitForTimeout(2500);
             const nav=await page.evaluate(()=>{const n=performance.getEntriesByType('navigation')[0];return {domContentLoaded:n?.domContentLoadedEventEnd||0,loadEvent:n?.loadEventEnd||0,transferSize:n?.transferSize||0,encodedBodySize:n?.encodedBodySize||0};});
-            const res=await page.evaluate(()=>performance.getEntriesByType('resource').filter(r=>r.name.startsWith(location.origin)).map(r=>({name:r.name,transferSize:r.transferSize||0,encodedBodySize:r.encodedBodySize||0}))); 
+            const res=await page.evaluate(()=>performance.getEntriesByType('resource').filter(r=>r.name.startsWith(location.origin)).map(r=>({name:r.name,transferSize:r.transferSize||0,encodedBodySize:r.encodedBodySize||0})));
             const m1=Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map(x=>[x.name,x.value]));
             const h1=await page.evaluate(()=>({used:performance.memory?.usedJSHeapSize||0,total:performance.memory?.totalJSHeapSize||0}));
             await page.waitForTimeout(5000);
@@ -87,7 +87,6 @@ jobs:
             const sample={wallLoadMs,domContentLoadedMs:nav.domContentLoaded,loadEventMs:nav.loadEvent,localTransferBytes:nav.transferSize+res.reduce((a,b)=>a+b.transferSize,0),localEncodedBytes:nav.encodedBodySize+res.reduce((a,b)=>a+b.encodedBodySize,0),idleTaskMs5s:((m2.TaskDuration||0)-(m1.TaskDuration||0))*1000,idleScriptMs5s:((m2.ScriptDuration||0)-(m1.ScriptDuration||0))*1000,idleLayoutMs5s:((m2.LayoutDuration||0)-(m1.LayoutDuration||0))*1000,jsHeapUsedBytes:h2.used,jsHeapDelta5s:h2.used-h1.used,documents:m2.Documents||0,nodes:m2.Nodes||0,listeners:m2.JSEventListeners||0};
             await context.close(); return sample;
           }
-          // warm Chromium, then alternate order to reduce host drift
           for(let round=0;round<7;round++){
             const order=round%2?targets.slice().reverse():targets;
             for(const [label,url] of order) samples[label].push(await one(label,url));
@@ -100,7 +99,8 @@ jobs:
           fs.writeFileSync('/tmp/browser.json',JSON.stringify({samples,median},null,2));
           await browser.close();
           JS
-          node /tmp/bench.mjs
+          node bench-perf.mjs
+          rm bench-perf.mjs
       - name: Report comparison
         run: |
           python - <<'PY'
@@ -108,22 +108,16 @@ jobs:
           s=json.load(open('/tmp/static.json')); b=json.load(open('/tmp/browser.json'))['median']
           def pct(a,c): return ((c-a)/a*100) if a else 0
           rows=[]
-          for key,name,unit in [
-            ('gzip9_bytes','Static referenced assets (gzip-9)','KiB'),
-            ('raw_bytes','Static referenced assets (raw)','KiB')]:
+          for key,name,unit in [('gzip9_bytes','Static referenced assets (gzip-9)','KiB'),('raw_bytes','Static referenced assets (raw)','KiB')]:
             a=s['v1.7'][key]/1024;c=s['v1.8'][key]/1024;rows.append((name,a,c,pct(a,c),unit))
-          for key,name,unit in [
-            ('localEncodedBytes','Browser local encoded body','KiB'),
-            ('wallLoadMs','Wall load','ms'),('domContentLoadedMs','DOMContentLoaded','ms'),
-            ('idleTaskMs5s','Idle main-thread task over 5s','ms'),('idleScriptMs5s','Idle script over 5s','ms'),
-            ('jsHeapUsedBytes','JS heap after settle','MiB')]:
+          for key,name,unit in [('localEncodedBytes','Browser local encoded body','KiB'),('wallLoadMs','Wall load','ms'),('domContentLoadedMs','DOMContentLoaded','ms'),('idleTaskMs5s','Idle main-thread task over 5s','ms'),('idleScriptMs5s','Idle script over 5s','ms'),('jsHeapUsedBytes','JS heap after settle','MiB')]:
             div=1048576 if unit=='MiB' else 1024 if unit=='KiB' else 1
             a=b['v1.7'][key]/div;c=b['v1.8'][key]/div;rows.append((name,a,c,pct(a,c),unit))
           print('\nRESULT TABLE')
           print('| Metric | v1.7 | v1.8 | Delta |')
           print('|---|---:|---:|---:|')
           for n,a,c,p,u in rows: print(f'| {n} | {a:.2f} {u} | {c:.2f} {u} | {p:+.1f}% |')
-          summary='\n'.join(['### v1.7 vs v1.8 Web benchmark','',f"Refs: v1.7 `2e0dc0b06bd44b6f0b846258b123cbd6d37369d0`; v1.8 `8d4d0af31ea76ba3261b6dff561afa477082c21d`.",'','Same Ubuntu runner + same headless Chromium; seven alternating runs; medians shown. External analytics/fonts blocked; service worker blocked.','', '| Metric | v1.7 | v1.8 | Delta |','|---|---:|---:|---:|']+[f'| {n} | {a:.2f} {u} | {c:.2f} {u} | {p:+.1f}% |' for n,a,c,p,u in rows]+['','Notes: idle main-thread/script are 5-second settled-window measurements. Push Display WebUSB hardware transfer is not included because CI has no Push device.'])
+          summary='\n'.join(['### v1.7 vs v1.8 Web benchmark','',"Refs: v1.7 `2e0dc0b06bd44b6f0b846258b123cbd6d37369d0`; v1.8 `8d4d0af31ea76ba3261b6dff561afa477082c21d`.",'','Same Ubuntu runner + same headless Chromium; seven alternating runs; medians shown. External analytics/fonts blocked; service worker blocked.','', '| Metric | v1.7 | v1.8 | Delta |','|---|---:|---:|---:|']+[f'| {n} | {a:.2f} {u} | {c:.2f} {u} | {p:+.1f}% |' for n,a,c,p,u in rows]+['','Notes: idle main-thread/script are 5-second settled-window measurements. Push Display WebUSB hardware transfer is not included because CI has no Push device.'])
           pathlib.Path('/tmp/summary.md').write_text(summary)
           print(summary)
           with open(__import__('os').environ['GITHUB_STEP_SUMMARY'],'a') as f:f.write(summary+'\n')
