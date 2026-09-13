@@ -24,8 +24,9 @@ jobs:
           test "$(git rev-parse HEAD)" = 0d98e353b984a0472bbe044af4e23d4bff096dca
           test "$(git rev-parse HEAD^{tree})" = 81b38b505561fbe2b48f7a335fe2fe05d4001861
       - name: Apply bounded display-color repair
-        shell: python
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
 
           p = Path('push-web-control.js')
@@ -99,6 +100,7 @@ describe('Push default Chord active-color projection', () => {
   });
 });
 """)
+          PY
       - name: Verify bounded diff and tests
         run: |
           set -euo pipefail
