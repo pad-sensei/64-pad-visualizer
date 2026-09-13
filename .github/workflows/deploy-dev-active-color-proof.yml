@@ -1,0 +1,68 @@
+name: Deploy active-color fix to dev with proof
+on:
+  push:
+    branches:
+      - tuner/deploy-dev-active-color-20260913
+permissions:
+  contents: read
+jobs:
+  deploy-proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tuner/deploy-dev-active-color-20260913
+          fetch-depth: 2
+          submodules: false
+      - name: Switch to exact product head
+        run: |
+          set -euo pipefail
+          git fetch --depth 2 origin 8d4d0af31ea76ba3261b6dff561afa477082c21d
+          git checkout --detach 8d4d0af31ea76ba3261b6dff561afa477082c21d
+          test "$(git rev-parse HEAD)" = 8d4d0af31ea76ba3261b6dff561afa477082c21d
+          test "$(git rev-parse HEAD^{tree})" = a654c6add6e9b0bdc21d1e4816267e78034001dc
+      - name: Deploy exact head
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avz --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md'
+          path: ./
+          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-dev/
+          remote_host: xs071284.xsrv.jp
+          remote_port: 10022
+          remote_user: xs071284
+          remote_key: ${{ secrets.XSERVER_SSH_KEY }}
+      - name: Prove served bytes
+        run: |
+          set -euo pipefail
+          base='https://murinaikurashi.com/apps/64-pad-dev'
+          for f in index.html sw.js push-web-control.js push-display-webusb-app.js; do
+            curl -fsS -H 'Cache-Control: no-cache' "$base/$f?proof=8d4d0af3" -o "/tmp/$f"
+            test "$(sha256sum "$f" | awk '{print $1}')" = "$(sha256sum "/tmp/$f" | awk '{print $1}')"
+          done
+          grep -F 'push-web-control.js?v=1.8.0-active-color' /tmp/index.html >/dev/null
+          grep -F 'push-display-webusb-app.js?v=webusb-20260913-active-color' /tmp/index.html >/dev/null
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Prove Chrome loaded exact runtime
+        run: |
+          cat > prove.mjs <<'JS'
+          import { chromium } from 'playwright';
+          import { createHash } from 'node:crypto';
+          import { readFileSync } from 'node:fs';
+          const names=['push-web-control.js','push-display-webusb-app.js'];
+          const want=new Map(names.map(n=>[n,createHash('sha256').update(readFileSync(n)).digest('hex')]));
+          const browser=await chromium.launch({headless:true}); const page=await browser.newPage(); const seen=new Map(); const errors=[];
+          page.on('pageerror',e=>errors.push(String(e)));
+          page.on('response',async r=>{const n=new URL(r.url()).pathname.split('/').pop(); if(want.has(n)) seen.set(n,{url:r.url(),sha:createHash('sha256').update(await r.body()).digest('hex')});});
+          await page.goto('https://murinaikurashi.com/apps/64-pad-dev/?proof=8d4d0af3',{waitUntil:'networkidle'}); await page.waitForTimeout(1000);
+          for(const [n,s] of want){const got=seen.get(n); console.log(n,got); if(!got||got.sha!==s) throw new Error(n+' mismatch');}
+          const rt=await page.evaluate(()=>({states:typeof window.padWebGetPushChordUpperDisplayStates,errors:performance.getEntriesByType('resource').map(r=>r.name).filter(x=>/push-web-control|push-display-webusb-app/.test(x))}));
+          console.log('RUNTIME',JSON.stringify(rt)); console.log('PAGE_ERRORS',JSON.stringify(errors));
+          if(rt.states!=='function'||errors.length) throw new Error('runtime proof failed');
+          await browser.close(); console.log('CHROME_ACTIVE_COLOR_PROOF PASS');
+          JS
+          node prove.mjs
+          rm prove.mjs
