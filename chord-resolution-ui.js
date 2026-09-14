@@ -134,6 +134,9 @@
   function padWebCurrentCandidatesFromApp() {
     var current = padWebCurrentDetectedCandidates();
     if (current.length > 0) return current;
+    // plain.js defines getCurrentChordMidiNotes() as a classic-script global.
+    // This is a real fallback for states where no lastDetectedCandidates snapshot
+    // exists yet; it is not the demonstrated cause of the prior live-render miss.
     try {
       if (typeof global.getCurrentChordMidiNotes === 'function' && typeof global.detectChord === 'function') {
         var notes = global.getCurrentChordMidiNotes();
@@ -193,11 +196,11 @@
     padWebDecorateAliasEquation(root, padWebCurrentCandidatesFromApp());
   }
 
-  // The old implementation depended only on a MutationObserver. The Human Gate
-  // showed that this could fail silently in the live browser even while helper
-  // unit tests passed. Wrap the actual INPUT render path after all classic scripts
-  // have loaded, and decorate synchronously after every updatePlainDisplay().
-  // The observer below remains only as a fallback for other DOM writers.
+  // The Human Gate proved that the observer-only live path was insufficient,
+  // but not why that observer path missed the deployed render. Treat the exact
+  // observer failure mechanism as unknown. The synchronous hook below is the
+  // demonstrated repair: it decorates immediately after every INPUT render.
+  // The observer remains only as a fallback for other DOM writers.
   function padWebInstallPlainDisplayHook() {
     if (typeof global.updatePlainDisplay !== 'function') return false;
     if (global.updatePlainDisplay.__padAliasEquationWrapped === true) return true;
