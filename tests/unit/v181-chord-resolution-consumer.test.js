@@ -62,6 +62,27 @@ describe('v1.8.1 chord-resolution consumer', () => {
     expect(ui.padWebFormatTopResolvedChordText(candidates)).toBe('A = B = C');
   });
 
+  it('proves the equivalence path with real detector output', () => {
+    const results = detectChord([52, 54, 62, 70]);
+    const top = ui.padWebGetTopResolvedCandidates(results);
+    expect(top.length).toBeGreaterThanOrEqual(2);
+    expect(top.every(candidate => candidate.resolutionCompleteness === 'exact')).toBe(true);
+    expect(new Set(top.map(candidate => candidate.resolutionScore)).size).toBe(1);
+    expect(ui.padWebTopResolvedGroupIsEquivalent(top)).toBe(true);
+    expect(ui.padWebFormatTopResolvedChordText(results)).toContain(' = ');
+  });
+
+  it('records that the motivating Eb6/Cm7 inversion is not an equal-score top group', () => {
+    const results = detectChord([63, 67, 70, 72]);
+    const top = ui.padWebGetTopResolvedCandidates(results);
+    expect(top).toHaveLength(1);
+    expect(top[0].quality).toBe('6');
+    const minor7 = results.find(candidate => candidate.quality === 'm7' && candidate.resolutionCompleteness === 'exact');
+    expect(minor7).toBeDefined();
+    expect(minor7.isTopRanked).toBe(false);
+    expect(minor7.resolutionScore).toBeLessThan(top[0].resolutionScore);
+  });
+
   it('keeps a neutral separator for same-score top candidates that are not exact aliases', () => {
     const candidates = [
       {
