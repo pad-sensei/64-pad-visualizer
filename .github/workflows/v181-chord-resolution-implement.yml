@@ -44,7 +44,6 @@ jobs:
                   raise SystemExit(f"missing expected text in {path}: {old[:100]!r}")
               p.write_text(text.replace(old, new, 1))
 
-          # v1.8.1 metadata + shared resolver/browser asset identities.
           replace_once('index.html', '"softwareVersion":"1.8.0"', '"softwareVersion":"1.8.1"')
           replace_once('index.html', '<span class="version-tag">v1.8.0</span>', '<span class="version-tag">v1.8.1</span>')
           replace_once(
@@ -60,21 +59,18 @@ jobs:
           replace_once('index.html', '<script src="plain.js?v=1.8.0-parity2"></script>', '<script src="plain.js?v=1.8.1-resolution1"></script>')
           replace_once('index.html', '<script src="midi.js?v=1.8.0-entry-a04"></script>', '<script src="midi.js?v=1.8.1-resolution1"></script>')
 
-          # The app remains a thin consumer: user-facing detection delegates to pad-core resolver.
           old_detect = """// Chord detection: delegated to pad-core (padDetectChord, CHORD_DETECT_DB, TRIAD_DETECT_DB, TETRAD_DETECT_DB)\nfunction detectChord(notes) {\n  var spellingKey = (typeof AppState !== 'undefined')\n    ? padGetParentMajorKey(AppState.scaleIdx, AppState.key)\n    : 0;\n  return padDetectChord(notes, spellingKey);\n}\n"""
           new_detect = """// Chord detection: v1.8.1 user-facing resolution is owned by pad-core.\n// padDetectChord remains the transparent candidate generator inside the shared dependency.\nfunction detectChord(notes) {\n  var spellingKey = (typeof AppState !== 'undefined')\n    ? padGetParentMajorKey(AppState.scaleIdx, AppState.key)\n    : 0;\n  if (typeof padResolveChordCandidates !== 'function') {\n    throw new Error('pad-core chord resolver is not loaded');\n  }\n  return padResolveChordCandidates(notes, spellingKey);\n}\n"""
           replace_once('midi.js', old_detect, new_detect)
 
-          # Push headline uses exactly the same already-resolved candidate list as the Web surface.
           held_block = """  if (pushHeldSlot && window.padWebPushControlState) {\n    var heldSlot = PlainState.memory[window.padWebPushControlState.heldSlot];\n    chord = heldSlot ? heldSlot.chordName : '';\n  }\n"""
           held_plus_tie = held_block + """  if (!pushHeldSlot\n      && typeof AppState !== 'undefined' && AppState.mode === 'input'\n      && typeof padWebFormatTopResolvedChordText === 'function'\n      && typeof lastDetectedCandidates !== 'undefined') {\n    var resolvedTopText = padWebFormatTopResolvedChordText(lastDetectedCandidates);\n    if (resolvedTopText) chord = resolvedTopText;\n  }\n"""
           replace_once('midi.js', held_block, held_plus_tie)
 
-          # Web detection DOM: every tied top candidate gets equal top prominence.
           plain = Path('plain.js').read_text()
           pattern = re.compile(
-              r"    let html = '<span class=\\\"detect-candidate-best\\\".*?"
-              r"    if \(typeof padWebFormatObservedStructureHtml === 'function'\)",
+              r'''    let html = '<span class="detect-candidate-best".*?'''
+              r'''    if \(typeof padWebFormatObservedStructureHtml === 'function'\)''',
               re.S,
           )
           replacement = """    const topCandidates = typeof padWebGetTopResolvedCandidates === 'function'\n      ? padWebGetTopResolvedCandidates(candidates) : [best];\n    const topCount = Math.max(1, topCandidates.length);\n    let html = '<div class=\"detect-top-group\" style=\"display:flex;flex-wrap:wrap;gap:6px;align-items:center;\">';\n    candidates.slice(0, topCount).forEach((c, i) => {\n      html += '<span class=\"detect-candidate-best\" draggable=\"true\" data-candidate-idx=\"' + i + '\" onclick=\"transferDetectedCandidate(' + i + ',this)\">'\n        + escapeHtml(c.name) + (i === 0 ? ustInline : '') + '</span>';\n    });\n    html += '</div>';\n    if (candidates.length > topCount) {\n      html += '<div style=\"display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;\">';\n      candidates.slice(topCount).forEach((c, i) => {\n        const idx = topCount + i;\n        html += '<span class=\"detect-candidate\" draggable=\"true\" data-candidate-idx=\"' + idx + '\" onclick=\"transferDetectedCandidate(' + idx + ',this)\">' + escapeHtml(c.name) + '</span>';\n      });\n      html += '</div>';\n    }\n    if (typeof padWebFormatObservedStructureHtml === 'function')"""
@@ -83,7 +79,6 @@ jobs:
               raise SystemExit(f'plain.js detection block replacement count={count}')
           Path('plain.js').write_text(plain2)
 
-          # PWA cache identities and new pure presentation helper.
           replace_once('sw.js', "var CACHE_NAME = '64pad-v180-preview-20260913-header';", "var CACHE_NAME = '64pad-v181-preview-20260914-chord-resolution-1';")
           replace_once(
               'sw.js',
@@ -98,7 +93,6 @@ jobs:
           replace_once('sw.js', "  'plain.js?v=1.8.0-parity2',", "  'plain.js?v=1.8.1-resolution1',")
           replace_once('sw.js', "  'midi.js?v=1.8.0-entry-a04',", "  'midi.js?v=1.8.1-resolution1',")
 
-          # Unit environment loads the same shared resolver before app MIDI adapter.
           setup_insert = """const padCoreTheory = require('../../../pad-core/theory.js');\nObject.assign(globalThis, padCoreTheory);\n"""
           setup_new = setup_insert + """\nconst padCoreChordResolver = require('../../../pad-core/chord-resolver.js');\nObject.assign(globalThis, padCoreChordResolver);\n"""
           replace_once('tests/unit/helpers/setup.js', setup_insert, setup_new)
