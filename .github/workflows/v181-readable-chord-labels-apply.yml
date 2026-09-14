@@ -1,0 +1,254 @@
+name: Apply v1.8.1 readable chord labels
+
+on:
+  push:
+    branches:
+      - codex/v181-readable-chord-labels
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/v181-readable-chord-labels
+          submodules: recursive
+          fetch-depth: 80
+
+      - name: Apply shared display formatter
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          helper = Path('chord-resolution-ui.js')
+          text = helper.read_text()
+
+          if 'function padWebFormatChordDisplayName(name)' not in text:
+              anchor = "  function padWebCandidateIsFullExact(candidate) {\n"
+              insert = r'''  // v1.8.1 readability: raw resolver names stay canonical; only presentation is normalized.
+  // Adjacent alteration/tension groups share one parenthesis pair, while Japanese-facing
+  // omit notation stays outside parentheses. Slash bass remains the final suffix.
+  function padWebFormatChordDisplayName(name) {
+    var source = String(name || '');
+    if (!source) return source;
+
+    var slashIndex = source.lastIndexOf(' / ');
+    var body = slashIndex >= 0 ? source.slice(0, slashIndex) : source;
+    var slashSuffix = slashIndex >= 0 ? source.slice(slashIndex) : '';
+    var match = body.match(/^(.*?)(\([^()]*\)(?:\([^()]*\))*)$/);
+    if (!match) return source;
+
+    var base = match[1];
+    var groups = match[2].match(/\([^()]*\)/g) || [];
+    if (groups.length === 0) return source;
+
+    var modifiers = [];
+    var omits = [];
+    groups.forEach(function(group) {
+      var content = group.slice(1, -1).trim();
+      if (!content) return;
+      if (/^omit/i.test(content)) {
+        omits.push(content);
+        return;
+      }
+      content.split(',').forEach(function(piece) {
+        var token = piece.trim();
+        if (!token) return;
+        if (/^omit/i.test(token)) omits.push(token);
+        else modifiers.push(token);
+      });
+    });
+
+    var display = base;
+    if (modifiers.length > 0) display += '(' + modifiers.join(',') + ')';
+    if (omits.length > 0) display += omits.join('');
+    return display + slashSuffix;
+  }
+
+'''
+              if anchor not in text:
+                  raise SystemExit('formatter insertion anchor missing')
+              text = text.replace(anchor, insert + anchor, 1)
+
+          old = ".map(function(entry) { return entry.candidate && entry.candidate.name || ''; })"
+          new = ".map(function(entry) {\n        var name = entry.candidate && entry.candidate.name || '';\n        return padWebFormatChordDisplayName(name);\n      })"
+          if old in text:
+              text = text.replace(old, new, 2)
+          elif text.count('return padWebFormatChordDisplayName(name);') < 2:
+              raise SystemExit('Push formatter mapping target missing')
+
+          if 'function padWebApplyCandidateDisplayNames(root, candidates)' not in text:
+              anchor = "  // Keep resolver order and original candidate indexes. This decorator only\n"
+              insert = r'''  function padWebSetCandidateDisplayName(node, name) {
+    if (typeof document === 'undefined' || !node) return;
+    var label = padWebFormatChordDisplayName(name);
+    if (!label) return;
+    var first = node.firstChild;
+    if (first && first.nodeType === 3) first.nodeValue = label;
+    else node.insertBefore(document.createTextNode(label), first || null);
+  }
+
+  function padWebApplyCandidateDisplayNames(root, candidates) {
+    if (typeof document === 'undefined' || !root || !Array.isArray(candidates)) return;
+    candidates.forEach(function(candidate, index) {
+      var node = root.querySelector('[data-candidate-idx="' + index + '"]');
+      if (node) padWebSetCandidateDisplayName(node, candidate && candidate.name || '');
+    });
+  }
+
+'''
+              if anchor not in text:
+                  raise SystemExit('DOM formatter insertion anchor missing')
+              text = text.replace(anchor, insert + anchor, 1)
+
+          old = "  function padWebDecorateAliasEquation(root, candidates) {\n    if (typeof document === 'undefined' || !root) return;\n    var presentation = padWebGetResolvedPresentation(candidates);"
+          new = "  function padWebDecorateAliasEquation(root, candidates) {\n    if (typeof document === 'undefined' || !root) return;\n    padWebApplyCandidateDisplayNames(root, candidates);\n    var presentation = padWebGetResolvedPresentation(candidates);"
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif 'padWebApplyCandidateDisplayNames(root, candidates);' not in text:
+              raise SystemExit('decorator hook target missing')
+
+          global_anchor = "  global.padWebGetTopResolvedCandidates = padWebGetTopResolvedCandidates;\n"
+          if 'global.padWebFormatChordDisplayName = padWebFormatChordDisplayName;' not in text:
+              if global_anchor not in text:
+                  raise SystemExit('global export anchor missing')
+              text = text.replace(global_anchor, "  global.padWebFormatChordDisplayName = padWebFormatChordDisplayName;\n" + global_anchor, 1)
+
+          module_anchor = "  if (typeof module !== 'undefined') module.exports = {\n"
+          if '    padWebFormatChordDisplayName: padWebFormatChordDisplayName,' not in text:
+              if module_anchor not in text:
+                  raise SystemExit('module export anchor missing')
+              text = text.replace(module_anchor, module_anchor + "    padWebFormatChordDisplayName: padWebFormatChordDisplayName,\n", 1)
+
+          helper.write_text(text)
+
+          test_path = Path('tests/unit/v181-chord-resolution-consumer.test.js')
+          tests = test_path.read_text()
+          if "normalizes stacked chord modifiers for readability" not in tests:
+              anchor = "describe('v1.8.1 chord-resolution consumer', () => {\n"
+              block = r'''  it('normalizes stacked chord modifiers for readability without changing raw theory names', () => {
+    expect(ui.padWebFormatChordDisplayName('Em7(b5)(11)')).toBe('Em7(b5,11)');
+    expect(ui.padWebFormatChordDisplayName('BbMaj7(#11)(13)')).toBe('BbMaj7(#11,13)');
+    expect(ui.padWebFormatChordDisplayName('Em7(b5)(11)(omit3)')).toBe('Em7(b5,11)omit3');
+    expect(ui.padWebFormatChordDisplayName('Em7(b5)(11)(omit3) / E')).toBe('Em7(b5,11)omit3 / E');
+    expect(ui.padWebFormatChordDisplayName('Em7(b5)')).toBe('Em7(b5)');
+    expect(ui.padWebFormatChordDisplayName('C7(omit3)')).toBe('C7omit3');
+    expect(ui.padWebFormatChordDisplayName('Em7(b5,11)omit3 / E')).toBe('Em7(b5,11)omit3 / E');
+
+    const raw = { name: 'Em7(b5)(11)', isTopRanked: true, resolutionCompleteness: 'exact', resolutionScore: 100 };
+    expect(ui.padWebFormatTopResolvedChordText([raw])).toBe('Em7(b5,11)');
+    expect(raw.name).toBe('Em7(b5)(11)');
+  });
+
+'''
+              if anchor not in tests:
+                  raise SystemExit('unit test insertion anchor missing')
+              tests = tests.replace(anchor, anchor + block, 1)
+          test_path.write_text(tests)
+
+          e2e_path = Path('tests/e2e/v181-alias-runtime.spec.js')
+          e2e = e2e_path.read_text()
+          if "normalizes a stacked modifier label in the live Web presentation" not in e2e:
+              marker = "  test('draws a shrinking scale-2 equation with integer pixel cells in Chromium'"
+              idx = e2e.find(marker)
+              if idx < 0:
+                  raise SystemExit('e2e insertion marker missing')
+              block = r'''  test('normalizes a stacked modifier label in the live Web presentation', async ({ page }) => {
+    await page.goto('./?silent=1&e2e=v181-readable-label');
+    await page.waitForLoadState('domcontentloaded');
+
+    const result = await page.evaluate(() => {
+      const root = document.getElementById('midi-detect');
+      root.innerHTML = '<div class="detect-top-group"><span class="detect-candidate-best" data-candidate-idx="0">Em7(b5)(11)</span></div>';
+      const candidates = [{ name: 'Em7(b5)(11)', isTopRanked: true, resolutionCompleteness: 'exact', resolutionScore: 100 }];
+      padWebDecorateAliasEquation(root, candidates);
+      return {
+        text: root.querySelector('[data-candidate-idx="0"]').textContent,
+        raw: candidates[0].name,
+        pushText: padWebFormatTopResolvedChordText(candidates),
+      };
+    });
+
+    expect(result.text).toBe('Em7(b5,11)');
+    expect(result.pushText).toBe('Em7(b5,11)');
+    expect(result.raw).toBe('Em7(b5)(11)');
+  });
+
+'''
+              e2e = e2e[:idx] + block + e2e[idx:]
+          e2e_path.write_text(e2e)
+
+          old_asset = 'chord-resolution-ui.js?v=1.8.1-alias-live5'
+          new_asset = 'chord-resolution-ui.js?v=1.8.1-readable-labels6'
+          for path in [Path('index.html'), Path('sw.js'), Path('tests/unit/v181-chord-resolution-consumer.test.js')]:
+              data = path.read_text()
+              if old_asset in data:
+                  data = data.replace(old_asset, new_asset)
+              elif new_asset not in data:
+                  raise SystemExit(f'{path}: chord helper asset identity missing')
+              path.write_text(data)
+
+          sw = Path('sw.js')
+          sw_text = sw.read_text()
+          m = re.search(r"var CACHE_NAME = '([^']+)';", sw_text)
+          if not m:
+              raise SystemExit('SW cache name missing')
+          old_cache = m.group(1)
+          new_cache = '64pad-v181-preview-20260915-readable-labels-9'
+          sw.write_text(sw_text.replace(old_cache, new_cache, 1))
+          for path in Path('tests/unit').glob('*.test.js'):
+              data = path.read_text()
+              if old_cache in data:
+                  path.write_text(data.replace(old_cache, new_cache))
+          PY
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Verify unit and PWA contracts
+        run: |
+          set -euo pipefail
+          node --check chord-resolution-ui.js
+          npm test
+          ./tools/sw-assets-check.sh
+          npm audit --omit=dev
+          git diff --check
+          grep -q "chord-resolution-ui.js?v=1.8.1-readable-labels6" index.html
+          grep -q "chord-resolution-ui.js?v=1.8.1-readable-labels6" sw.js
+          grep -q "64pad-v181-preview-20260915-readable-labels-9" sw.js
+
+      - name: Browser regression
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+          python3 -m http.server 8080 >/tmp/64pe-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/ >/dev/null; then break; fi
+            sleep 1
+          done
+          npx playwright test tests/e2e/v181-alias-runtime.spec.js
+          git checkout -- test-results
+
+      - name: Commit verified product changes
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name 'daikainozaki-cyber'
+          git config user.email 'daikainozaki@gmail.com'
+          git add chord-resolution-ui.js index.html sw.js tests/unit tests/e2e/v181-alias-runtime.spec.js
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'feat(v1.8.1): normalize chord label readability'
+          git push origin HEAD:codex/v181-readable-chord-labels
