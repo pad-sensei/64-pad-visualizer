@@ -1,0 +1,137 @@
+name: Apply v1.8.1 Push headline no-truncation ruling
+
+on:
+  push:
+    branches:
+      - codex/v181-tied-alias-equivalence
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/v181-tied-alias-equivalence
+          submodules: recursive
+          fetch-depth: 80
+
+      - name: Apply exact product and regression patch
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_one(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, got {count}: {old!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          helper_path = Path('push-display-text-fit.js')
+          app_path = Path('push-display-webusb-app.js')
+          app_text = app_path.read_text()
+          already = helper_path.exists() and 'fitPushPixelText(snap.chord, 4, 688)' in app_text
+          if already:
+              print('no-truncation patch already present')
+              raise SystemExit(0)
+
+          helper_path.write_text("""// Pure Push headline layout contract: preserve all semantic text and fit by scale.\n// No candidate dropping, ellipsis, or silent character truncation is allowed here.\nexport function pushPixelTextUnits(raw) {\n  const text = String(raw || '');\n  let units = 0;\n  for (const char of text) units += char === ' ' ? 4 : 6;\n  return units;\n}\n\nexport function fitPushPixelText(raw, maxScale = 4, maxWidth = 688) {\n  const text = String(raw || '');\n  const units = pushPixelTextUnits(text);\n  if (units <= 0) return { text, scale: maxScale, width: 0 };\n\n  const idealScale = maxWidth / units;\n  const integerScale = Math.floor(idealScale);\n  const scale = integerScale >= 1\n    ? Math.min(maxScale, integerScale)\n    : Math.min(maxScale, idealScale);\n\n  return { text, scale, width: units * scale };\n}\n""")
+
+          replace_one(
+              'push-display-webusb-app.js',
+              "import { fastClearPushPads, hardClearPushMidiOutputs } from './push-surface-cleanup.js?v=webusb-20260911-7';",
+              "import { fastClearPushPads, hardClearPushMidiOutputs } from './push-surface-cleanup.js?v=webusb-20260911-7';\nimport { fitPushPixelText } from './push-display-text-fit.js?v=20260914-no-truncate';"
+          )
+          replace_one(
+              'push-display-webusb-app.js',
+              "  '<':[0x08,0x14,0x22,0x41,0x00], '♭':[0x7e,0x20,0x38,0x44,0x38],",
+              "  '<':[0x08,0x14,0x22,0x41,0x00], '=':[0x14,0x14,0x14,0x14,0x14], '·':[0x00,0x00,0x08,0x00,0x00],\n  '♭':[0x7e,0x20,0x38,0x44,0x38],"
+          )
+          replace_one(
+              'push-display-webusb-app.js',
+              "        if (snap.chord) drawPixelText(snap.chord, 32, 42, 4, '#ffdb5c', 20);",
+              "        if (snap.chord) {\n          // Human ruling 2026-09-14: the equation is semantic information. Never\n          // cut its right-hand side. Keep the full text and reduce scale only as\n          // much as needed to stay left of the Key/Scale region (x=720).\n          const headline = fitPushPixelText(snap.chord, 4, 688);\n          drawPixelText(headline.text, 32, 42, headline.scale, '#ffdb5c', headline.text.length);\n        }"
+          )
+
+          replace_one('index.html', 'chord-resolution-ui.js?v=1.8.1-resolution2', 'chord-resolution-ui.js?v=1.8.1-alias-live5')
+          replace_one('index.html', 'push-display-webusb-app.js?v=webusb-20260913-header', 'push-display-webusb-app.js?v=webusb-20260914-headline-fit')
+
+          replace_one('sw.js', "var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-4';", "var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-5';")
+          replace_one('sw.js', 'chord-resolution-ui.js?v=1.8.1-resolution2', 'chord-resolution-ui.js?v=1.8.1-alias-live5')
+          replace_one('sw.js', 'push-display-webusb-app.js?v=webusb-20260913-header', 'push-display-webusb-app.js?v=webusb-20260914-headline-fit')
+          replace_one(
+              'sw.js',
+              "  'push-display-webusb-app.js?v=webusb-20260914-headline-fit',",
+              "  'push-display-webusb-app.js?v=webusb-20260914-headline-fit',\n  'push-display-text-fit.js?v=20260914-no-truncate',"
+          )
+
+          replace_one('tests/unit/v181-chord-resolution-consumer.test.js', 'chord-resolution-ui.js?v=1.8.1-resolution2', 'chord-resolution-ui.js?v=1.8.1-alias-live5')
+
+          exposure = Path('tests/unit/push-display-exposure.test.js')
+          text = exposure.read_text()
+          text = text.replace("const sw = fs.readFileSync('sw.js', 'utf8');", "const sw = fs.readFileSync('sw.js', 'utf8');\nconst fit = fs.readFileSync('push-display-text-fit.js', 'utf8');")
+          text = text.replace('push-display-webusb-app.js?v=webusb-20260913-header', 'push-display-webusb-app.js?v=webusb-20260914-headline-fit')
+          text = text.replace("var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-4';", "var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-5';")
+          text = text.replace("var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-3';", "var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-4';")
+          anchor = "  it('invalidates the preview through its SW generation while retaining matching asset URLs', () => {"
+          if anchor not in text:
+              raise SystemExit('push-display-exposure anchor not found')
+          new_test = """  it('preserves the complete Push chord equation and fits it by scale', () => {\n    expect(app).toContain(\"fitPushPixelText(snap.chord, 4, 688)\");\n    expect(app).toContain(\"headline.text.length\");\n    expect(app).not.toContain(\"drawPixelText(snap.chord, 32, 42, 4, '#ffdb5c', 20)\");\n    expect(app).toContain(\"'=':[0x14,0x14,0x14,0x14,0x14]\");\n    expect(app).toContain(\"'·':[0x00,0x00,0x08,0x00,0x00]\");\n    expect(fit).toContain('return { text, scale, width: units * scale };');\n    expect(sw).toContain(\"'push-display-text-fit.js?v=20260914-no-truncate'\");\n  });\n\n"""
+          text = text.replace(anchor, new_test + anchor, 1)
+          exposure.write_text(text)
+
+          Path('tests/unit/push-display-text-fit.test.js').write_text("""import { describe, it, expect } from 'vitest';\nimport { fitPushPixelText, pushPixelTextUnits } from '../../push-display-text-fit.js';\n\ndescribe('Push chord headline fit', () => {\n  it('keeps a normal Eb6 = Cm7 / Eb equation at full scale', () => {\n    const text = 'Eb6 = Cm7 / Eb';\n    const layout = fitPushPixelText(text, 4, 688);\n    expect(layout.text).toBe(text);\n    expect(layout.scale).toBe(4);\n    expect(layout.width).toBe(pushPixelTextUnits(text) * 4);\n    expect(layout.width).toBeLessThanOrEqual(688);\n  });\n\n  it('keeps every character of a long equation while shrinking to fit', () => {\n    const text = 'Eb7(b9) = Edim7(7) / G · Bb13sus4 / Ab = Gm7(b5) / Bb · F13sus4 / Eb';\n    const layout = fitPushPixelText(text, 4, 688);\n    expect(layout.text).toBe(text);\n    expect(layout.scale).toBeLessThan(4);\n    expect(layout.scale).toBeGreaterThan(0);\n    expect(layout.width).toBeLessThanOrEqual(688);\n  });\n\n  it('never truncates even when text exceeds scale-1 capacity', () => {\n    const text = Array(40).fill('C13sus4').join(' = ');\n    const layout = fitPushPixelText(text, 4, 688);\n    expect(layout.text).toBe(text);\n    expect(layout.scale).toBeLessThan(1);\n    expect(layout.width).toBeLessThanOrEqual(688);\n  });\n});\n""")
+          PY
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify no-truncation ruling
+        run: |
+          set -euo pipefail
+          node --check push-display-webusb-app.js
+          node --check push-display-text-fit.js
+          npm test
+          ./tools/sw-assets-check.sh
+          git diff --check
+
+      - name: Browser regression
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+          python3 -m http.server 8080 >/tmp/64pe-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/ >/dev/null; then break; fi
+            sleep 1
+          done
+          npx playwright test tests/e2e/v181-alias-runtime.spec.js
+          git checkout -- test-results
+
+      - name: Commit verified product patch
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No product patch to commit.'
+            exit 0
+          fi
+          git config user.name 'daikainozaki-cyber'
+          git config user.email 'daikainozaki@gmail.com'
+          git add push-display-webusb-app.js push-display-text-fit.js index.html sw.js tests/unit/push-display-exposure.test.js tests/unit/push-display-text-fit.test.js tests/unit/v181-chord-resolution-consumer.test.js
+          git commit -m 'fix(push): fit full chord headline without truncation'
+          git push origin HEAD:codex/v181-tied-alias-equivalence
