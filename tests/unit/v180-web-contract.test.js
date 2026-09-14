@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 
-describe('v1.8.0 Web product contract', () => {
+describe('v1.8.1 Web product contract', () => {
   const main = fs.readFileSync('main.js', 'utf8');
   const html = fs.readFileSync('index.html', 'utf8');
   const display = fs.readFileSync('push-display-webusb-app.js', 'utf8');
@@ -20,8 +20,8 @@ describe('v1.8.0 Web product contract', () => {
   });
 
   it('shows one product version for Web', () => {
-    expect(html).toContain('<span class="version-tag">v1.8.0</span>');
-    expect(html).toContain('"softwareVersion":"1.8.0"');
+    expect(html).toContain('<span class="version-tag">v1.8.1</span>');
+    expect(html).toContain('"softwareVersion":"1.8.1"');
   });
 
   it('keeps the /64-pad-dev/ hardware gate free of service-worker hot reloads', () => {

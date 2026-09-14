@@ -817,11 +817,20 @@ function updatePlainDisplay() {
       ? padWebFormatObservedUstInlineFromPayload(observedPayload, legacyUstText)
       : '';
     const escapeHtml = typeof padWebEscapeHtml === 'function' ? padWebEscapeHtml : String;
-    let html = '<span class="detect-candidate-best" draggable="true" data-candidate-idx="0" onclick="transferDetectedCandidate(0,this)">' + escapeHtml(best.name) + ustInline + '</span>';
-    if (candidates.length > 1) {
+    const topCandidates = typeof padWebGetTopResolvedCandidates === 'function'
+      ? padWebGetTopResolvedCandidates(candidates) : [best];
+    const topCount = Math.max(1, topCandidates.length);
+    let html = '<div class="detect-top-group" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">';
+    candidates.slice(0, topCount).forEach((c, i) => {
+      html += '<span class="detect-candidate-best" draggable="true" data-candidate-idx="' + i + '" onclick="transferDetectedCandidate(' + i + ',this)">'
+        + escapeHtml(c.name) + (i === 0 ? ustInline : '') + '</span>';
+    });
+    html += '</div>';
+    if (candidates.length > topCount) {
       html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">';
-      candidates.slice(1).forEach((c, i) => {
-        html += '<span class="detect-candidate" draggable="true" data-candidate-idx="' + (i + 1) + '" onclick="transferDetectedCandidate(' + (i + 1) + ',this)">' + escapeHtml(c.name) + '</span>';
+      candidates.slice(topCount).forEach((c, i) => {
+        const idx = topCount + i;
+        html += '<span class="detect-candidate" draggable="true" data-candidate-idx="' + idx + '" onclick="transferDetectedCandidate(' + idx + ',this)">' + escapeHtml(c.name) + '</span>';
       });
       html += '</div>';
     }

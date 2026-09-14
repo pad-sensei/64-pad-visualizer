@@ -89,12 +89,16 @@ function releaseAllMidiHeldSources(preserveSustain) {
   return released;
 }
 
-// Chord detection: delegated to pad-core (padDetectChord, CHORD_DETECT_DB, TRIAD_DETECT_DB, TETRAD_DETECT_DB)
+// Chord detection: v1.8.1 user-facing resolution is owned by pad-core.
+// padDetectChord remains the transparent candidate generator inside the shared dependency.
 function detectChord(notes) {
   var spellingKey = (typeof AppState !== 'undefined')
     ? padGetParentMajorKey(AppState.scaleIdx, AppState.key)
     : 0;
-  return padDetectChord(notes, spellingKey);
+  if (typeof padResolveChordCandidates !== 'function') {
+    throw new Error('pad-core chord resolver is not loaded');
+  }
+  return padResolveChordCandidates(notes, spellingKey);
 }
 var CHORD_DB = CHORD_DETECT_DB;
 var TRIAD_DB = TRIAD_DETECT_DB;
@@ -1469,6 +1473,13 @@ function padWebGetPushDisplaySnapshot() {
   if (pushHeldSlot && window.padWebPushControlState) {
     var heldSlot = PlainState.memory[window.padWebPushControlState.heldSlot];
     chord = heldSlot ? heldSlot.chordName : '';
+  }
+  if (!pushHeldSlot
+      && typeof AppState !== 'undefined' && AppState.mode === 'input'
+      && typeof padWebFormatTopResolvedChordText === 'function'
+      && typeof lastDetectedCandidates !== 'undefined') {
+    var resolvedTopText = padWebFormatTopResolvedChordText(lastDetectedCandidates);
+    if (resolvedTopText) chord = resolvedTopText;
   }
   if (!chord) {
     var detect = document.getElementById('midi-detect');
