@@ -27,42 +27,60 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Live Web diagnostic
         run: |
+          set -euo pipefail
           python3 -m http.server 8080 >/tmp/64pe-http.log 2>&1 &
           server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          trap 'kill "$server_pid" 2>/dev/null || true; rm -f tests/e2e/.tmp-altered-diagnostic.spec.js' EXIT
           for i in $(seq 1 30); do
             curl -fsS http://127.0.0.1:8080/ >/dev/null && break
             sleep 1
           done
-          cat > /tmp/altered.spec.js <<'EOF'
+          cat > tests/e2e/.tmp-altered-diagnostic.spec.js <<'EOF'
           const { test } = require('@playwright/test');
-          test('diagnostic', async ({ page }) => {
-            await page.goto('http://127.0.0.1:8080/?silent=1&e2e=altered-dominant');
+
+          test('diagnostic altered dominants through live Web input', async ({ page }) => {
+            await page.goto('./?silent=1&e2e=altered-dominant');
             await page.waitForLoadState('domcontentloaded');
-            const out = await page.evaluate(() => {
-              AppState.mode = 'input';
-              AppState.key = 0;
-              AppState.scaleIdx = 0;
-              PlainState.activeNotes.clear();
-              PlainState.subMode = 'idle';
-              if (typeof clearInstrumentInput === 'function') clearInstrumentInput();
-              if (typeof releaseAllMidiHeldSources === 'function') releaseAllMidiHeldSources(true);
-              if (typeof window.applyVelocityCurve !== 'function') window.applyVelocityCurve = v => v;
-              const notes = [34,44,50,54,59];
-              notes.forEach(note => onMidiNoteOn(note, 100));
-              const candidates = detectChord(notes);
-              const legacy = typeof formatDetectedUstText === 'function' ? formatDetectedUstText(notes, candidates[0].rootPC, candidates[0].name) : null;
-              const payload = typeof padWebGetLatestObservedShellUstPayload === 'function' ? padWebGetLatestObservedShellUstPayload() : null;
-              const push = typeof padWebGetPushDisplaySnapshot === 'function' ? padWebGetPushDisplaySnapshot() : null;
-              return {
-                names: candidates.slice(0,5).map(c => ({name:c.name, quality:c.quality, score:c.resolutionScore, tensionLabels:c.tensionLabels})),
-                dom: document.getElementById('midi-detect')?.textContent || '',
-                legacy,
-                payload,
-                push,
-              };
-            });
-            console.log('ALTERED_DIAGNOSTIC=' + JSON.stringify(out));
+
+            async function capture(notes) {
+              return page.evaluate(async (notes) => {
+                AppState.mode = 'input';
+                AppState.key = 0;
+                AppState.scaleIdx = 0;
+                PlainState.activeNotes.clear();
+                PlainState.subMode = 'idle';
+                if (typeof clearInstrumentInput === 'function') clearInstrumentInput();
+                if (typeof releaseAllMidiHeldSources === 'function') releaseAllMidiHeldSources(true);
+                if (typeof window.applyVelocityCurve !== 'function') window.applyVelocityCurve = v => v;
+                notes.forEach(note => onMidiNoteOn(note, 100));
+                await new Promise(resolve => setTimeout(resolve, 120));
+                const candidates = detectChord(notes);
+                const top = candidates[0] || {};
+                const legacy = typeof formatDetectedUstText === 'function'
+                  ? formatDetectedUstText(notes, top.rootPC, top.name) : null;
+                const payload = typeof padWebGetLatestObservedShellUstPayload === 'function'
+                  ? padWebGetLatestObservedShellUstPayload() : null;
+                const push = typeof padWebGetPushDisplaySnapshot === 'function'
+                  ? padWebGetPushDisplaySnapshot() : null;
+                return {
+                  names: candidates.slice(0,8).map(c => ({
+                    name:c.name, rootPC:c.rootPC, quality:c.quality,
+                    score:c.resolutionScore, tensionLabels:c.tensionLabels,
+                    chordPCS:c.chordPCS, isTopRanked:c.isTopRanked,
+                  })),
+                  dom: document.getElementById('midi-detect')?.textContent || '',
+                  legacy,
+                  payload,
+                  push,
+                };
+              }, notes);
+            }
+
+            console.log('ALTERED_5=' + JSON.stringify(await capture([34,44,50,54,59])));
+            console.log('ALTERED_4=' + JSON.stringify(await capture([34,44,50,54])));
           });
           EOF
-          npx playwright test /tmp/altered.spec.js --config=playwright.config.js --reporter=line
+          npx playwright test tests/e2e/.tmp-altered-diagnostic.spec.js --reporter=line
+          rm -f tests/e2e/.tmp-altered-diagnostic.spec.js
+          git diff --exit-code
+          test -z "$(git status --porcelain)"
