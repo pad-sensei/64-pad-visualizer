@@ -169,7 +169,7 @@ describe('v1.8.1 chord-resolution consumer', () => {
     const sw = readFileSync(root + 'sw.js', 'utf8');
     for (const asset of [
       'pad-core/chord-resolver.js?v=1.8.1-resolution2',
-      'chord-resolution-ui.js?v=1.8.1-readable-labels7',
+      'chord-resolution-ui.js?v=1.8.1-alias-equation8',
       'plain.js?v=1.8.1-resolution2',
       'midi.js?v=1.8.1-altered-ust1',
     ]) {
