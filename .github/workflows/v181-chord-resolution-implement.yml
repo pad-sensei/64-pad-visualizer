@@ -34,10 +34,12 @@ jobs:
         run: |
           npm ci
           npx vitest run tests/unit/v181-chord-resolution-consumer.test.js tests/unit/detectChord.test.js
-      - name: Verify full Web suite and PWA identities
+      - name: Verify full Web suite
+        run: npm test
+      - name: Verify diff cleanliness
+        run: git diff --check
+      - name: Verify PWA identities
         run: |
-          npm test
-          git diff --check
           python - <<'PY'
           from pathlib import Path
           index = Path('index.html').read_text()
