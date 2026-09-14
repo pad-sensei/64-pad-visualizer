@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('v1.8.1 live alias equation', () => {
-  test('renders Eb6 = Cm7 / Eb in the actual INPUT display path', async ({ page }) => {
+  test('renders Eb6 = Cm7 / Eb through the live MIDI input path', async ({ page }) => {
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));
 
@@ -10,13 +10,19 @@ test.describe('v1.8.1 live alias equation', () => {
 
     const result = await page.evaluate(() => {
       AppState.mode = 'input';
-      PlainState.activeNotes = new Set([63, 67, 70, 72]); // Eb G Bb C
+      PlainState.activeNotes.clear();
+      PlainState.subMode = 'idle';
       if (typeof clearInstrumentInput === 'function') clearInstrumentInput();
-      updatePlainDisplay();
+      if (typeof releaseAllMidiHeldSources === 'function') releaseAllMidiHeldSources(true);
+
+      // Exercise the same note-entry function used by Web MIDI rather than
+      // mutating PlainState and calling updatePlainDisplay() directly.
+      [63, 67, 70, 72].forEach(note => onMidiNoteOn(note, 100)); // Eb G Bb C
 
       const candidates = detectChord([63, 67, 70, 72]);
       const root = document.getElementById('midi-detect');
       const top = root && root.querySelector('.detect-top-group');
+      const pushSnapshot = padWebGetPushDisplaySnapshot();
       return {
         wrapped: updatePlainDisplay.__padAliasEquationWrapped === true,
         topText: top ? top.textContent.replace(/\s+/g, ' ').trim() : '',
@@ -28,6 +34,7 @@ test.describe('v1.8.1 live alias equation', () => {
         aliasScore: (candidates.find(candidate => candidate.name === 'Cm7 / Eb') || {}).resolutionScore,
         aliasTop: (candidates.find(candidate => candidate.name === 'Cm7 / Eb') || {}).isTopRanked,
         lowerText: root ? root.textContent : '',
+        pushChord: pushSnapshot && pushSnapshot.chord,
       };
     });
 
@@ -41,6 +48,7 @@ test.describe('v1.8.1 live alias equation', () => {
     expect(result.aliasSeparators).toContain('=');
     expect(result.topIndexes).toEqual([0, result.aliasIndex]);
     expect(result.topText).not.toMatch(/omit/i);
+    expect(result.pushChord).toContain('Eb6 = Cm7 / Eb');
     expect(pageErrors).toEqual([]);
   });
 });
