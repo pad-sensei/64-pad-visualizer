@@ -1,0 +1,82 @@
+from pathlib import Path
+import re
+
+TARGET_PAD_CORE = "fc63050e72b096ce6f8af67e966ca082d39cf537"
+
+
+def replace_once(path, old, new):
+    p = Path(path)
+    text = p.read_text()
+    if old not in text:
+        raise SystemExit(f"missing expected text in {path}: {old[:120]!r}")
+    p.write_text(text.replace(old, new, 1))
+
+
+# Product/version identity.
+replace_once('index.html', '"softwareVersion":"1.8.0"', '"softwareVersion":"1.8.1"')
+replace_once('index.html', '<span class="version-tag">v1.8.0</span>', '<span class="version-tag">v1.8.1</span>')
+
+# Shared pad-core resolver + thin presentation helper.
+replace_once(
+    'index.html',
+    '<script src="pad-core/theory.js?v=6.7.54"></script>',
+    '<script src="pad-core/theory.js?v=6.7.54"></script>\n<script src="pad-core/chord-resolver.js?v=1.8.1-resolution2"></script>'
+)
+replace_once(
+    'index.html',
+    '<script src="theory.js?v=6.7.52"></script>',
+    '<script src="theory.js?v=6.7.52"></script>\n<script src="chord-resolution-ui.js?v=1.8.1-resolution2"></script>'
+)
+replace_once('index.html', '<script src="plain.js?v=1.8.0-parity2"></script>', '<script src="plain.js?v=1.8.1-resolution2"></script>')
+replace_once('index.html', '<script src="midi.js?v=1.8.0-entry-a04"></script>', '<script src="midi.js?v=1.8.1-resolution2"></script>')
+
+# The app remains a thin consumer. All harmony policy stays in pad-core.
+old_detect = """// Chord detection: delegated to pad-core (padDetectChord, CHORD_DETECT_DB, TRIAD_DETECT_DB, TETRAD_DETECT_DB)\nfunction detectChord(notes) {\n  var spellingKey = (typeof AppState !== 'undefined')\n    ? padGetParentMajorKey(AppState.scaleIdx, AppState.key)\n    : 0;\n  return padDetectChord(notes, spellingKey);\n}\n"""
+new_detect = """// Chord detection: v1.8.1 user-facing resolution is owned by pad-core.\n// padDetectChord remains the transparent candidate generator inside the shared dependency.\nfunction detectChord(notes) {\n  var spellingKey = (typeof AppState !== 'undefined')\n    ? padGetParentMajorKey(AppState.scaleIdx, AppState.key)\n    : 0;\n  if (typeof padResolveChordCandidates !== 'function') {\n    throw new Error('pad-core chord resolver is not loaded');\n  }\n  return padResolveChordCandidates(notes, spellingKey);\n}\n"""
+replace_once('midi.js', old_detect, new_detect)
+
+# Push headline uses exactly the same resolved top group that feeds Web detection.
+held_block = """  if (pushHeldSlot && window.padWebPushControlState) {\n    var heldSlot = PlainState.memory[window.padWebPushControlState.heldSlot];\n    chord = heldSlot ? heldSlot.chordName : '';\n  }\n"""
+held_plus_tie = held_block + """  if (!pushHeldSlot\n      && typeof AppState !== 'undefined' && AppState.mode === 'input'\n      && typeof padWebFormatTopResolvedChordText === 'function'\n      && typeof lastDetectedCandidates !== 'undefined') {\n    var resolvedTopText = padWebFormatTopResolvedChordText(lastDetectedCandidates);\n    if (resolvedTopText) chord = resolvedTopText;\n  }\n"""
+replace_once('midi.js', held_block, held_plus_tie)
+
+# Web DOM: every resolver-tied first-place candidate gets equal top prominence.
+plain = Path('plain.js').read_text()
+pattern = re.compile(
+    r'''    let html = '<span class="detect-candidate-best".*?'''
+    r'''    if \(typeof padWebFormatObservedStructureHtml === 'function'\)''',
+    re.S,
+)
+replacement = """    const topCandidates = typeof padWebGetTopResolvedCandidates === 'function'\n      ? padWebGetTopResolvedCandidates(candidates) : [best];\n    const topCount = Math.max(1, topCandidates.length);\n    let html = '<div class=\"detect-top-group\" style=\"display:flex;flex-wrap:wrap;gap:6px;align-items:center;\">';\n    candidates.slice(0, topCount).forEach((c, i) => {\n      html += '<span class=\"detect-candidate-best\" draggable=\"true\" data-candidate-idx=\"' + i + '\" onclick=\"transferDetectedCandidate(' + i + ',this)\">'\n        + escapeHtml(c.name) + (i === 0 ? ustInline : '') + '</span>';\n    });\n    html += '</div>';\n    if (candidates.length > topCount) {\n      html += '<div style=\"display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;\">';\n      candidates.slice(topCount).forEach((c, i) => {\n        const idx = topCount + i;\n        html += '<span class=\"detect-candidate\" draggable=\"true\" data-candidate-idx=\"' + idx + '\" onclick=\"transferDetectedCandidate(' + idx + ',this)\">' + escapeHtml(c.name) + '</span>';\n      });\n      html += '</div>';\n    }\n    if (typeof padWebFormatObservedStructureHtml === 'function')"""
+plain2, count = pattern.subn(replacement, plain, count=1)
+if count != 1:
+    raise SystemExit(f'plain.js detection block replacement count={count}')
+Path('plain.js').write_text(plain2)
+
+# Pure presentation helper. No harmonic ranking logic lives here.
+Path('chord-resolution-ui.js').write_text("""(function(global) {\n  'use strict';\n\n  function padWebGetTopResolvedCandidates(candidates) {\n    if (!Array.isArray(candidates) || candidates.length === 0) return [];\n    var tied = candidates.filter(function(candidate) {\n      return candidate && candidate.isTopRanked === true;\n    });\n    return tied.length > 0 ? tied : [candidates[0]];\n  }\n\n  function padWebFormatTopResolvedChordText(candidates) {\n    return padWebGetTopResolvedCandidates(candidates)\n      .map(function(candidate) { return candidate && candidate.name || ''; })\n      .filter(Boolean)\n      .join(' · ');\n  }\n\n  global.padWebGetTopResolvedCandidates = padWebGetTopResolvedCandidates;\n  global.padWebFormatTopResolvedChordText = padWebFormatTopResolvedChordText;\n\n  if (typeof module !== 'undefined') module.exports = {\n    padWebGetTopResolvedCandidates: padWebGetTopResolvedCandidates,\n    padWebFormatTopResolvedChordText: padWebFormatTopResolvedChordText,\n  };\n})(typeof window !== 'undefined' ? window : globalThis);\n""")
+
+# PWA cache must agree with page loader identities.
+replace_once('sw.js', "var CACHE_NAME = '64pad-v180-preview-20260913-header';", "var CACHE_NAME = '64pad-v181-preview-20260914-chord-resolution-2';")
+replace_once(
+    'sw.js',
+    "  'pad-core/theory.js?v=6.7.54',",
+    "  'pad-core/theory.js?v=6.7.54',\n  'pad-core/chord-resolver.js?v=1.8.1-resolution2',"
+)
+replace_once(
+    'sw.js',
+    "  'theory.js?v=6.7.52',",
+    "  'theory.js?v=6.7.52',\n  'chord-resolution-ui.js?v=1.8.1-resolution2',"
+)
+replace_once('sw.js', "  'plain.js?v=1.8.0-parity2',", "  'plain.js?v=1.8.1-resolution2',")
+replace_once('sw.js', "  'midi.js?v=1.8.0-entry-a04',", "  'midi.js?v=1.8.1-resolution2',")
+
+# Unit environment loads the same shared resolver before the app adapter.
+setup_insert = """const padCoreTheory = require('../../../pad-core/theory.js');\nObject.assign(globalThis, padCoreTheory);\n"""
+setup_new = setup_insert + """\nconst padCoreChordResolver = require('../../../pad-core/chord-resolver.js');\nObject.assign(globalThis, padCoreChordResolver);\n"""
+replace_once('tests/unit/helpers/setup.js', setup_insert, setup_new)
+
+# Permanent v1.8.1 consumer regressions.
+Path('tests/unit/v181-chord-resolution-consumer.test.js').write_text("""import { describe, it, expect } from 'vitest';\nimport { readFileSync } from 'node:fs';\nimport { fileURLToPath } from 'node:url';\n\nconst ui = require('../../chord-resolution-ui.js');\n\ndescribe('v1.8.1 chord-resolution consumer', () => {\n  it('shows C7/E instead of the partial Edim reading', () => {\n    const results = detectChord([64, 67, 70, 72]);\n    expect(results[0].name).toBe('C7 / E');\n    expect(results.some(candidate => candidate.name === 'Edim')).toBe(false);\n    expect(results[0].resolutionCompleteness).toBe('exact');\n  });\n\n  it('shows CMaj7/E first and keeps Em(b6) only as a lower color reading', () => {\n    const results = detectChord([64, 67, 71, 72]);\n    expect(results[0].name).toBe('CMaj7 / E');\n    const lower = results.find(candidate => candidate.name === 'Em(b6)');\n    expect(lower).toBeDefined();\n    expect(lower.isTopRanked).toBe(false);\n    expect(lower.resolutionScore).toBeLessThan(results[0].resolutionScore);\n  });\n\n  it('keeps complete m7/6 and half-diminished/m6 aliases available', () => {\n    const am7c6 = detectChord([57, 60, 64, 67]);\n    expect(am7c6.some(candidate => candidate.rootPC === 9 && candidate.quality === 'm7' && candidate.resolutionCompleteness === 'exact')).toBe(true);\n    expect(am7c6.some(candidate => candidate.rootPC === 0 && candidate.quality === '6' && candidate.resolutionCompleteness === 'exact')).toBe(true);\n\n    const halfDim = detectChord([59, 62, 65, 69]);\n    expect(halfDim.some(candidate => candidate.rootPC === 11 && candidate.quality === 'm7(b5)' && candidate.resolutionCompleteness === 'exact')).toBe(true);\n    expect(halfDim.some(candidate => candidate.rootPC === 2 && candidate.quality === 'm6' && candidate.resolutionCompleteness === 'exact')).toBe(true);\n  });\n\n  it('formats every equal-score top candidate as one shared Web/Push headline', () => {\n    const candidates = [\n      { name: 'C6', isTopRanked: true },\n      { name: 'Am7 / C', isTopRanked: true },\n      { name: 'C', isTopRanked: false },\n    ];\n    expect(ui.padWebGetTopResolvedCandidates(candidates).map(candidate => candidate.name)).toEqual(['C6', 'Am7 / C']);\n    expect(ui.padWebFormatTopResolvedChordText(candidates)).toBe('C6 · Am7 / C');\n  });\n\n  it('wires the same top-group metadata into Web DOM and Push snapshot', () => {\n    const root = fileURLToPath(new URL('../../', import.meta.url));\n    const plain = readFileSync(root + 'plain.js', 'utf8');\n    const midi = readFileSync(root + 'midi.js', 'utf8');\n    expect(plain).toContain('padWebGetTopResolvedCandidates(candidates)');\n    expect(plain).toContain('candidates.slice(0, topCount)');\n    expect(midi).toContain('padWebFormatTopResolvedChordText(lastDetectedCandidates)');\n  });\n\n  it('keeps page and service-worker asset identities aligned', () => {\n    const root = fileURLToPath(new URL('../../', import.meta.url));\n    const index = readFileSync(root + 'index.html', 'utf8');\n    const sw = readFileSync(root + 'sw.js', 'utf8');\n    for (const asset of [\n      'pad-core/chord-resolver.js?v=1.8.1-resolution2',\n      'chord-resolution-ui.js?v=1.8.1-resolution2',\n      'plain.js?v=1.8.1-resolution2',\n      'midi.js?v=1.8.1-resolution2',\n    ]) {\n      expect(index).toContain(asset);\n      expect(sw).toContain(asset);\n    }\n  });\n});\n""")
+
+print(f"prepared 64PE v1.8.1 against pad-core {TARGET_PAD_CORE}")
