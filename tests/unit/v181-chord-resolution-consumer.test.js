@@ -11,7 +11,9 @@ describe('v1.8.1 chord-resolution consumer', () => {
     expect(ui.padWebFormatChordDisplayName('Em7(b5)(11)(omit3)')).toBe('Em7(b5,11)omit3');
     expect(ui.padWebFormatChordDisplayName('Em7(b5)(11)(omit3) / E')).toBe('Em7(b5,11)omit3 / E');
     expect(ui.padWebFormatChordDisplayName('Em7(b5)')).toBe('Em7(b5)');
-    expect(ui.padWebFormatChordDisplayName('C7(omit3)')).toBe('C7omit3');
+    expect(ui.padWebFormatChordDisplayName('Dm6(omit5)')).toBe('Dm6(omit5)');
+    expect(ui.padWebFormatChordDisplayName('Ab7sus4(omit5)')).toBe('Ab7sus4(omit5)');
+    expect(ui.padWebFormatChordDisplayName('C7(omit3)')).toBe('C7(omit3)');
     expect(ui.padWebFormatChordDisplayName('Em7(b5,11)omit3 / E')).toBe('Em7(b5,11)omit3 / E');
 
     const raw = { name: 'Em7(b5)(11)', isTopRanked: true, resolutionCompleteness: 'exact', resolutionScore: 100 };
@@ -167,7 +169,7 @@ describe('v1.8.1 chord-resolution consumer', () => {
     const sw = readFileSync(root + 'sw.js', 'utf8');
     for (const asset of [
       'pad-core/chord-resolver.js?v=1.8.1-resolution2',
-      'chord-resolution-ui.js?v=1.8.1-readable-labels6',
+      'chord-resolution-ui.js?v=1.8.1-readable-labels7',
       'plain.js?v=1.8.1-resolution2',
       'midi.js?v=1.8.1-resolution2',
     ]) {

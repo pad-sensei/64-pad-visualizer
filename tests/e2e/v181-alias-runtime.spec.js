@@ -74,6 +74,27 @@ test.describe('v1.8.1 live alias equation', () => {
     expect(result.raw).toBe('Em7(b5)(11)');
   });
 
+  test('keeps omit-only labels parenthesized in Web and Push', async ({ page }) => {
+    await page.goto('./?silent=1&e2e=v181-readable-omit');
+    await page.waitForLoadState('domcontentloaded');
+
+    const result = await page.evaluate(() => {
+      const root = document.getElementById('midi-detect');
+      root.innerHTML = '<div class="detect-top-group"><span class="detect-candidate-best" data-candidate-idx="0">C7(omit3)</span></div>';
+      const candidates = [{ name: 'C7(omit3)', isTopRanked: true, resolutionCompleteness: 'exact', resolutionScore: 100 }];
+      padWebDecorateAliasEquation(root, candidates);
+      return {
+        text: root.querySelector('[data-candidate-idx="0"]').textContent,
+        raw: candidates[0].name,
+        pushText: padWebFormatTopResolvedChordText(candidates),
+      };
+    });
+
+    expect(result.text).toBe('C7(omit3)');
+    expect(result.pushText).toBe('C7(omit3)');
+    expect(result.raw).toBe('C7(omit3)');
+  });
+
   test('draws a shrinking scale-2 equation with integer pixel cells in Chromium', async ({ page }) => {
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));

@@ -58,6 +58,11 @@
       });
     });
 
+    // Human ruling 2026-09-15: an omit-only label keeps its parenthesis
+    // as the visual boundary (e.g. C7(omit3)); omit moves outside only when
+    // another alteration/tension group already provides that boundary.
+    if (modifiers.length === 0 && omits.length > 0) return source;
+
     var display = base;
     if (modifiers.length > 0) display += '(' + modifiers.join(',') + ')';
     if (omits.length > 0) display += omits.join('');
