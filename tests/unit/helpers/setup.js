@@ -36,6 +36,9 @@ Object.assign(globalThis, padCoreData);
 const padCoreTheory = require('../../../pad-core/theory.js');
 Object.assign(globalThis, padCoreTheory);
 
+const padCoreChordResolver = require('../../../pad-core/chord-resolver.js');
+Object.assign(globalThis, padCoreChordResolver);
+
 const padCoreRender = require('../../../pad-core/render.js');
 Object.assign(globalThis, padCoreRender);
 

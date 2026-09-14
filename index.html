@@ -57,7 +57,7 @@ if (window.IS_DESKTOP_MODE) document.documentElement.classList.add('desktop-mode
 <meta name="twitter:description" content="コードがわからなくても大丈夫。64パッドでスケール・コード・ボイシングを可視化。ブラウザだけで動く無料音楽理論ツール。">
 <meta name="twitter:image" content="https://murinaikurashi.com/apps/64-pad/img/screenshot-chord.png">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"64 Pad Explorer","description":"Visualize scales, chords, and voicings on a 64-pad chromatic grid. Supports Ableton Push and Maschine layouts. MIDI I/O, chord detection, multiple instrument views.","url":"https://murinaikurashi.com/apps/64-pad/","applicationCategory":"MusicApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Organization","name":"HPS (Hardcore Pad Style)","url":"https://murinaikurashi.com"},"screenshot":"https://murinaikurashi.com/apps/64-pad/img/screenshot-scale.png","softwareVersion":"1.8.0","inLanguage":["en","ja","ko","zh","es","pt","fr","de","it"]}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"64 Pad Explorer","description":"Visualize scales, chords, and voicings on a 64-pad chromatic grid. Supports Ableton Push and Maschine layouts. MIDI I/O, chord detection, multiple instrument views.","url":"https://murinaikurashi.com/apps/64-pad/","applicationCategory":"MusicApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Organization","name":"HPS (Hardcore Pad Style)","url":"https://murinaikurashi.com"},"screenshot":"https://murinaikurashi.com/apps/64-pad/img/screenshot-scale.png","softwareVersion":"1.8.1","inLanguage":["en","ja","ko","zh","es","pt","fr","de","it"]}
 </script>
 <script src="error-logger.js"></script>
 <!-- Google Analytics -->
@@ -106,7 +106,7 @@ document.addEventListener('click', function(e) {
 <div class="header-block">
 <div class="header-bar">
   <h1>64 Pad Explorer</h1>
-  <span class="version-tag">v1.8.0</span>
+  <span class="version-tag">v1.8.1</span>
   <select id="lang-select" onchange="I18N.setLang(this.value)" style="font-size:0.6rem;padding:1px 2px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:3px;cursor:pointer;margin-left:4px;" data-info="info.lang">
     <option value="en">EN</option>
     <option value="ja">JA</option>
@@ -864,6 +864,7 @@ if (window.IS_DESKTOP_MODE || _affiliateParams.has('hps')) {
 <!-- pad-core (SSOT: theory calculations, data constants, render) -->
 <script src="pad-core/data.js?v=6.7.54"></script>
 <script src="pad-core/theory.js?v=6.7.54"></script>
+<script src="pad-core/chord-resolver.js?v=1.8.1-resolution2"></script>
 <script src="pad-core/render.js?v=6.7.52"></script>
 <script src="pad-core/circle.js?v=6.7.52"></script>
 <script src="pad-core/builder-ui.js?v=6.7.52"></script>
@@ -927,6 +928,7 @@ if (window.AUDIO_ENABLED) {
 }
 </script>
 <script src="theory.js?v=6.7.52"></script>
+<script src="chord-resolution-ui.js?v=1.8.1-resolution2"></script>
 <script src="tasty-stock.js?v=6.7.52"></script>
 <script src="staff.js?v=6.7.52"></script>
 <script src="instruments.js?v=1.8.0-parity2"></script>
@@ -935,14 +937,14 @@ if (window.AUDIO_ENABLED) {
 <script src="play-controls.js?v=6.7.52"></script>
 <script src="double-stop.js?v=6.7.52"></script>
 <script src="render.js?v=1.8.0-chord-pad-led"></script>
-<script src="plain.js?v=1.8.0-parity2"></script>
+<script src="plain.js?v=1.8.1-resolution2"></script>
 <script src="perform.js?v=6.7.52"></script>
 <script src="builder.js?v=1.8.0-parity2"></script>
 <script src="midi-input-state.js?v=6.7.52"></script>
 <script src="push-midi-port-contract.js?v=1.8.0-liveport3"></script>
 <script src="push-midi-cc-map.js?v=1.8.0"></script>
 <script src="push-web-control.js?v=1.8.0-active-color"></script>
-<script src="midi.js?v=1.8.0-entry-a04"></script>
+<script src="midi.js?v=1.8.1-resolution2"></script>
 <script src="main.js?v=6.7.55"></script>
 <script type="module" src="push-display-webusb-app.js?v=webusb-20260913-header"></script>
 <script src="tutorial-data.js?v=6.7.52"></script>
