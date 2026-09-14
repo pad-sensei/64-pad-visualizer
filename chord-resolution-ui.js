@@ -26,6 +26,7 @@
 
   function padWebCandidateIsFullExact(candidate) {
     if (!candidate || candidate.resolutionCompleteness !== 'exact') return false;
+    if (/\(omit/i.test(String(candidate.name || ''))) return false;
     var cardinality = Number(candidate.resolutionChordCardinality);
     return Number.isFinite(cardinality)
       && cardinality > 0
