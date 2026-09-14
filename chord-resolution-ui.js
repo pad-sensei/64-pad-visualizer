@@ -89,16 +89,37 @@
     };
   }
 
+  function padWebGetNeutralTopEntries(candidates, presentation) {
+    if (!presentation || !presentation.equivalent || !Array.isArray(candidates)) return [];
+    var aliasIndexSet = {};
+    presentation.entries.forEach(function(entry) { aliasIndexSet[entry.index] = true; });
+    return padWebGetTopResolvedCandidates(candidates).map(function(candidate) {
+      return { candidate: candidate, index: candidates.indexOf(candidate) };
+    }).filter(function(entry) {
+      return entry.index >= 0 && !aliasIndexSet[entry.index];
+    });
+  }
+
   function padWebGetTopResolvedSeparator(candidates) {
     return padWebGetResolvedPresentation(candidates).separator;
   }
 
   function padWebFormatTopResolvedChordText(candidates) {
     var presentation = padWebGetResolvedPresentation(candidates);
-    return presentation.entries
+    var text = presentation.entries
       .map(function(entry) { return entry.candidate && entry.candidate.name || ''; })
       .filter(Boolean)
       .join(presentation.separator);
+
+    if (!presentation.equivalent) return text;
+
+    var neutralNames = padWebGetNeutralTopEntries(candidates, presentation)
+      .map(function(entry) { return entry.candidate && entry.candidate.name || ''; })
+      .filter(Boolean);
+    if (neutralNames.length > 0) {
+      text += (text ? ' · ' : '') + neutralNames.join(' · ');
+    }
+    return text;
   }
 
   function padWebCurrentDetectedCandidates() {
@@ -129,15 +150,9 @@
     var topGroup = root.querySelector('.detect-top-group');
     if (!topGroup) return;
 
-    var aliasIndexSet = {};
-    presentation.entries.forEach(function(entry) { aliasIndexSet[entry.index] = true; });
-    var existingTop = padWebGetTopResolvedCandidates(candidates).map(function(candidate) {
-      return candidates.indexOf(candidate);
-    }).filter(function(index) { return index >= 0 && !aliasIndexSet[index]; });
-
     var desired = presentation.entries.slice();
-    existingTop.forEach(function(index) {
-      desired.push({ candidate: candidates[index], index: index, neutralTop: true });
+    padWebGetNeutralTopEntries(candidates, presentation).forEach(function(entry) {
+      desired.push({ candidate: entry.candidate, index: entry.index, neutralTop: true });
     });
 
     var nodes = [];
@@ -195,6 +210,7 @@
   global.padWebGetPrimaryExactAliasEntries = padWebGetPrimaryExactAliasEntries;
   global.padWebTopResolvedGroupIsEquivalent = padWebTopResolvedGroupIsEquivalent;
   global.padWebGetResolvedPresentation = padWebGetResolvedPresentation;
+  global.padWebGetNeutralTopEntries = padWebGetNeutralTopEntries;
   global.padWebGetTopResolvedSeparator = padWebGetTopResolvedSeparator;
   global.padWebFormatTopResolvedChordText = padWebFormatTopResolvedChordText;
   global.padWebDecorateAliasEquation = padWebDecorateAliasEquation;
@@ -205,6 +221,7 @@
     padWebGetPrimaryExactAliasEntries: padWebGetPrimaryExactAliasEntries,
     padWebTopResolvedGroupIsEquivalent: padWebTopResolvedGroupIsEquivalent,
     padWebGetResolvedPresentation: padWebGetResolvedPresentation,
+    padWebGetNeutralTopEntries: padWebGetNeutralTopEntries,
     padWebGetTopResolvedSeparator: padWebGetTopResolvedSeparator,
     padWebFormatTopResolvedChordText: padWebFormatTopResolvedChordText,
     padWebDecorateAliasEquation: padWebDecorateAliasEquation,
