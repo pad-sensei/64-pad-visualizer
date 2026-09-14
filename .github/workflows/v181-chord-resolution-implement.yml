@@ -34,8 +34,33 @@ jobs:
         run: |
           npm ci
           npx vitest run tests/unit/v181-chord-resolution-consumer.test.js tests/unit/detectChord.test.js
-      - name: Verify full Web suite
-        run: npm test
+      - name: Diagnose full Web suite
+        run: |
+          set +e
+          npx vitest run --reporter=json --outputFile=/tmp/v181-vitest.json
+          status=$?
+          set -e
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('/tmp/v181-vitest.json')
+          if not p.exists():
+              raise SystemExit('vitest JSON report missing')
+          data = json.loads(p.read_text())
+          print(f"VITEST_SUMMARY success={data.get('success')} passed={data.get('numPassedTests')} failed={data.get('numFailedTests')} files_failed={data.get('numFailedTestSuites')}")
+          for suite in data.get('testResults', []):
+              failed = [a for a in suite.get('assertionResults', []) if a.get('status') == 'failed']
+              if not failed:
+                  continue
+              print('FAIL_FILE', suite.get('name'))
+              for assertion in failed:
+                  print('FAIL_TEST', ' > '.join(assertion.get('ancestorTitles', []) + [assertion.get('title','')]))
+                  messages = assertion.get('failureMessages') or []
+                  if messages:
+                      compact = ' '.join(messages[0].split())
+                      print('FAIL_MESSAGE', compact[:1200])
+          PY
+          exit $status
       - name: Verify diff cleanliness
         run: git diff --check
       - name: Verify PWA identities
