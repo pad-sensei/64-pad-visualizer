@@ -31,14 +31,63 @@ describe('v1.8.1 chord-resolution consumer', () => {
     expect(halfDim.some(candidate => candidate.rootPC === 2 && candidate.quality === 'm6' && candidate.resolutionCompleteness === 'exact')).toBe(true);
   });
 
-  it('formats every equal-score top candidate as one shared Web/Push headline', () => {
+  it('formats exact equal-score aliases as an explicit equivalence chain', () => {
     const candidates = [
-      { name: 'C6', isTopRanked: true },
-      { name: 'Am7 / C', isTopRanked: true },
-      { name: 'C', isTopRanked: false },
+      {
+        name: 'Eb6', isTopRanked: true,
+        resolutionCompleteness: 'exact', resolutionScore: 120,
+        resolutionExplainedPCS: [0, 3, 7, 8],
+      },
+      {
+        name: 'Cm7 / Eb', isTopRanked: true,
+        resolutionCompleteness: 'exact', resolutionScore: 120,
+        resolutionExplainedPCS: [8, 7, 3, 0],
+      },
+      { name: 'EbMaj', isTopRanked: false },
     ];
-    expect(ui.padWebGetTopResolvedCandidates(candidates).map(candidate => candidate.name)).toEqual(['C6', 'Am7 / C']);
-    expect(ui.padWebFormatTopResolvedChordText(candidates)).toBe('C6 · Am7 / C');
+    expect(ui.padWebGetTopResolvedCandidates(candidates).map(candidate => candidate.name)).toEqual(['Eb6', 'Cm7 / Eb']);
+    expect(ui.padWebTopResolvedGroupIsEquivalent(ui.padWebGetTopResolvedCandidates(candidates))).toBe(true);
+    expect(ui.padWebGetTopResolvedSeparator(candidates)).toBe(' = ');
+    expect(ui.padWebFormatTopResolvedChordText(candidates)).toBe('Eb6 = Cm7 / Eb');
+  });
+
+  it('formats three exact equal-score aliases as one equivalence chain', () => {
+    const candidates = ['A', 'B', 'C'].map(name => ({
+      name,
+      isTopRanked: true,
+      resolutionCompleteness: 'exact',
+      resolutionScore: 88,
+      resolutionExplainedPCS: [0, 4, 7, 9],
+    }));
+    expect(ui.padWebFormatTopResolvedChordText(candidates)).toBe('A = B = C');
+  });
+
+  it('keeps a neutral separator for same-score top candidates that are not exact aliases', () => {
+    const candidates = [
+      {
+        name: 'C', isTopRanked: true,
+        resolutionCompleteness: 'partial', resolutionScore: 90,
+        resolutionExplainedPCS: [0, 4, 7],
+      },
+      {
+        name: 'Am', isTopRanked: true,
+        resolutionCompleteness: 'partial', resolutionScore: 90,
+        resolutionExplainedPCS: [9, 0, 4],
+      },
+    ];
+    expect(ui.padWebTopResolvedGroupIsEquivalent(candidates)).toBe(false);
+    expect(ui.padWebGetTopResolvedSeparator(candidates)).toBe(' · ');
+    expect(ui.padWebFormatTopResolvedChordText(candidates)).toBe('C · Am');
+  });
+
+  it('leaves a single top candidate unchanged', () => {
+    const candidates = [{
+      name: 'C7 / E', isTopRanked: true,
+      resolutionCompleteness: 'exact', resolutionScore: 120,
+      resolutionExplainedPCS: [0, 4, 7, 10],
+    }];
+    expect(ui.padWebTopResolvedGroupIsEquivalent(candidates)).toBe(false);
+    expect(ui.padWebFormatTopResolvedChordText(candidates)).toBe('C7 / E');
   });
 
   it('wires the same top-group metadata into Web DOM and Push snapshot', () => {
