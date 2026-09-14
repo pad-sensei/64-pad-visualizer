@@ -24,72 +24,101 @@
     return true;
   }
 
+  function padWebCandidateIsFullExact(candidate) {
+    if (!candidate || candidate.resolutionCompleteness !== 'exact') return false;
+    var cardinality = Number(candidate.resolutionChordCardinality);
+    return Number.isFinite(cardinality)
+      && cardinality > 0
+      && Array.isArray(candidate.resolutionExplainedPCS)
+      && candidate.resolutionExplainedPCS.length > 0;
+  }
+
+  function padWebCandidatesAreEquivalentAliases(primary, candidate) {
+    if (!padWebCandidateIsFullExact(primary) || !padWebCandidateIsFullExact(candidate)) return false;
+    if (Number(primary.resolutionChordCardinality) !== Number(candidate.resolutionChordCardinality)) return false;
+    return padWebPitchClassSetsEqual(
+      primary.resolutionExplainedPCS || [],
+      candidate.resolutionExplainedPCS || []
+    );
+  }
+
   function padWebGetTopResolvedCandidates(candidates) {
     if (!Array.isArray(candidates) || candidates.length === 0) return [];
     var tied = candidates.filter(function(candidate) {
       return candidate && candidate.isTopRanked === true;
     });
-    var top = tied.length > 0 ? tied : [candidates[0]];
-    padWebApplyTopResolvedDocumentState(top);
-    return top;
+    return tied.length > 0 ? tied : [candidates[0]];
   }
 
-  function padWebTopResolvedGroupIsEquivalent(topCandidates) {
-    if (!Array.isArray(topCandidates) || topCandidates.length < 2) return false;
-    var first = topCandidates[0];
-    if (!first || first.resolutionCompleteness !== 'exact') return false;
-    var firstScore = Number(first.resolutionScore);
-    if (!Number.isFinite(firstScore)) return false;
-    var firstExplained = first.resolutionExplainedPCS || [];
-    if (firstExplained.length === 0) return false;
+  function padWebGetPrimaryExactAliasEntries(candidates) {
+    if (!Array.isArray(candidates) || candidates.length === 0) return [];
+    var primary = candidates[0];
+    if (!padWebCandidateIsFullExact(primary)) return [];
 
-    for (var i = 1; i < topCandidates.length; i++) {
-      var candidate = topCandidates[i];
-      if (!candidate || candidate.resolutionCompleteness !== 'exact') return false;
-      if (Number(candidate.resolutionScore) !== firstScore) return false;
-      if (!padWebPitchClassSetsEqual(candidate.resolutionExplainedPCS || [], firstExplained)) return false;
+    var entries = [];
+    for (var i = 0; i < candidates.length; i++) {
+      if (padWebCandidatesAreEquivalentAliases(primary, candidates[i])) {
+        entries.push({ candidate: candidates[i], index: i });
+      }
     }
-    return true;
+    return entries;
   }
 
-  function padWebApplyTopResolvedDocumentState(topCandidates) {
+  function padWebTopResolvedGroupIsEquivalent(candidates) {
+    return padWebGetPrimaryExactAliasEntries(candidates).length >= 2;
+  }
+
+  function padWebGetResolvedPresentation(candidates) {
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      padWebApplyTopResolvedDocumentState(false);
+      return { entries: [], equivalent: false, separator: ' · ' };
+    }
+
+    var aliases = padWebGetPrimaryExactAliasEntries(candidates);
+    if (aliases.length >= 2) {
+      padWebApplyTopResolvedDocumentState(true);
+      return { entries: aliases, equivalent: true, separator: ' = ' };
+    }
+
+    var top = padWebGetTopResolvedCandidates(candidates);
+    var entries = top.map(function(candidate) {
+      return { candidate: candidate, index: candidates.indexOf(candidate) };
+    });
+    padWebApplyTopResolvedDocumentState(false);
+    return { entries: entries, equivalent: false, separator: ' · ' };
+  }
+
+  function padWebApplyTopResolvedDocumentState(equivalent) {
     if (typeof document === 'undefined' || !document.documentElement) return;
-    document.documentElement.classList.toggle(
-      'pad-top-alias-equivalent',
-      padWebTopResolvedGroupIsEquivalent(topCandidates)
-    );
+    document.documentElement.classList.toggle('pad-top-alias-equivalent', equivalent === true);
   }
 
   function padWebGetTopResolvedSeparator(candidates) {
-    var top = Array.isArray(candidates) && candidates.length > 0 && candidates.every(function(candidate) {
-      return candidate && candidate.isTopRanked === true;
-    }) ? candidates : padWebGetTopResolvedCandidates(candidates);
-    return padWebTopResolvedGroupIsEquivalent(top) ? ' = ' : ' · ';
+    return padWebGetResolvedPresentation(candidates).separator;
   }
 
   function padWebFormatTopResolvedChordText(candidates) {
-    var top = padWebGetTopResolvedCandidates(candidates);
-    return top
-      .map(function(candidate) { return candidate && candidate.name || ''; })
+    var presentation = padWebGetResolvedPresentation(candidates);
+    return presentation.entries
+      .map(function(entry) { return entry.candidate && entry.candidate.name || ''; })
       .filter(Boolean)
-      .join(padWebTopResolvedGroupIsEquivalent(top) ? ' = ' : ' · ');
-  }
-
-  if (typeof document !== 'undefined' && document.head && !document.getElementById('pad-tied-alias-equivalence-style')) {
-    var style = document.createElement('style');
-    style.id = 'pad-tied-alias-equivalence-style';
-    style.textContent = '.pad-top-alias-equivalent .detect-top-group .detect-candidate-best + .detect-candidate-best::before{content:"= ";opacity:.8;margin-right:2px;}';
-    document.head.appendChild(style);
+      .join(presentation.separator);
   }
 
   global.padWebGetTopResolvedCandidates = padWebGetTopResolvedCandidates;
+  global.padWebCandidatesAreEquivalentAliases = padWebCandidatesAreEquivalentAliases;
+  global.padWebGetPrimaryExactAliasEntries = padWebGetPrimaryExactAliasEntries;
   global.padWebTopResolvedGroupIsEquivalent = padWebTopResolvedGroupIsEquivalent;
+  global.padWebGetResolvedPresentation = padWebGetResolvedPresentation;
   global.padWebGetTopResolvedSeparator = padWebGetTopResolvedSeparator;
   global.padWebFormatTopResolvedChordText = padWebFormatTopResolvedChordText;
 
   if (typeof module !== 'undefined') module.exports = {
     padWebGetTopResolvedCandidates: padWebGetTopResolvedCandidates,
+    padWebCandidatesAreEquivalentAliases: padWebCandidatesAreEquivalentAliases,
+    padWebGetPrimaryExactAliasEntries: padWebGetPrimaryExactAliasEntries,
     padWebTopResolvedGroupIsEquivalent: padWebTopResolvedGroupIsEquivalent,
+    padWebGetResolvedPresentation: padWebGetResolvedPresentation,
     padWebGetTopResolvedSeparator: padWebGetTopResolvedSeparator,
     padWebFormatTopResolvedChordText: padWebFormatTopResolvedChordText,
   };
