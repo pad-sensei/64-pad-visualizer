@@ -30,37 +30,55 @@ jobs:
           test "$(git -C pad-core rev-parse HEAD)" = "$TARGET_PAD_CORE"
       - name: Apply bounded v1.8.1 Web integration
         run: python .github/v181_apply.py
+      - name: Advance version-bound contract expectations only
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'missing expected contract text in {path}: {old!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'tests/unit/push-display-exposure.test.js',
+              "describe('v1.8.0 Push Display exposure contract'",
+              "describe('v1.8.1 Push Display exposure contract'"
+          )
+          replace_once(
+              'tests/unit/push-display-exposure.test.js',
+              "var CACHE_NAME = '64pad-v180-preview-20260913-header';",
+              "var CACHE_NAME = '64pad-v181-preview-20260914-chord-resolution-2';"
+          )
+          replace_once(
+              'tests/unit/push-web-cc-integration.test.js',
+              "midi.js?v=1.8.0-entry-a04",
+              "midi.js?v=1.8.1-resolution2"
+          )
+          replace_once(
+              'tests/unit/v180-web-contract.test.js',
+              "describe('v1.8.0 Web product contract'",
+              "describe('v1.8.1 Web product contract'"
+          )
+          replace_once(
+              'tests/unit/v180-web-contract.test.js',
+              '<span class="version-tag">v1.8.0</span>',
+              '<span class="version-tag">v1.8.1</span>'
+          )
+          replace_once(
+              'tests/unit/v180-web-contract.test.js',
+              '"softwareVersion":"1.8.0"',
+              '"softwareVersion":"1.8.1"'
+          )
+          PY
       - name: Verify focused chord-resolution consumer
         run: |
           npm ci
           npx vitest run tests/unit/v181-chord-resolution-consumer.test.js tests/unit/detectChord.test.js
-      - name: Diagnose full Web suite
-        run: |
-          set +e
-          npx vitest run --reporter=json --outputFile=/tmp/v181-vitest.json
-          status=$?
-          set -e
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          p = Path('/tmp/v181-vitest.json')
-          if not p.exists():
-              raise SystemExit('vitest JSON report missing')
-          data = json.loads(p.read_text())
-          print(f"VITEST_SUMMARY success={data.get('success')} passed={data.get('numPassedTests')} failed={data.get('numFailedTests')} files_failed={data.get('numFailedTestSuites')}")
-          for suite in data.get('testResults', []):
-              failed = [a for a in suite.get('assertionResults', []) if a.get('status') == 'failed']
-              if not failed:
-                  continue
-              print('FAIL_FILE', suite.get('name'))
-              for assertion in failed:
-                  print('FAIL_TEST', ' > '.join(assertion.get('ancestorTitles', []) + [assertion.get('title','')]))
-                  messages = assertion.get('failureMessages') or []
-                  if messages:
-                      compact = ' '.join(messages[0].split())
-                      print('FAIL_MESSAGE', compact[:1200])
-          PY
-          exit $status
+      - name: Verify full Web suite
+        run: npm test
       - name: Verify diff cleanliness
         run: git diff --check
       - name: Verify PWA identities
