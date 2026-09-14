@@ -14,6 +14,12 @@ test.describe('v1.8.1 live alias equation', () => {
       PlainState.subMode = 'idle';
       if (typeof clearInstrumentInput === 'function') clearInstrumentInput();
       if (typeof releaseAllMidiHeldSources === 'function') releaseAllMidiHeldSources(true);
+      // Silent mode intentionally skips the audio bundle. Supply only the
+      // velocity transform needed to drive the real Web-MIDI note-entry path;
+      // noteOn/ensureAudioResumed are already silent-mode stubs in index.html.
+      if (typeof window.applyVelocityCurve !== 'function') {
+        window.applyVelocityCurve = value => value;
+      }
 
       // Exercise the same note-entry function used by Web MIDI rather than
       // mutating PlainState and calling updatePlainDisplay() directly.
