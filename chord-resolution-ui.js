@@ -131,6 +131,21 @@
     return [];
   }
 
+  function padWebCurrentCandidatesFromApp() {
+    var current = padWebCurrentDetectedCandidates();
+    if (current.length > 0) return current;
+    try {
+      if (typeof global.getCurrentChordMidiNotes === 'function' && typeof global.detectChord === 'function') {
+        var notes = global.getCurrentChordMidiNotes();
+        if (Array.isArray(notes) && notes.length > 0) {
+          var detected = global.detectChord(notes);
+          if (Array.isArray(detected)) return detected;
+        }
+      }
+    } catch (e) {}
+    return [];
+  }
+
   function padWebMakeAliasSeparator(text) {
     var span = document.createElement('span');
     span.className = 'detect-alias-separator';
@@ -139,9 +154,8 @@
     return span;
   }
 
-  // plain.js intentionally keeps resolver order and original candidate indexes.
-  // This decorator only moves already-rendered exact aliases into the equation
-  // presentation after DOM construction; resolver score/rank metadata is untouched.
+  // Keep resolver order and original candidate indexes. This decorator only
+  // re-groups already-rendered exact aliases; score/rank metadata is untouched.
   function padWebDecorateAliasEquation(root, candidates) {
     if (typeof document === 'undefined' || !root) return;
     var presentation = padWebGetResolvedPresentation(candidates);
@@ -172,6 +186,33 @@
     if (nodes.length > 0) topGroup.replaceChildren.apply(topGroup, nodes);
   }
 
+  function padWebDecorateCurrentDetection() {
+    if (typeof document === 'undefined') return;
+    var root = document.getElementById('midi-detect');
+    if (!root) return;
+    padWebDecorateAliasEquation(root, padWebCurrentCandidatesFromApp());
+  }
+
+  // The old implementation depended only on a MutationObserver. The Human Gate
+  // showed that this could fail silently in the live browser even while helper
+  // unit tests passed. Wrap the actual INPUT render path after all classic scripts
+  // have loaded, and decorate synchronously after every updatePlainDisplay().
+  // The observer below remains only as a fallback for other DOM writers.
+  function padWebInstallPlainDisplayHook() {
+    if (typeof global.updatePlainDisplay !== 'function') return false;
+    if (global.updatePlainDisplay.__padAliasEquationWrapped === true) return true;
+    var original = global.updatePlainDisplay;
+    var wrapped = function() {
+      var result = original.apply(this, arguments);
+      padWebDecorateCurrentDetection();
+      return result;
+    };
+    wrapped.__padAliasEquationWrapped = true;
+    wrapped.__padAliasEquationOriginal = original;
+    global.updatePlainDisplay = wrapped;
+    return true;
+  }
+
   function padWebInstallAliasObserver() {
     if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return;
     if (global.__padAliasEquationObserver) return;
@@ -181,13 +222,18 @@
     var observer = new MutationObserver(function() {
       observer.disconnect();
       try {
-        padWebDecorateAliasEquation(root, padWebCurrentDetectedCandidates());
+        padWebDecorateAliasEquation(root, padWebCurrentCandidatesFromApp());
       } finally {
         observer.observe(root, { childList: true, subtree: true });
       }
     });
     observer.observe(root, { childList: true, subtree: true });
     global.__padAliasEquationObserver = observer;
+  }
+
+  function padWebInstallAliasRuntime() {
+    padWebInstallAliasObserver();
+    padWebInstallPlainDisplayHook();
   }
 
   if (typeof document !== 'undefined' && document.head && !document.getElementById('pad-alias-equation-style')) {
@@ -199,9 +245,9 @@
 
   if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', padWebInstallAliasObserver, { once: true });
+      document.addEventListener('DOMContentLoaded', padWebInstallAliasRuntime, { once: true });
     } else {
-      padWebInstallAliasObserver();
+      padWebInstallAliasRuntime();
     }
   }
 
@@ -214,6 +260,8 @@
   global.padWebGetTopResolvedSeparator = padWebGetTopResolvedSeparator;
   global.padWebFormatTopResolvedChordText = padWebFormatTopResolvedChordText;
   global.padWebDecorateAliasEquation = padWebDecorateAliasEquation;
+  global.padWebDecorateCurrentDetection = padWebDecorateCurrentDetection;
+  global.padWebInstallPlainDisplayHook = padWebInstallPlainDisplayHook;
 
   if (typeof module !== 'undefined') module.exports = {
     padWebGetTopResolvedCandidates: padWebGetTopResolvedCandidates,
@@ -225,5 +273,7 @@
     padWebGetTopResolvedSeparator: padWebGetTopResolvedSeparator,
     padWebFormatTopResolvedChordText: padWebFormatTopResolvedChordText,
     padWebDecorateAliasEquation: padWebDecorateAliasEquation,
+    padWebDecorateCurrentDetection: padWebDecorateCurrentDetection,
+    padWebInstallPlainDisplayHook: padWebInstallPlainDisplayHook,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
