@@ -31,70 +31,74 @@ describe('v1.8.1 chord-resolution consumer', () => {
     expect(halfDim.some(candidate => candidate.rootPC === 2 && candidate.quality === 'm6' && candidate.resolutionCompleteness === 'exact')).toBe(true);
   });
 
-  it('formats exact equal-score aliases as an explicit equivalence chain', () => {
+  it('presents the motivating Eb6 / Cm7 inversion as exact aliases without changing rank', () => {
+    const results = detectChord([63, 67, 70, 72]); // Eb G Bb C
+    expect(results[0].name).toBe('Eb6');
+    expect(results[0].resolutionCompleteness).toBe('exact');
+
+    const minor7Index = results.findIndex(candidate => candidate.name === 'Cm7 / Eb');
+    expect(minor7Index).toBeGreaterThan(0);
+    const minor7 = results[minor7Index];
+    expect(minor7.resolutionCompleteness).toBe('exact');
+    expect(minor7.isTopRanked).toBe(false);
+    expect(minor7.resolutionScore).toBeLessThan(results[0].resolutionScore);
+
+    const presentation = ui.padWebGetResolvedPresentation(results);
+    expect(presentation.equivalent).toBe(true);
+    expect(presentation.entries.map(entry => entry.candidate.name)).toEqual(['Eb6', 'Cm7 / Eb']);
+    expect(presentation.entries.map(entry => entry.index)).toEqual([0, minor7Index]);
+    expect(ui.padWebFormatTopResolvedChordText(results)).toBe('Eb6 = Cm7 / Eb');
+
+    const omitIndex = results.findIndex(candidate => /omit/i.test(candidate.name));
+    if (omitIndex >= 0) {
+      expect(presentation.entries.some(entry => entry.index === omitIndex)).toBe(false);
+    }
+  });
+
+  it('formats full exact aliases across different score/rank groups as an equation', () => {
     const candidates = [
       {
         name: 'Eb6', isTopRanked: true,
-        resolutionCompleteness: 'exact', resolutionScore: 120,
-        resolutionExplainedPCS: [0, 3, 7, 8],
+        resolutionCompleteness: 'exact', resolutionScore: 160,
+        resolutionExplainedPCS: [3, 7, 10, 0], resolutionChordCardinality: 4,
       },
       {
-        name: 'Cm7 / Eb', isTopRanked: true,
+        name: 'Cm7 / Eb', isTopRanked: false,
         resolutionCompleteness: 'exact', resolutionScore: 120,
-        resolutionExplainedPCS: [8, 7, 3, 0],
+        resolutionExplainedPCS: [0, 10, 7, 3], resolutionChordCardinality: 4,
       },
-      { name: 'EbMaj', isTopRanked: false },
+      { name: 'EbMaj', isTopRanked: false, resolutionCompleteness: 'partial' },
     ];
-    expect(ui.padWebGetTopResolvedCandidates(candidates).map(candidate => candidate.name)).toEqual(['Eb6', 'Cm7 / Eb']);
-    expect(ui.padWebTopResolvedGroupIsEquivalent(ui.padWebGetTopResolvedCandidates(candidates))).toBe(true);
+    expect(ui.padWebTopResolvedGroupIsEquivalent(candidates)).toBe(true);
     expect(ui.padWebGetTopResolvedSeparator(candidates)).toBe(' = ');
     expect(ui.padWebFormatTopResolvedChordText(candidates)).toBe('Eb6 = Cm7 / Eb');
+    expect(candidates[0].resolutionScore).toBe(160);
+    expect(candidates[1].resolutionScore).toBe(120);
+    expect(candidates[1].isTopRanked).toBe(false);
   });
 
-  it('formats three exact equal-score aliases as one equivalence chain', () => {
-    const candidates = ['A', 'B', 'C'].map(name => ({
-      name,
-      isTopRanked: true,
-      resolutionCompleteness: 'exact',
-      resolutionScore: 88,
-      resolutionExplainedPCS: [0, 4, 7, 9],
-    }));
+  it('formats three full exact aliases as one equivalence chain even when scores differ', () => {
+    const candidates = [
+      { name: 'A', isTopRanked: true, resolutionCompleteness: 'exact', resolutionScore: 150, resolutionExplainedPCS: [0, 4, 7, 9], resolutionChordCardinality: 4 },
+      { name: 'B', isTopRanked: false, resolutionCompleteness: 'exact', resolutionScore: 120, resolutionExplainedPCS: [9, 7, 4, 0], resolutionChordCardinality: 4 },
+      { name: 'C', isTopRanked: false, resolutionCompleteness: 'exact', resolutionScore: 80, resolutionExplainedPCS: [4, 0, 9, 7], resolutionChordCardinality: 4 },
+    ];
     expect(ui.padWebFormatTopResolvedChordText(candidates)).toBe('A = B = C');
   });
 
-  it('proves the equivalence path with real detector output', () => {
-    const results = detectChord([52, 54, 62, 70]);
-    const top = ui.padWebGetTopResolvedCandidates(results);
-    expect(top.length).toBeGreaterThanOrEqual(2);
-    expect(top.every(candidate => candidate.resolutionCompleteness === 'exact')).toBe(true);
-    expect(new Set(top.map(candidate => candidate.resolutionScore)).size).toBe(1);
-    expect(ui.padWebTopResolvedGroupIsEquivalent(top)).toBe(true);
-    expect(ui.padWebFormatTopResolvedChordText(results)).toContain(' = ');
-  });
-
-  it('records that the motivating Eb6/Cm7 inversion is not an equal-score top group', () => {
-    const results = detectChord([63, 67, 70, 72]);
-    const top = ui.padWebGetTopResolvedCandidates(results);
-    expect(top).toHaveLength(1);
-    expect(top[0].quality).toBe('6');
-    const minor7 = results.find(candidate => candidate.quality === 'm7' && candidate.resolutionCompleteness === 'exact');
-    expect(minor7).toBeDefined();
-    expect(minor7.isTopRanked).toBe(false);
-    expect(minor7.resolutionScore).toBeLessThan(top[0].resolutionScore);
+  it('does not call a different-cardinality exact reading an equivalent full alias', () => {
+    const candidates = [
+      { name: 'Eb6', isTopRanked: true, resolutionCompleteness: 'exact', resolutionScore: 160, resolutionExplainedPCS: [0, 3, 7, 10], resolutionChordCardinality: 4 },
+      { name: 'Eb6(omit5)', isTopRanked: false, resolutionCompleteness: 'exact', resolutionScore: 19, resolutionExplainedPCS: [0, 3, 7, 10], resolutionChordCardinality: 3 },
+    ];
+    expect(ui.padWebGetPrimaryExactAliasEntries(candidates).map(entry => entry.candidate.name)).toEqual(['Eb6']);
+    expect(ui.padWebFormatTopResolvedChordText(candidates)).toBe('Eb6');
   });
 
   it('keeps a neutral separator for same-score top candidates that are not exact aliases', () => {
     const candidates = [
-      {
-        name: 'C', isTopRanked: true,
-        resolutionCompleteness: 'partial', resolutionScore: 90,
-        resolutionExplainedPCS: [0, 4, 7],
-      },
-      {
-        name: 'Am', isTopRanked: true,
-        resolutionCompleteness: 'partial', resolutionScore: 90,
-        resolutionExplainedPCS: [9, 0, 4],
-      },
+      { name: 'C', isTopRanked: true, resolutionCompleteness: 'partial', resolutionScore: 90, resolutionExplainedPCS: [0, 4, 7], resolutionChordCardinality: 3 },
+      { name: 'Am', isTopRanked: true, resolutionCompleteness: 'partial', resolutionScore: 90, resolutionExplainedPCS: [9, 0, 4], resolutionChordCardinality: 3 },
     ];
     expect(ui.padWebTopResolvedGroupIsEquivalent(candidates)).toBe(false);
     expect(ui.padWebGetTopResolvedSeparator(candidates)).toBe(' · ');
@@ -105,18 +109,25 @@ describe('v1.8.1 chord-resolution consumer', () => {
     const candidates = [{
       name: 'C7 / E', isTopRanked: true,
       resolutionCompleteness: 'exact', resolutionScore: 120,
-      resolutionExplainedPCS: [0, 4, 7, 10],
+      resolutionExplainedPCS: [0, 4, 7, 10], resolutionChordCardinality: 4,
     }];
     expect(ui.padWebTopResolvedGroupIsEquivalent(candidates)).toBe(false);
     expect(ui.padWebFormatTopResolvedChordText(candidates)).toBe('C7 / E');
   });
 
-  it('wires the same top-group metadata into Web DOM and Push snapshot', () => {
+  it('keeps original candidate indexes available for Web click/drag when aliases cross rank groups', () => {
+    const candidates = [
+      { name: 'A', isTopRanked: true, resolutionCompleteness: 'exact', resolutionScore: 150, resolutionExplainedPCS: [0, 4, 7, 9], resolutionChordCardinality: 4 },
+      { name: 'partial', isTopRanked: false, resolutionCompleteness: 'partial', resolutionScore: 130, resolutionExplainedPCS: [0, 4, 7], resolutionChordCardinality: 3 },
+      { name: 'B', isTopRanked: false, resolutionCompleteness: 'exact', resolutionScore: 120, resolutionExplainedPCS: [9, 7, 4, 0], resolutionChordCardinality: 4 },
+    ];
+    expect(ui.padWebGetResolvedPresentation(candidates).entries.map(entry => entry.index)).toEqual([0, 2]);
+
     const root = fileURLToPath(new URL('../../', import.meta.url));
-    const plain = readFileSync(root + 'plain.js', 'utf8');
+    const helper = readFileSync(root + 'chord-resolution-ui.js', 'utf8');
     const midi = readFileSync(root + 'midi.js', 'utf8');
-    expect(plain).toContain('padWebGetTopResolvedCandidates(candidates)');
-    expect(plain).toContain('candidates.slice(0, topCount)');
+    expect(helper).toContain('data-candidate-idx');
+    expect(helper).toContain('padWebDecorateAliasEquation');
     expect(midi).toContain('padWebFormatTopResolvedChordText(lastDetectedCandidates)');
   });
 
