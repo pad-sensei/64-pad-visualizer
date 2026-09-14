@@ -1,0 +1,68 @@
+name: Diagnose v1.8.1 altered dominant UST
+
+on:
+  push:
+    branches:
+      - codex/v181-altered-dominant-ust
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/v181-altered-dominant-ust
+          submodules: recursive
+          fetch-depth: 80
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Live Web diagnostic
+        run: |
+          python3 -m http.server 8080 >/tmp/64pe-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/ >/dev/null && break
+            sleep 1
+          done
+          cat > /tmp/altered.spec.js <<'EOF'
+          const { test } = require('@playwright/test');
+          test('diagnostic', async ({ page }) => {
+            await page.goto('http://127.0.0.1:8080/?silent=1&e2e=altered-dominant');
+            await page.waitForLoadState('domcontentloaded');
+            const out = await page.evaluate(() => {
+              AppState.mode = 'input';
+              AppState.key = 0;
+              AppState.scaleIdx = 0;
+              PlainState.activeNotes.clear();
+              PlainState.subMode = 'idle';
+              if (typeof clearInstrumentInput === 'function') clearInstrumentInput();
+              if (typeof releaseAllMidiHeldSources === 'function') releaseAllMidiHeldSources(true);
+              if (typeof window.applyVelocityCurve !== 'function') window.applyVelocityCurve = v => v;
+              const notes = [34,44,50,54,59];
+              notes.forEach(note => onMidiNoteOn(note, 100));
+              const candidates = detectChord(notes);
+              const legacy = typeof formatDetectedUstText === 'function' ? formatDetectedUstText(notes, candidates[0].rootPC, candidates[0].name) : null;
+              const payload = typeof padWebGetLatestObservedShellUstPayload === 'function' ? padWebGetLatestObservedShellUstPayload() : null;
+              const push = typeof padWebGetPushDisplaySnapshot === 'function' ? padWebGetPushDisplaySnapshot() : null;
+              return {
+                names: candidates.slice(0,5).map(c => ({name:c.name, quality:c.quality, score:c.resolutionScore, tensionLabels:c.tensionLabels})),
+                dom: document.getElementById('midi-detect')?.textContent || '',
+                legacy,
+                payload,
+                push,
+              };
+            });
+            console.log('ALTERED_DIAGNOSTIC=' + JSON.stringify(out));
+          });
+          EOF
+          npx playwright test /tmp/altered.spec.js --config=playwright.config.js --reporter=line
