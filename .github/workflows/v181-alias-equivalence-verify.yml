@@ -1,0 +1,37 @@
+name: Verify v1.8.1 tied alias presentation
+
+on:
+  push:
+    branches:
+      - codex/v181-tied-alias-equivalence
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Focused v1.8.1 alias presentation regressions
+        run: npx vitest run tests/unit/v181-chord-resolution-consumer.test.js tests/unit/push-display-exposure.test.js
+      - name: Full Web suite
+        run: npm test
+      - name: PWA coverage
+        run: ./tools/sw-assets-check.sh
+      - name: Exact delta and clean tree
+        run: |
+          git diff --check 932655e53c52b68def97a501d5d86150eaa7b7d7 HEAD
+          git diff --exit-code
+          git diff --cached --exit-code
