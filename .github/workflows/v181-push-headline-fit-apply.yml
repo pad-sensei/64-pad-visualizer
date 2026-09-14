@@ -89,6 +89,17 @@ jobs:
           exposure.write_text(text)
 
           Path('tests/unit/push-display-text-fit.test.js').write_text("""import { describe, it, expect } from 'vitest';\nimport { fitPushPixelText, pushPixelTextUnits } from '../../push-display-text-fit.js';\n\ndescribe('Push chord headline fit', () => {\n  it('keeps a normal Eb6 = Cm7 / Eb equation at full scale', () => {\n    const text = 'Eb6 = Cm7 / Eb';\n    const layout = fitPushPixelText(text, 4, 688);\n    expect(layout.text).toBe(text);\n    expect(layout.scale).toBe(4);\n    expect(layout.width).toBe(pushPixelTextUnits(text) * 4);\n    expect(layout.width).toBeLessThanOrEqual(688);\n  });\n\n  it('keeps every character of a long equation while shrinking to fit', () => {\n    const text = 'Eb7(b9) = Edim7(7) / G · Bb13sus4 / Ab = Gm7(b5) / Bb · F13sus4 / Eb';\n    const layout = fitPushPixelText(text, 4, 688);\n    expect(layout.text).toBe(text);\n    expect(layout.scale).toBeLessThan(4);\n    expect(layout.scale).toBeGreaterThan(0);\n    expect(layout.width).toBeLessThanOrEqual(688);\n  });\n\n  it('never truncates even when text exceeds scale-1 capacity', () => {\n    const text = Array(40).fill('C13sus4').join(' = ');\n    const layout = fitPushPixelText(text, 4, 688);\n    expect(layout.text).toBe(text);\n    expect(layout.scale).toBeLessThan(1);\n    expect(layout.width).toBeLessThanOrEqual(688);\n  });\n});\n""")
+
+          replace_one(
+              'tests/unit/push-display-state-sync.test.js',
+              "import vm from 'node:vm';",
+              "import vm from 'node:vm';\nimport { fitPushPixelText } from '../../push-display-text-fit.js';"
+          )
+          replace_one(
+              'tests/unit/push-display-state-sync.test.js',
+              "    fastClearPushPads() {}, hardClearPushMidiOutputs() {},\n    MutationObserver: Observer, navigator: supported ? { usb: {} } : {},",
+              "    fastClearPushPads() {}, hardClearPushMidiOutputs() {},\n    fitPushPixelText,\n    MutationObserver: Observer, navigator: supported ? { usb: {} } : {},"
+          )
           PY
 
       - name: Setup Node.js
@@ -132,6 +143,6 @@ jobs:
           fi
           git config user.name 'daikainozaki-cyber'
           git config user.email 'daikainozaki@gmail.com'
-          git add push-display-webusb-app.js push-display-text-fit.js index.html sw.js tests/unit/push-display-exposure.test.js tests/unit/push-display-text-fit.test.js tests/unit/v181-chord-resolution-consumer.test.js
+          git add push-display-webusb-app.js push-display-text-fit.js index.html sw.js tests/unit/push-display-exposure.test.js tests/unit/push-display-text-fit.test.js tests/unit/push-display-state-sync.test.js tests/unit/v181-chord-resolution-consumer.test.js
           git commit -m 'fix(push): fit full chord headline without truncation'
           git push origin HEAD:codex/v181-tied-alias-equivalence
