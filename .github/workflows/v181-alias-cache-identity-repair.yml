@@ -1,0 +1,97 @@
+name: Verify v1.8.1 alias helper cache identity repair
+
+on:
+  push:
+    branches:
+      - codex/v181-altered-dominant-ust
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/v181-altered-dominant-ust
+          submodules: recursive
+          fetch-depth: 80
+
+      - name: Apply fresh alias helper asset identity
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          old_asset = 'chord-resolution-ui.js?v=1.8.1-readable-labels7'
+          new_asset = 'chord-resolution-ui.js?v=1.8.1-alias-equation8'
+          old_cache = "64pad-v181-preview-20260915-altered-dominant-1"
+          new_cache = "64pad-v181-preview-20260915-alias-equation-8"
+
+          targets = [Path('index.html'), Path('sw.js')]
+          targets += list(Path('tests').rglob('*.js'))
+          replaced = 0
+          for path in targets:
+            if not path.exists():
+              continue
+            text = path.read_text()
+            next_text = text.replace(old_asset, new_asset).replace(old_cache, new_cache)
+            if next_text != text:
+              path.write_text(next_text)
+              replaced += 1
+
+          if new_asset not in Path('index.html').read_text():
+            raise SystemExit('fresh alias helper identity missing from index.html')
+          if new_asset not in Path('sw.js').read_text():
+            raise SystemExit('fresh alias helper identity missing from sw.js')
+          if old_asset in Path('index.html').read_text() or old_asset in Path('sw.js').read_text():
+            raise SystemExit('stale alias helper identity remains')
+          if new_cache not in Path('sw.js').read_text():
+            raise SystemExit('fresh SW cache generation missing')
+          print('updated files:', replaced)
+          PY
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+
+      - name: Unit and PWA verification
+        run: |
+          set -euo pipefail
+          npm test
+          ./tools/sw-assets-check.sh
+          npm audit --omit=dev
+          git diff --check
+          grep -q "chord-resolution-ui.js?v=1.8.1-alias-equation8" index.html
+          grep -q "chord-resolution-ui.js?v=1.8.1-alias-equation8" sw.js
+          ! grep -q "chord-resolution-ui.js?v=1.8.1-readable-labels7" index.html
+          ! grep -q "chord-resolution-ui.js?v=1.8.1-readable-labels7" sw.js
+
+      - name: Chromium regressions
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+          python3 -m http.server 8080 >/tmp/64pe-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/ >/dev/null && break
+            sleep 1
+          done
+          npx playwright test tests/e2e/v181-alias-runtime.spec.js tests/e2e/v181-altered-dominant-ust.spec.js
+          git checkout -- test-results
+          git diff --check
+
+      - name: Commit verified cache identity repair
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html sw.js tests
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'fix(v1.8.1): refresh alias equation asset identity'
+          git push origin HEAD:codex/v181-altered-dominant-ust
