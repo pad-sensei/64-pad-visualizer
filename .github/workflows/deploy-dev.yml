@@ -36,6 +36,19 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Bust dev-only alias helper cache
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text()
+          old = 'chord-resolution-ui.js?v=1.8.1-resolution2'
+          new = 'chord-resolution-ui.js?v=1.8.1-alias-human-gate-20260914-1'
+          if old not in s:
+              raise SystemExit('expected alias helper asset identity not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+
       - name: Deploy via rsync
         uses: burnett01/rsync-deployments@6.0.0
         with:
