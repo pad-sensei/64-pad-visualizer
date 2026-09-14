@@ -1,6 +1,9 @@
 name: Deploy to Xserver (Dev)
 
 on:
+  push:
+    branches:
+      - deploy/v181-altered-ust-human-gate-20260915
   workflow_dispatch:
 
 jobs:
