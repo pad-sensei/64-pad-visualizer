@@ -55,6 +55,22 @@ describe('v1.8.1 chord-resolution consumer', () => {
     }
   });
 
+  it('preserves non-alias rank-1 ties in the Push headline when an alias equation exists', () => {
+    const results = detectChord([54, 67, 70, 72, 75]);
+    const presentation = ui.padWebGetResolvedPresentation(results);
+    expect(presentation.equivalent).toBe(true);
+
+    const neutralTop = ui.padWebGetNeutralTopEntries(results, presentation);
+    expect(neutralTop.length).toBeGreaterThan(0);
+
+    const text = ui.padWebFormatTopResolvedChordText(results);
+    expect(text).toContain(' = ');
+    expect(text).toContain(' · ');
+    neutralTop.forEach(entry => {
+      expect(text).toContain(entry.candidate.name);
+    });
+  });
+
   it('formats full exact aliases across different score/rank groups as an equation', () => {
     const candidates = [
       {
