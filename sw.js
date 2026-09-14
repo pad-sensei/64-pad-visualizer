@@ -1,4 +1,4 @@
-var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-1';
+var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-2';
 var ASSETS = [
   './',
   'index.html',
