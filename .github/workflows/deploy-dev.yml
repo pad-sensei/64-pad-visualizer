@@ -2,6 +2,9 @@ name: Deploy to Xserver (Dev)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - deploy/v181-alias-human-gate-20260914
 
 jobs:
   test:
