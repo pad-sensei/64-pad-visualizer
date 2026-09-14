@@ -34,11 +34,24 @@ jobs:
         run: |
           npm ci
           npx vitest run tests/unit/v181-chord-resolution-consumer.test.js tests/unit/detectChord.test.js
-      - name: Verify full Web suite and PWA assets
+      - name: Verify full Web suite and PWA identities
         run: |
           npm test
-          npm run test:pwa-assets
           git diff --check
+          python - <<'PY'
+          from pathlib import Path
+          index = Path('index.html').read_text()
+          sw = Path('sw.js').read_text()
+          assets = [
+              'pad-core/chord-resolver.js?v=1.8.1-resolution2',
+              'chord-resolution-ui.js?v=1.8.1-resolution2',
+              'plain.js?v=1.8.1-resolution2',
+              'midi.js?v=1.8.1-resolution2',
+          ]
+          for asset in assets:
+              assert asset in index, f'missing from index: {asset}'
+              assert asset in sw, f'missing from sw: {asset}'
+          PY
       - name: Verify exact dependency and version identity
         env:
           TARGET_PAD_CORE: fc63050e72b096ce6f8af67e966ca082d39cf537
