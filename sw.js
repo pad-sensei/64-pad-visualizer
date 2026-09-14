@@ -1,4 +1,4 @@
-var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-6';
+var CACHE_NAME = '64pad-v181-preview-20260915-alias-equivalence-7';
 var ASSETS = [
   './',
   'index.html',
@@ -43,7 +43,7 @@ var ASSETS = [
   'midi.js?v=1.8.1-resolution2',
   'push-display-webusb.js?v=webusb-20260911-10',
   'push-surface-cleanup.js?v=webusb-20260911-7',
-  'push-display-webusb-app.js?v=webusb-20260914-headline-fit',
+  'push-display-webusb-app.js?v=webusb-20260915-readable-wrap',
   'push-display-text-fit.js?v=20260914-readable-wrap',
   'plain.js?v=1.8.1-resolution2',
   'perform.js?v=6.7.52',
