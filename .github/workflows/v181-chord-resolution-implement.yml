@@ -1,0 +1,62 @@
+name: v1.8.1 chord resolution implementation
+
+on:
+  push:
+    branches:
+      - codex/web-v181-chord-resolution
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Pin final pad-core candidate
+        env:
+          TARGET_PAD_CORE: fc63050e72b096ce6f8af67e966ca082d39cf537
+        run: |
+          set -euo pipefail
+          git -C pad-core fetch origin "$TARGET_PAD_CORE"
+          git -C pad-core checkout "$TARGET_PAD_CORE"
+          test "$(git -C pad-core rev-parse HEAD)" = "$TARGET_PAD_CORE"
+      - name: Apply bounded v1.8.1 Web integration
+        run: python .github/v181_apply.py
+      - name: Verify focused chord-resolution consumer
+        run: |
+          npm ci
+          npx vitest run tests/unit/v181-chord-resolution-consumer.test.js tests/unit/detectChord.test.js
+      - name: Verify full Web suite and PWA assets
+        run: |
+          npm test
+          npm run test:pwa-assets
+          git diff --check
+      - name: Verify exact dependency and version identity
+        env:
+          TARGET_PAD_CORE: fc63050e72b096ce6f8af67e966ca082d39cf537
+        run: |
+          set -euo pipefail
+          test "$(git -C pad-core rev-parse HEAD)" = "$TARGET_PAD_CORE"
+          grep -q '"softwareVersion":"1.8.1"' index.html
+          grep -q 'v1.8.1</span>' index.html
+          grep -q '64pad-v181-preview-20260914-chord-resolution-2' sw.js
+          grep -q 'pad-core/chord-resolver.js?v=1.8.1-resolution2' index.html
+          grep -q 'pad-core/chord-resolver.js?v=1.8.1-resolution2' sw.js
+      - name: Publish tested candidate branch
+        run: |
+          set -euo pipefail
+          rm .github/v181_apply.py .github/workflows/v181-chord-resolution-implement.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(web): consume v1.8.1 chord resolver"
+          git push origin HEAD:codex/web-v181-chord-resolution
