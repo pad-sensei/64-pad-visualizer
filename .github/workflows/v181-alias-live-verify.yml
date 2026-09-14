@@ -58,6 +58,7 @@ jobs:
             sleep 1
           done
           npx playwright test tests/e2e/v181-alias-runtime.spec.js
+          git checkout -- test-results
 
       - name: Verify read-only tree
         run: |
