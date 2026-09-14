@@ -1,0 +1,68 @@
+name: Close Push fallback truncation
+
+on:
+  push:
+    branches:
+      - codex/v181-tied-alias-equivalence
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/v181-tied-alias-equivalence
+          submodules: recursive
+          fetch-depth: 80
+      - name: Apply fallback no-truncation patch
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          app = Path('push-display-webusb-app.js')
+          text = app.read_text()
+          old = "return { chord: detected.slice(0, 48), notes: [], shell: '', ust: '', tensions: '', key: '', scale: '', mode: '' };"
+          new = "return { chord: detected, notes: [], shell: '', ust: '', tensions: '', key: '', scale: '', mode: '' };"
+          if old in text:
+              text = text.replace(old, new, 1)
+              app.write_text(text)
+          elif new not in text:
+              raise SystemExit('fallbackSnapshot target not found')
+
+          test = Path('tests/unit/push-display-exposure.test.js')
+          t = test.read_text()
+          anchor = "    expect(app).not.toContain(\"drawPixelText(snap.chord, 32, 42, 4, '#ffdb5c', 20)\");"
+          line = "\n    expect(app).not.toContain('detected.slice(0, 48)');"
+          if line.strip() not in t:
+              if anchor not in t:
+                  raise SystemExit('exposure test anchor not found')
+              t = t.replace(anchor, anchor + line, 1)
+              test.write_text(t)
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Verify
+        run: |
+          set -euo pipefail
+          node --check push-display-webusb-app.js
+          npm test
+          ./tools/sw-assets-check.sh
+          git diff --check
+      - name: Commit verified patch
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'daikainozaki-cyber'
+          git config user.email 'daikainozaki@gmail.com'
+          git add push-display-webusb-app.js tests/unit/push-display-exposure.test.js
+          git commit -m 'fix(push): preserve full fallback headline text'
+          git push origin HEAD:codex/v181-tied-alias-equivalence
