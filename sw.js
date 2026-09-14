@@ -1,4 +1,4 @@
-var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-4';
+var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-5';
 var ASSETS = [
   './',
   'index.html',
@@ -24,7 +24,7 @@ var ASSETS = [
   'master-tail.js?v=6.7.61',
   'audio-ui-binding.js?v=6.7.61',
   'theory.js?v=6.7.52',
-  'chord-resolution-ui.js?v=1.8.1-resolution2',
+  'chord-resolution-ui.js?v=1.8.1-alias-live5',
   'tasty-stock.js?v=6.7.52',
   'staff.js?v=6.7.52',
   'instruments.js?v=1.8.0-parity2',
@@ -43,7 +43,8 @@ var ASSETS = [
   'midi.js?v=1.8.1-resolution2',
   'push-display-webusb.js?v=webusb-20260911-10',
   'push-surface-cleanup.js?v=webusb-20260911-7',
-  'push-display-webusb-app.js?v=webusb-20260913-header',
+  'push-display-webusb-app.js?v=webusb-20260914-headline-fit',
+  'push-display-text-fit.js?v=20260914-no-truncate',
   'plain.js?v=1.8.1-resolution2',
   'perform.js?v=6.7.52',
   'i18n.js?v=6.7.52',

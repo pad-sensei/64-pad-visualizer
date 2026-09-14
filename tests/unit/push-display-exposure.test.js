@@ -4,6 +4,7 @@ import fs from 'fs';
 const app = fs.readFileSync('push-display-webusb-app.js', 'utf8');
 const index = fs.readFileSync('index.html', 'utf8');
 const sw = fs.readFileSync('sw.js', 'utf8');
+const fit = fs.readFileSync('push-display-text-fit.js', 'utf8');
 
 describe('v1.8.1 Push Display exposure contract', () => {
   it('exposes manual WebUSB display without a hidden query gate on Web', () => {
@@ -25,11 +26,21 @@ describe('v1.8.1 Push Display exposure contract', () => {
     expect(app).toContain("['Root', 'Tasty', 'Stock', 'Guitar', 'Quality', 'Tension', 'Key', 'Scale']");
   });
 
+  it('preserves the complete Push chord equation and fits it by scale', () => {
+    expect(app).toContain("fitPushPixelText(snap.chord, 4, 688)");
+    expect(app).toContain("headline.text.length");
+    expect(app).not.toContain("drawPixelText(snap.chord, 32, 42, 4, '#ffdb5c', 20)");
+    expect(app).toContain("'=':[0x14,0x14,0x14,0x14,0x14]");
+    expect(app).toContain("'·':[0x00,0x00,0x08,0x00,0x00]");
+    expect(fit).toContain('return { text, scale, width: units * scale };');
+    expect(sw).toContain("'push-display-text-fit.js?v=20260914-no-truncate'");
+  });
+
   it('invalidates the preview through its SW generation while retaining matching asset URLs', () => {
-    expect(index).toContain('push-display-webusb-app.js?v=webusb-20260913-header');
-    expect(sw).toContain("'push-display-webusb-app.js?v=webusb-20260913-header'");
-    expect(sw).toContain("var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-4';");
-    expect(sw).not.toContain("var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-3';");
+    expect(index).toContain('push-display-webusb-app.js?v=webusb-20260914-headline-fit');
+    expect(sw).toContain("'push-display-webusb-app.js?v=webusb-20260914-headline-fit'");
+    expect(sw).toContain("var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-5';");
+    expect(sw).not.toContain("var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-4';");
     expect(sw).not.toContain("var CACHE_NAME = '64pad-v180-preview-20260912-display-active-4';");
     expect(sw).toContain("fetch(url, { cache: 'reload' })");
     expect(index).not.toContain('push-display-webusb-app.js?v=webusb-20260911-10');

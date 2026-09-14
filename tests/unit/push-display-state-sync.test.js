@@ -2,6 +2,7 @@ import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { fitPushPixelText } from '../../push-display-text-fit.js';
 
 // Complete display consumer, with DOM/canvas/USB boundary fakes. This asserts
 // invalidation and idle work, not real browser timing or physical display pixels.
@@ -57,6 +58,7 @@ function fixture({ desktop = false, supported = true, secure = true } = {}) {
     PushWebUsbDisplay: Display,
     encodePushDisplayFrame(data) { encodeCount++; return data; },
     fastClearPushPads() {}, hardClearPushMidiOutputs() {},
+    fitPushPixelText,
     MutationObserver: Observer, navigator: supported ? { usb: {} } : {},
     setTimeout: callback => callback(),
     document: {

@@ -5,6 +5,7 @@ import {
   encodePushDisplayFrame,
 } from './push-display-webusb.js?v=webusb-20260911-10';
 import { fastClearPushPads, hardClearPushMidiOutputs } from './push-surface-cleanup.js?v=webusb-20260911-7';
+import { fitPushPixelText } from './push-display-text-fit.js?v=20260914-no-truncate';
 
 // v1.8.0: Push display is a standard optional/manual WebUSB feature.
 // The user still explicitly presses Push Display; only Desktop mode hides this browser control.
@@ -36,7 +37,8 @@ const GLYPHS = Object.freeze({
   '(':[0x00,0x1c,0x22,0x41,0x00], ')':[0x00,0x41,0x22,0x1c,0x00], '[':[0x00,0x7f,0x41,0x41,0x00],
   ']':[0x00,0x41,0x41,0x7f,0x00], ',':[0x00,0x50,0x30,0x00,0x00], '.':[0x00,0x60,0x60,0x00,0x00],
   '-':[0x08,0x08,0x08,0x08,0x08], ':':[0x00,0x36,0x36,0x00,0x00], '>':[0x41,0x22,0x14,0x08,0x00],
-  '<':[0x08,0x14,0x22,0x41,0x00], '♭':[0x7e,0x20,0x38,0x44,0x38],
+  '<':[0x08,0x14,0x22,0x41,0x00], '=':[0x14,0x14,0x14,0x14,0x14], '·':[0x00,0x00,0x08,0x00,0x00],
+  '♭':[0x7e,0x20,0x38,0x44,0x38],
 });
 
 if (enabled) {
@@ -183,7 +185,13 @@ if (enabled) {
         drawPixelText(entry.detail, 36, 82, 2, '#ccdae0', 32);
         drawUtf8Text(entry.hint, 430, 112, '#84c4d2', 420);
       } else {
-        if (snap.chord) drawPixelText(snap.chord, 32, 42, 4, '#ffdb5c', 20);
+        if (snap.chord) {
+          // Human ruling 2026-09-14: the equation is semantic information. Never
+          // cut its right-hand side. Keep the full text and reduce scale only as
+          // much as needed to stay left of the Key/Scale region (x=720).
+          const headline = fitPushPixelText(snap.chord, 4, 688);
+          drawPixelText(headline.text, 32, 42, headline.scale, '#ffdb5c', headline.text.length);
+        }
         if (snap.notes?.length) drawPixelText(`NOTE: ${snap.notes.join(' ')}`, 36, 82, 1, '#ccdae0', 34);
 
         const detailX = 430;
