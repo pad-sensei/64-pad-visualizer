@@ -53,6 +53,27 @@ test.describe('v1.8.1 live alias equation', () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test('normalizes a stacked modifier label in the live Web presentation', async ({ page }) => {
+    await page.goto('./?silent=1&e2e=v181-readable-label');
+    await page.waitForLoadState('domcontentloaded');
+
+    const result = await page.evaluate(() => {
+      const root = document.getElementById('midi-detect');
+      root.innerHTML = '<div class="detect-top-group"><span class="detect-candidate-best" data-candidate-idx="0">Em7(b5)(11)</span></div>';
+      const candidates = [{ name: 'Em7(b5)(11)', isTopRanked: true, resolutionCompleteness: 'exact', resolutionScore: 100 }];
+      padWebDecorateAliasEquation(root, candidates);
+      return {
+        text: root.querySelector('[data-candidate-idx="0"]').textContent,
+        raw: candidates[0].name,
+        pushText: padWebFormatTopResolvedChordText(candidates),
+      };
+    });
+
+    expect(result.text).toBe('Em7(b5,11)');
+    expect(result.pushText).toBe('Em7(b5,11)');
+    expect(result.raw).toBe('Em7(b5)(11)');
+  });
+
   test('draws a shrinking scale-2 equation with integer pixel cells in Chromium', async ({ page }) => {
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));

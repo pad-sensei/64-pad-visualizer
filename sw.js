@@ -1,4 +1,4 @@
-var CACHE_NAME = '64pad-v181-preview-20260915-alias-equivalence-7';
+var CACHE_NAME = '64pad-v181-preview-20260915-readable-labels-9';
 var ASSETS = [
   './',
   'index.html',
@@ -24,7 +24,7 @@ var ASSETS = [
   'master-tail.js?v=6.7.61',
   'audio-ui-binding.js?v=6.7.61',
   'theory.js?v=6.7.52',
-  'chord-resolution-ui.js?v=1.8.1-alias-live5',
+  'chord-resolution-ui.js?v=1.8.1-readable-labels6',
   'tasty-stock.js?v=6.7.52',
   'staff.js?v=6.7.52',
   'instruments.js?v=1.8.0-parity2',

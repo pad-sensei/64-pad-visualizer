@@ -5,6 +5,20 @@ import { fileURLToPath } from 'node:url';
 const ui = require('../../chord-resolution-ui.js');
 
 describe('v1.8.1 chord-resolution consumer', () => {
+  it('normalizes stacked chord modifiers for readability without changing raw theory names', () => {
+    expect(ui.padWebFormatChordDisplayName('Em7(b5)(11)')).toBe('Em7(b5,11)');
+    expect(ui.padWebFormatChordDisplayName('BbMaj7(#11)(13)')).toBe('BbMaj7(#11,13)');
+    expect(ui.padWebFormatChordDisplayName('Em7(b5)(11)(omit3)')).toBe('Em7(b5,11)omit3');
+    expect(ui.padWebFormatChordDisplayName('Em7(b5)(11)(omit3) / E')).toBe('Em7(b5,11)omit3 / E');
+    expect(ui.padWebFormatChordDisplayName('Em7(b5)')).toBe('Em7(b5)');
+    expect(ui.padWebFormatChordDisplayName('C7(omit3)')).toBe('C7omit3');
+    expect(ui.padWebFormatChordDisplayName('Em7(b5,11)omit3 / E')).toBe('Em7(b5,11)omit3 / E');
+
+    const raw = { name: 'Em7(b5)(11)', isTopRanked: true, resolutionCompleteness: 'exact', resolutionScore: 100 };
+    expect(ui.padWebFormatTopResolvedChordText([raw])).toBe('Em7(b5,11)');
+    expect(raw.name).toBe('Em7(b5)(11)');
+  });
+
   it('shows C7/E instead of the partial Edim reading', () => {
     const results = detectChord([64, 67, 70, 72]);
     expect(results[0].name).toBe('C7 / E');
@@ -153,7 +167,7 @@ describe('v1.8.1 chord-resolution consumer', () => {
     const sw = readFileSync(root + 'sw.js', 'utf8');
     for (const asset of [
       'pad-core/chord-resolver.js?v=1.8.1-resolution2',
-      'chord-resolution-ui.js?v=1.8.1-alias-live5',
+      'chord-resolution-ui.js?v=1.8.1-readable-labels6',
       'plain.js?v=1.8.1-resolution2',
       'midi.js?v=1.8.1-resolution2',
     ]) {

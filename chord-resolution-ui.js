@@ -24,6 +24,46 @@
     return true;
   }
 
+  // v1.8.1 readability: raw resolver names stay canonical; only presentation is normalized.
+  // Adjacent alteration/tension groups share one parenthesis pair, while Japanese-facing
+  // omit notation stays outside parentheses. Slash bass remains the final suffix.
+  function padWebFormatChordDisplayName(name) {
+    var source = String(name || '');
+    if (!source) return source;
+
+    var slashIndex = source.lastIndexOf(' / ');
+    var body = slashIndex >= 0 ? source.slice(0, slashIndex) : source;
+    var slashSuffix = slashIndex >= 0 ? source.slice(slashIndex) : '';
+    var match = body.match(/^(.*?)(\([^()]*\)(?:\([^()]*\))*)$/);
+    if (!match) return source;
+
+    var base = match[1];
+    var groups = match[2].match(/\([^()]*\)/g) || [];
+    if (groups.length === 0) return source;
+
+    var modifiers = [];
+    var omits = [];
+    groups.forEach(function(group) {
+      var content = group.slice(1, -1).trim();
+      if (!content) return;
+      if (/^omit/i.test(content)) {
+        omits.push(content);
+        return;
+      }
+      content.split(',').forEach(function(piece) {
+        var token = piece.trim();
+        if (!token) return;
+        if (/^omit/i.test(token)) omits.push(token);
+        else modifiers.push(token);
+      });
+    });
+
+    var display = base;
+    if (modifiers.length > 0) display += '(' + modifiers.join(',') + ')';
+    if (omits.length > 0) display += omits.join('');
+    return display + slashSuffix;
+  }
+
   function padWebCandidateIsFullExact(candidate) {
     if (!candidate || candidate.resolutionCompleteness !== 'exact') return false;
     if (/\(omit/i.test(String(candidate.name || ''))) return false;
@@ -107,14 +147,20 @@
   function padWebFormatTopResolvedChordText(candidates) {
     var presentation = padWebGetResolvedPresentation(candidates);
     var text = presentation.entries
-      .map(function(entry) { return entry.candidate && entry.candidate.name || ''; })
+      .map(function(entry) {
+        var name = entry.candidate && entry.candidate.name || '';
+        return padWebFormatChordDisplayName(name);
+      })
       .filter(Boolean)
       .join(presentation.separator);
 
     if (!presentation.equivalent) return text;
 
     var neutralNames = padWebGetNeutralTopEntries(candidates, presentation)
-      .map(function(entry) { return entry.candidate && entry.candidate.name || ''; })
+      .map(function(entry) {
+        var name = entry.candidate && entry.candidate.name || '';
+        return padWebFormatChordDisplayName(name);
+      })
       .filter(Boolean);
     if (neutralNames.length > 0) {
       text += (text ? ' · ' : '') + neutralNames.join(' · ');
@@ -157,10 +203,28 @@
     return span;
   }
 
+  function padWebSetCandidateDisplayName(node, name) {
+    if (typeof document === 'undefined' || !node) return;
+    var label = padWebFormatChordDisplayName(name);
+    if (!label) return;
+    var first = node.firstChild;
+    if (first && first.nodeType === 3) first.nodeValue = label;
+    else node.insertBefore(document.createTextNode(label), first || null);
+  }
+
+  function padWebApplyCandidateDisplayNames(root, candidates) {
+    if (typeof document === 'undefined' || !root || !Array.isArray(candidates)) return;
+    candidates.forEach(function(candidate, index) {
+      var node = root.querySelector('[data-candidate-idx="' + index + '"]');
+      if (node) padWebSetCandidateDisplayName(node, candidate && candidate.name || '');
+    });
+  }
+
   // Keep resolver order and original candidate indexes. This decorator only
   // re-groups already-rendered exact aliases; score/rank metadata is untouched.
   function padWebDecorateAliasEquation(root, candidates) {
     if (typeof document === 'undefined' || !root) return;
+    padWebApplyCandidateDisplayNames(root, candidates);
     var presentation = padWebGetResolvedPresentation(candidates);
     if (!presentation.equivalent || presentation.entries.length < 2) return;
 
@@ -254,6 +318,7 @@
     }
   }
 
+  global.padWebFormatChordDisplayName = padWebFormatChordDisplayName;
   global.padWebGetTopResolvedCandidates = padWebGetTopResolvedCandidates;
   global.padWebCandidatesAreEquivalentAliases = padWebCandidatesAreEquivalentAliases;
   global.padWebGetPrimaryExactAliasEntries = padWebGetPrimaryExactAliasEntries;
@@ -267,6 +332,7 @@
   global.padWebInstallPlainDisplayHook = padWebInstallPlainDisplayHook;
 
   if (typeof module !== 'undefined') module.exports = {
+    padWebFormatChordDisplayName: padWebFormatChordDisplayName,
     padWebGetTopResolvedCandidates: padWebGetTopResolvedCandidates,
     padWebCandidatesAreEquivalentAliases: padWebCandidatesAreEquivalentAliases,
     padWebGetPrimaryExactAliasEntries: padWebGetPrimaryExactAliasEntries,
