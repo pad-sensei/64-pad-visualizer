@@ -14,16 +14,11 @@ test.describe('v1.8.1 live alias equation', () => {
       PlainState.subMode = 'idle';
       if (typeof clearInstrumentInput === 'function') clearInstrumentInput();
       if (typeof releaseAllMidiHeldSources === 'function') releaseAllMidiHeldSources(true);
-      // Silent mode intentionally skips the audio bundle. Supply only the
-      // velocity transform needed to drive the real Web-MIDI note-entry path;
-      // noteOn/ensureAudioResumed are already silent-mode stubs in index.html.
       if (typeof window.applyVelocityCurve !== 'function') {
         window.applyVelocityCurve = value => value;
       }
 
-      // Exercise the same note-entry function used by Web MIDI rather than
-      // mutating PlainState and calling updatePlainDisplay() directly.
-      [63, 67, 70, 72].forEach(note => onMidiNoteOn(note, 100)); // Eb G Bb C
+      [63, 67, 70, 72].forEach(note => onMidiNoteOn(note, 100));
 
       const candidates = detectChord([63, 67, 70, 72]);
       const root = document.getElementById('midi-detect');
@@ -55,6 +50,53 @@ test.describe('v1.8.1 live alias equation', () => {
     expect(result.topIndexes).toEqual([0, result.aliasIndex]);
     expect(result.topText).not.toMatch(/omit/i);
     expect(result.pushChord).toContain('Eb6 = Cm7 / Eb');
+    expect(pageErrors).toEqual([]);
+  });
+
+  test('draws a shrinking scale-2 equation with integer pixel cells in Chromium', async ({ page }) => {
+    const pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+
+    await page.goto('./?silent=1&e2e=v181-push-fit');
+    await page.waitForLoadState('domcontentloaded');
+
+    const result = await page.evaluate(async () => {
+      const text = 'Eb7(b9) = Edim7(7) / D# = Dbdim7(9) / D# = Bbdim7(11) / D#';
+      const { fitPushPixelText } = await import('./push-display-text-fit.js?v=20260914-readable-wrap');
+      const layout = fitPushPixelText(text, 4, 688);
+      const cells = [];
+      const originalFillRect = CanvasRenderingContext2D.prototype.fillRect;
+      CanvasRenderingContext2D.prototype.fillRect = function(x, y, width, height) {
+        if (x >= 32 && x < 720 && y >= 42 && y < 70 && width <= 4 && height <= 4) {
+          cells.push({ x, y, width, height });
+        }
+        return originalFillRect.call(this, x, y, width, height);
+      };
+
+      const originalSnapshot = window.padWebGetPushDisplaySnapshot;
+      window.padWebGetPushDisplaySnapshot = () => ({
+        chord: text,
+        notes: [], shell: '', ust: '', tensions: '', key: '', scale: '', mode: 'input',
+      });
+
+      const button = document.getElementById('push-webusb-display-btn');
+      if (button) button.dataset.state = 'running';
+      const target = document.getElementById('midi-detect');
+      if (target) target.appendChild(document.createTextNode(' '));
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      window.padWebGetPushDisplaySnapshot = originalSnapshot;
+      CanvasRenderingContext2D.prototype.fillRect = originalFillRect;
+      return { layout, cells };
+    });
+
+    expect(result.layout.text).toBe('Eb7(b9) = Edim7(7) / D# = Dbdim7(9) / D# = Bbdim7(11) / D#');
+    expect(result.layout.lines).toHaveLength(1);
+    expect(result.layout.scale).toBe(2);
+    expect(result.layout.width).toBeLessThanOrEqual(688);
+    expect(result.cells.length).toBeGreaterThan(0);
+    expect(result.cells.some(cell => cell.width === 2 && cell.height === 2)).toBe(true);
+    expect(result.cells.every(cell => Number.isInteger(cell.x) && Number.isInteger(cell.y) && Number.isInteger(cell.width) && Number.isInteger(cell.height))).toBe(true);
     expect(pageErrors).toEqual([]);
   });
 });

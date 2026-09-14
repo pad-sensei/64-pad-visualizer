@@ -5,7 +5,7 @@ import {
   encodePushDisplayFrame,
 } from './push-display-webusb.js?v=webusb-20260911-10';
 import { fastClearPushPads, hardClearPushMidiOutputs } from './push-surface-cleanup.js?v=webusb-20260911-7';
-import { fitPushPixelText } from './push-display-text-fit.js?v=20260914-no-truncate';
+import { fitPushPixelText } from './push-display-text-fit.js?v=20260914-readable-wrap';
 
 // v1.8.0: Push display is a standard optional/manual WebUSB feature.
 // The user still explicitly presses Push Display; only Desktop mode hides this browser control.
@@ -69,7 +69,9 @@ if (enabled) {
 
     function fallbackSnapshot() {
       const detect = document.getElementById('midi-detect');
-      const detected = (detect?.textContent || '').replace(/\s+/g, ' ').trim();
+      const detected = (detect?.querySelector('.detect-top-group')?.textContent || '')
+        .replace(/\s+/g, ' ')
+        .trim();
       return { chord: detected, notes: [], shell: '', ust: '', tensions: '', key: '', scale: '', mode: '' };
     }
 
@@ -187,10 +189,14 @@ if (enabled) {
       } else {
         if (snap.chord) {
           // Human ruling 2026-09-14: the equation is semantic information. Never
-          // cut its right-hand side. Keep the full text and reduce scale only as
-          // much as needed to stay left of the Key/Scale region (x=720).
+          // cut its right-hand side. Real resolver equations fit on one line at
+          // scale >= 2; the defensive overflow path wraps at scale 1 instead of
+          // drawing unreadable sub-pixel cells.
           const headline = fitPushPixelText(snap.chord, 4, 688);
-          drawPixelText(headline.text, 32, 42, headline.scale, '#ffdb5c', headline.text.length);
+          const lineHeight = 9 * headline.scale;
+          headline.lines.forEach((line, index) => {
+            drawPixelText(line, 32, 42 + index * lineHeight, headline.scale, '#ffdb5c', line.length);
+          });
         }
         if (snap.notes?.length) drawPixelText(`NOTE: ${snap.notes.join(' ')}`, 36, 82, 1, '#ccdae0', 34);
 

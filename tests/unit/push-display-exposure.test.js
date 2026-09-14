@@ -26,23 +26,26 @@ describe('v1.8.1 Push Display exposure contract', () => {
     expect(app).toContain("['Root', 'Tasty', 'Stock', 'Guitar', 'Quality', 'Tension', 'Key', 'Scale']");
   });
 
-  it('preserves the complete Push chord equation and fits it by scale', () => {
+  it('preserves the complete Push chord equation without sub-pixel fallback text', () => {
     expect(app).toContain("fitPushPixelText(snap.chord, 4, 688)");
-    expect(app).toContain("headline.text.length");
+    expect(app).toContain('headline.lines.forEach');
+    expect(app).toContain('line.length');
     expect(app).not.toContain("drawPixelText(snap.chord, 32, 42, 4, '#ffdb5c', 20)");
     expect(app).not.toContain('detected.slice(0, 48)');
+    expect(app).toContain("querySelector('.detect-top-group')");
     expect(app).toContain("'=':[0x14,0x14,0x14,0x14,0x14]");
     expect(app).toContain("'·':[0x00,0x00,0x08,0x00,0x00]");
-    expect(fit).toContain('return { text, scale, width: units * scale };');
-    expect(sw).toContain("'push-display-text-fit.js?v=20260914-no-truncate'");
+    expect(fit).toContain('wrapPushPixelTextAtScaleOne');
+    expect(fit).toContain('const scale = 1;');
+    expect(fit).not.toContain('Math.min(maxScale, idealScale)');
+    expect(sw).toContain("'push-display-text-fit.js?v=20260914-readable-wrap'");
   });
 
   it('invalidates the preview through its SW generation while retaining matching asset URLs', () => {
     expect(index).toContain('push-display-webusb-app.js?v=webusb-20260914-headline-fit');
     expect(sw).toContain("'push-display-webusb-app.js?v=webusb-20260914-headline-fit'");
-    expect(sw).toContain("var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-5';");
-    expect(sw).not.toContain("var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-4';");
-    expect(sw).not.toContain("var CACHE_NAME = '64pad-v180-preview-20260912-display-active-4';");
+    expect(sw).toContain("var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-6';");
+    expect(sw).not.toContain("var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-5';");
     expect(sw).toContain("fetch(url, { cache: 'reload' })");
     expect(index).not.toContain('push-display-webusb-app.js?v=webusb-20260911-10');
   });
