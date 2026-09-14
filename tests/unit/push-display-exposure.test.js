@@ -28,8 +28,8 @@ describe('v1.8.1 Push Display exposure contract', () => {
   it('invalidates the preview through its SW generation while retaining matching asset URLs', () => {
     expect(index).toContain('push-display-webusb-app.js?v=webusb-20260913-header');
     expect(sw).toContain("'push-display-webusb-app.js?v=webusb-20260913-header'");
-    expect(sw).toContain("var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-2';");
-    expect(sw).not.toContain("var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-1';");
+    expect(sw).toContain("var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-3';");
+    expect(sw).not.toContain("var CACHE_NAME = '64pad-v181-preview-20260914-alias-equivalence-2';");
     expect(sw).not.toContain("var CACHE_NAME = '64pad-v180-preview-20260912-display-active-4';");
     expect(sw).toContain("fetch(url, { cache: 'reload' })");
     expect(index).not.toContain('push-display-webusb-app.js?v=webusb-20260911-10');
