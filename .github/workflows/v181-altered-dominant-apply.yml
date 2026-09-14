@@ -1,0 +1,216 @@
+name: Apply and verify v1.8.1 altered dominant UST
+
+on:
+  push:
+    branches:
+      - codex/v181-altered-dominant-ust
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/v181-altered-dominant-ust
+          submodules: recursive
+          fetch-depth: 80
+
+      - name: Apply Web and Push consumer repair
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          # 1) Teach the existing legacy triadic UST dictionary the one missing
+          # dominant upper structure exposed by the Human Gate: IIIaug over 7(b13).
+          theory = Path('theory.js')
+          s = theory.read_text()
+          old_q = """var DETECTED_UST_QUALITIES = {\n  major: { suffix: '\\u25B3', intervals: [0, 4, 7] },\n  m: { suffix: 'm', intervals: [0, 3, 7] },\n  q: { suffix: 'Q', intervals: [0, 5, 10], quartal: true }\n};"""
+          new_q = """var DETECTED_UST_QUALITIES = {\n  major: { suffix: '\\u25B3', intervals: [0, 4, 7] },\n  m: { suffix: 'm', intervals: [0, 3, 7] },\n  aug: { suffix: 'aug', intervals: [0, 4, 8] },\n  q: { suffix: 'Q', intervals: [0, 5, 10], quartal: true }\n};"""
+          if old_q in s:
+              s = s.replace(old_q, new_q, 1)
+          elif new_q not in s:
+              raise SystemExit('DETECTED_UST_QUALITIES anchor missing')
+
+          old_rule = """    { offset: 3, quality: 'major' },  // bIII: #9, 5, b7\n    { offset: 6, quality: 'm' },      // bVm: #11, 13, b9"""
+          new_rule = """    { offset: 3, quality: 'major' },  // bIII: #9, 5, b7\n    { offset: 4, quality: 'aug' },    // IIIaug: 3, b13, R\n    { offset: 6, quality: 'm' },      // bVm: #11, 13, b9"""
+          if old_rule in s:
+              s = s.replace(old_rule, new_rule, 1)
+          elif new_rule not in s:
+              raise SystemExit('dominant UST rule anchor missing')
+          theory.write_text(s)
+
+          # 2) Input mode's updatePlainDisplay() is canonical for the observed payload.
+          # The delayed MIDI refresh must not erase that payload after 40ms.
+          midi = Path('midi.js')
+          m = midi.read_text()
+          old = """  // Plain mode: #midi-detect handled by updatePlainDisplay() (SSOT), only add highlights\n  if (!linkMode && AppState.mode === 'input') {\n    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);\n    highlightMidiPads(notes);\n    return;\n  }"""
+          new = """  // Plain mode: #midi-detect and the canonical observed Shell/UST payload are\n  // both owned by updatePlainDisplay(). A delayed MIDI refresh must preserve that\n  // snapshot for Push/Web consumers instead of clearing it after the render.\n  if (!linkMode && AppState.mode === 'input') {\n    highlightMidiPads(notes);\n    return;\n  }"""
+          count = m.count(old)
+          if count:
+              m = m.replace(old, new)
+          elif m.count(new) < 1:
+              raise SystemExit('input-mode payload preservation anchor missing')
+          midi.write_text(m)
+
+          # 3) New bytes get fresh browser/cache identities.
+          replacements = {
+              'pad-core/theory.js?v=6.7.54': 'pad-core/theory.js?v=1.8.1-altered-dominant1',
+              'theory.js?v=6.7.52': 'theory.js?v=1.8.1-altered-ust1',
+              'midi.js?v=1.8.1-resolution2': 'midi.js?v=1.8.1-altered-ust1',
+              '64pad-v181-preview-20260915-readable-labels-10': '64pad-v181-preview-20260915-altered-dominant-1',
+          }
+          for p in [Path('index.html'), Path('sw.js')]:
+              data = p.read_text()
+              for oldv, newv in replacements.items():
+                  if oldv in data:
+                      data = data.replace(oldv, newv)
+              p.write_text(data)
+          for p in Path('tests/unit').glob('*.test.js'):
+              data = p.read_text()
+              for oldv, newv in replacements.items():
+                  if oldv in data:
+                      data = data.replace(oldv, newv)
+              p.write_text(data)
+
+          # 4) Permanent live regression: actual MIDI input path, delayed refresh,
+          # Web label/UST and Push snapshot must agree for both reported fixtures.
+          e2e = Path('tests/e2e/v181-altered-dominant-ust.spec.js')
+          e2e.write_text(r'''import { test, expect } from '@playwright/test';
+
+async function captureAltered(page, notes) {
+  return page.evaluate(async (heldNotes) => {
+    AppState.mode = 'input';
+    AppState.key = 0;
+    AppState.scaleIdx = 0;
+    PlainState.activeNotes.clear();
+    PlainState.subMode = 'idle';
+    if (typeof clearInstrumentInput === 'function') clearInstrumentInput();
+    if (typeof releaseAllMidiHeldSources === 'function') releaseAllMidiHeldSources(true);
+    if (typeof window.applyVelocityCurve !== 'function') window.applyVelocityCurve = value => value;
+
+    heldNotes.forEach(note => onMidiNoteOn(note, 100));
+    // Cross MIDI_DEBOUNCE_MS so updateMidiDisplay() has run. This catches the
+    // former Input-mode payload-clearing regression, not just the immediate DOM.
+    await new Promise(resolve => setTimeout(resolve, 120));
+
+    const candidates = detectChord(heldNotes);
+    const payload = padWebGetLatestObservedShellUstPayload();
+    const push = padWebGetPushDisplaySnapshot();
+    return {
+      candidates: candidates.slice(0, 8).map(candidate => ({
+        name: candidate.name,
+        rootPC: candidate.rootPC,
+        quality: candidate.quality,
+        score: candidate.resolutionScore,
+        isTopRanked: candidate.isTopRanked,
+        tensionLabels: candidate.tensionLabels,
+      })),
+      dom: document.getElementById('midi-detect').textContent.replace(/\s+/g, ' ').trim(),
+      payload,
+      push,
+    };
+  }, notes);
+}
+
+test.describe('v1.8.1 altered dominant + UST Human Gate', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('./?silent=1&e2e=v181-altered-dominant-ust');
+    await page.waitForLoadState('domcontentloaded');
+  });
+
+  test('Bb7(b9,b13) stays above Bm6 slash alias and keeps bII minor UST on Web + Push', async ({ page }) => {
+    const result = await captureAltered(page, [34, 44, 50, 54, 59]); // Bb Ab D Gb B
+
+    expect(result.candidates[0]).toMatchObject({
+      name: 'Bb7(b9,b13)', rootPC: 10, quality: '7', isTopRanked: true,
+    });
+    expect(result.candidates[0].tensionLabels).toEqual(expect.arrayContaining(['b9', 'b13']));
+    const slash = result.candidates.find(candidate => candidate.name === 'Bm6 / A#' || candidate.name === 'Bm6 / Bb');
+    expect(slash).toBeDefined();
+    expect(slash.score).toBeLessThan(result.candidates[0].score);
+
+    expect(result.dom).toContain('Bb7(b9,b13)');
+    expect(result.dom).toContain('Bm (bII)');
+    expect(result.dom).toContain('b9,3,b13');
+    expect(result.payload?.chord?.name).toBe('Bb7(b9,b13)');
+    expect(result.payload?.shell?.degrees).toEqual(expect.arrayContaining(['b7', '3']));
+    expect(result.payload?.ust?.name).toContain('Bm (bII)');
+    expect(result.payload?.ust?.base).toBe('Bb7');
+    expect(result.push.chord).toBe('Bb7(b9,b13)');
+    expect(result.push.ust).toContain('Bm (bII)');
+    expect(result.push.ust).toContain('/ Bb7');
+    expect(result.push.tensions.split(/\s+/)).toEqual(expect.arrayContaining(['b9', 'b13']));
+  });
+
+  test('Bb7(b13) stays above Bbaug and exposes IIIaug UST on Web + Push', async ({ page }) => {
+    const result = await captureAltered(page, [34, 44, 50, 54]); // Bb Ab D Gb
+
+    expect(result.candidates[0]).toMatchObject({
+      name: 'Bb7(b13)', rootPC: 10, quality: '7', isTopRanked: true,
+    });
+    expect(result.candidates[0].tensionLabels).toContain('b13');
+    const aug = result.candidates.find(candidate => candidate.name === 'Bbaug');
+    expect(aug).toBeDefined();
+    expect(aug.score).toBeLessThan(result.candidates[0].score);
+
+    expect(result.dom).toContain('Bb7(b13)');
+    expect(result.dom).toContain('Daug (III)');
+    expect(result.dom).toContain('3,b13,1');
+    expect(result.payload?.chord?.name).toBe('Bb7(b13)');
+    expect(result.payload?.shell?.degrees).toEqual(expect.arrayContaining(['b7', '3']));
+    expect(result.payload?.ust?.name).toContain('Daug (III)');
+    expect(result.payload?.ust?.base).toBe('Bb7');
+    expect(result.push.chord).toBe('Bb7(b13)');
+    expect(result.push.ust).toContain('Daug (III)');
+    expect(result.push.ust).toContain('/ Bb7');
+    expect(result.push.tensions.split(/\s+/)).toContain('b13');
+  });
+});
+''')
+          PY
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Unit and PWA verification
+        run: |
+          set -euo pipefail
+          npm test
+          ./tools/sw-assets-check.sh
+          npm audit --omit=dev
+          git diff --check
+          grep -q "pad-core/theory.js?v=1.8.1-altered-dominant1" index.html
+          grep -q "theory.js?v=1.8.1-altered-ust1" index.html
+          grep -q "midi.js?v=1.8.1-altered-ust1" index.html
+          grep -q "64pad-v181-preview-20260915-altered-dominant-1" sw.js
+      - name: Browser regression
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+          python3 -m http.server 8080 >/tmp/64pe-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/ >/dev/null && break
+            sleep 1
+          done
+          npx playwright test tests/e2e/v181-alias-runtime.spec.js tests/e2e/v181-altered-dominant-ust.spec.js
+          git checkout -- test-results
+          git diff --check
+      - name: Commit verified consumer changes
+        run: |
+          set -euo pipefail
+          git config user.name 'daikainozaki-cyber'
+          git config user.email 'daikainozaki@gmail.com'
+          git add theory.js midi.js index.html sw.js tests/unit tests/e2e/v181-altered-dominant-ust.spec.js
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'fix(v1.8.1): restore altered dominant UST presentation'
+          git push origin HEAD:codex/v181-altered-dominant-ust
