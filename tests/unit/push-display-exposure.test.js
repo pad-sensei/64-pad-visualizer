@@ -30,6 +30,7 @@ describe('v1.8.1 Push Display exposure contract', () => {
     expect(app).toContain("fitPushPixelText(snap.chord, 4, 688)");
     expect(app).toContain("headline.text.length");
     expect(app).not.toContain("drawPixelText(snap.chord, 32, 42, 4, '#ffdb5c', 20)");
+    expect(app).not.toContain('detected.slice(0, 48)');
     expect(app).toContain("'=':[0x14,0x14,0x14,0x14,0x14]");
     expect(app).toContain("'·':[0x00,0x00,0x08,0x00,0x00]");
     expect(fit).toContain('return { text, scale, width: units * scale };');

@@ -70,7 +70,7 @@ if (enabled) {
     function fallbackSnapshot() {
       const detect = document.getElementById('midi-detect');
       const detected = (detect?.textContent || '').replace(/\s+/g, ' ').trim();
-      return { chord: detected.slice(0, 48), notes: [], shell: '', ust: '', tensions: '', key: '', scale: '', mode: '' };
+      return { chord: detected, notes: [], shell: '', ust: '', tensions: '', key: '', scale: '', mode: '' };
     }
 
     function currentSnapshot() {
