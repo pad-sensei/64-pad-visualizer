@@ -1,10 +1,10 @@
-var CACHE_NAME = '64pad-v181-preview-20260915-readable-labels-10';
+var CACHE_NAME = '64pad-v181-preview-20260915-altered-dominant-1';
 var ASSETS = [
   './',
   'index.html',
   'style.css?v=6.7.52',
   'pad-core/data.js?v=6.7.54',
-  'pad-core/theory.js?v=6.7.54',
+  'pad-core/theory.js?v=1.8.1-altered-dominant1',
   'pad-core/chord-resolver.js?v=1.8.1-resolution2',
   'pad-core/render.js?v=6.7.52',
   'pad-core/circle.js?v=6.7.52',
@@ -23,7 +23,7 @@ var ASSETS = [
   'audio-core/audio.js?v=6.7.61',
   'master-tail.js?v=6.7.61',
   'audio-ui-binding.js?v=6.7.61',
-  'theory.js?v=6.7.52',
+  'theory.js?v=1.8.1-altered-ust1',
   'chord-resolution-ui.js?v=1.8.1-readable-labels7',
   'tasty-stock.js?v=6.7.52',
   'staff.js?v=6.7.52',
@@ -40,7 +40,7 @@ var ASSETS = [
   'push-midi-port-contract.js?v=1.8.0-liveport3',
   'push-midi-cc-map.js?v=1.8.0',
   'push-web-control.js?v=1.8.0-active-color',
-  'midi.js?v=1.8.1-resolution2',
+  'midi.js?v=1.8.1-altered-ust1',
   'push-display-webusb.js?v=webusb-20260911-10',
   'push-surface-cleanup.js?v=webusb-20260911-7',
   'push-display-webusb-app.js?v=webusb-20260915-readable-wrap',

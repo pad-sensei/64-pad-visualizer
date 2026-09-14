@@ -171,7 +171,7 @@ describe('v1.8.1 chord-resolution consumer', () => {
       'pad-core/chord-resolver.js?v=1.8.1-resolution2',
       'chord-resolution-ui.js?v=1.8.1-readable-labels7',
       'plain.js?v=1.8.1-resolution2',
-      'midi.js?v=1.8.1-resolution2',
+      'midi.js?v=1.8.1-altered-ust1',
     ]) {
       expect(index).toContain(asset);
       expect(sw).toContain(asset);

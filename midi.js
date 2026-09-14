@@ -417,9 +417,10 @@ function updateMidiDisplay() {
     highlightMidiPads(notes);
     return;
   }
-  // Plain mode: #midi-detect handled by updatePlainDisplay() (SSOT), only add highlights
+  // Plain mode: #midi-detect and the canonical observed Shell/UST payload are
+  // both owned by updatePlainDisplay(). A delayed MIDI refresh must preserve that
+  // snapshot for Push/Web consumers instead of clearing it after the render.
   if (!linkMode && AppState.mode === 'input') {
-    if (typeof padWebSetLatestObservedShellUstPayload === 'function') padWebSetLatestObservedShellUstPayload(null);
     highlightMidiPads(notes);
     return;
   }
