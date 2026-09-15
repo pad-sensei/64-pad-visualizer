@@ -24,10 +24,14 @@ describe('v1.8.1 Web product contract', () => {
     expect(html).toContain('"softwareVersion":"1.8.1"');
   });
 
-  it('keeps the /64-pad-dev/ hardware gate free of service-worker hot reloads', () => {
-    expect(html).toContain("location.pathname.indexOf('/64-pad-dev/') !== -1");
-    expect(html).toContain("sessionStorage.setItem('64pad-dev-sw-cleared', '1')");
+  it('forces a fresh /64-pad-dev/ navigation before app assets when a stale service worker controls the page', () => {
+    expect(html).toContain("window.__IS_64PAD_DEV_DEPLOY = location.pathname.indexOf('/64-pad-dev/') !== -1");
+    expect(html).toContain('navigator.serviceWorker.controller && _devSwResetCount < 2');
+    expect(html).toContain("_devSwReloadUrl.searchParams.set('_swreset'");
+    expect(html).toContain('location.replace(_devSwReloadUrl.href)');
     expect(html).toContain('navigator.serviceWorker.getRegistrations()');
+    expect(html).toContain('window.__padIsDevServiceWorkerRegistration');
+    expect(html).not.toContain('64pad-dev-sw-cleared');
   });
 
   it('keeps display opt-in lifecycle separate from MIDI pad ownership', () => {
