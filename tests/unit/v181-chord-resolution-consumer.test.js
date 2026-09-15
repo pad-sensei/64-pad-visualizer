@@ -147,7 +147,7 @@ describe('v1.8.1 chord-resolution consumer', () => {
     expect(ui.padWebFormatTopResolvedChordText(candidates)).toBe('C7 / E');
   });
 
-  it('keeps original candidate indexes available for Web click/drag when aliases cross rank groups', () => {
+  it('keeps original candidate indexes available and routes Input/Chord Push headlines through the shared formatter', () => {
     const candidates = [
       { name: 'A', isTopRanked: true, resolutionCompleteness: 'exact', resolutionScore: 150, resolutionExplainedPCS: [0, 4, 7, 9], resolutionChordCardinality: 4 },
       { name: 'partial', isTopRanked: false, resolutionCompleteness: 'partial', resolutionScore: 130, resolutionExplainedPCS: [0, 4, 7], resolutionChordCardinality: 3 },
@@ -160,7 +160,10 @@ describe('v1.8.1 chord-resolution consumer', () => {
     const midi = readFileSync(root + 'midi.js', 'utf8');
     expect(helper).toContain('data-candidate-idx');
     expect(helper).toContain('padWebDecorateAliasEquation');
-    expect(midi).toContain('padWebFormatTopResolvedChordText(lastDetectedCandidates)');
+    expect(midi).toContain("AppState.mode === 'input' || AppState.mode === 'chord'");
+    expect(midi).toContain('resolvedCandidates = lastDetectedCandidates');
+    expect(midi).toContain('resolvedCandidates = detectChord(notes)');
+    expect(midi).toContain('padWebFormatTopResolvedChordText(resolvedCandidates)');
   });
 
   it('keeps page and service-worker asset identities aligned', () => {
