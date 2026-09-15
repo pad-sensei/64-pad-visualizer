@@ -6,6 +6,7 @@ on:
       - deploy/v181-sw-human-gate-20260915
     paths:
       - .github/dev-reset/64-pad-dev-reset.html
+      - .github/dev-reset/64-pad-dev-diagnostic.html
       - .github/workflows/deploy-dev-reset.yml
   workflow_dispatch:
 
@@ -30,6 +31,10 @@ jobs:
           grep -F '!isDevRegistration(reg) && canControlDev(reg)' "$f"
           grep -F '安全のため自動解除せずHuman Gateを停止します' "$f"
           grep -F "new URL('/apps/64-pad-dev/', location.origin)" "$f"
+          d=.github/dev-reset/64-pad-dev-diagnostic.html
+          grep -F '64 Pad Dev runtime diagnostic' "$d"
+          grep -F "formatterSample==='Em7(b5,11)omit3'" "$d"
+          grep -F "topText.indexOf('Cm7 / Eb')" "$d"
       - name: Deploy reset page outside dev SW scope
         uses: burnett01/rsync-deployments@6.0.0
         with:
@@ -40,11 +45,15 @@ jobs:
           remote_port: 10022
           remote_user: xs071284
           remote_key: ${{ secrets.XSERVER_SSH_KEY }}
-      - name: Verify served reset page
+      - name: Verify served reset and diagnostic pages
         shell: bash
         run: |
           set -euo pipefail
-          url="https://murinaikurashi.com/apps/64-pad-dev-reset.html?probe=${GITHUB_SHA}"
-          curl -fsSL --max-time 30 -H 'Cache-Control: no-cache, no-store, max-age=0' "$url" -o /tmp/reset.html
+          reset_url="https://murinaikurashi.com/apps/64-pad-dev-reset.html?probe=${GITHUB_SHA}"
+          curl -fsSL --max-time 30 -H 'Cache-Control: no-cache, no-store, max-age=0' "$reset_url" -o /tmp/reset.html
           cmp .github/dev-reset/64-pad-dev-reset.html /tmp/reset.html
           grep -F '64 Pad Dev session reset' /tmp/reset.html
+          diag_url="https://murinaikurashi.com/apps/64-pad-dev-diagnostic.html?probe=${GITHUB_SHA}"
+          curl -fsSL --max-time 30 -H 'Cache-Control: no-cache, no-store, max-age=0' "$diag_url" -o /tmp/diagnostic.html
+          cmp .github/dev-reset/64-pad-dev-diagnostic.html /tmp/diagnostic.html
+          grep -F '64 Pad Dev runtime diagnostic' /tmp/diagnostic.html
