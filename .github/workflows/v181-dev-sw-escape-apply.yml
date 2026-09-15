@@ -1,0 +1,228 @@
+name: Apply and verify v1.8.1 dev SW escape
+
+on:
+  push:
+    branches:
+      - codex/v181-altered-dominant-ust
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/v181-altered-dominant-ust
+          submodules: recursive
+          fetch-depth: 100
+
+      - name: Apply early dev SW escape
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          p = Path('index.html')
+          s = p.read_text()
+          old = """if (!window.AUDIO_ENABLED) document.documentElement.classList.add('silent');
+if (window.IS_DESKTOP_MODE) document.documentElement.classList.add('desktop-mode');
+</script>"""
+          new = """if (!window.AUDIO_ENABLED) document.documentElement.classList.add('silent');
+if (window.IS_DESKTOP_MODE) document.documentElement.classList.add('desktop-mode');
+
+// Dev Human Gate must never execute app assets under an already-controlling stale SW.
+// Unregister + force a fresh navigation BEFORE relying on versioned presentation assets.
+window.__IS_64PAD_DEV_DEPLOY = location.pathname.indexOf('/64-pad-dev/') !== -1;
+window.__padIsDevServiceWorkerRegistration = function(reg) {
+  try {
+    var scopePath = new URL(reg.scope).pathname;
+    var activePath = reg.active ? new URL(reg.active.scriptURL).pathname : '';
+    return scopePath.indexOf('/apps/64-pad-dev/') !== -1 || activePath.indexOf('/apps/64-pad-dev/sw.js') !== -1;
+  } catch (_) {
+    return false;
+  }
+};
+if (window.__IS_64PAD_DEV_DEPLOY && 'serviceWorker' in navigator) {
+  var _devSwResetCount = parseInt(_qs.get('_swreset') || '0', 10) || 0;
+  if (navigator.serviceWorker.controller && _devSwResetCount < 2) {
+    document.documentElement.style.visibility = 'hidden';
+    var _devSwReloadUrl = new URL(location.href);
+    _devSwReloadUrl.searchParams.set('_swreset', String(_devSwResetCount + 1));
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+      return Promise.all(regs.filter(window.__padIsDevServiceWorkerRegistration).map(function(reg) {
+        return reg.unregister();
+      }));
+    }).catch(function() {}).then(function() {
+      location.replace(_devSwReloadUrl.href);
+    });
+  } else if (!navigator.serviceWorker.controller && _qs.has('_swreset')) {
+    var _cleanDevUrl = new URL(location.href);
+    _cleanDevUrl.searchParams.delete('_swreset');
+    history.replaceState(null, '', _cleanDevUrl.pathname + _cleanDevUrl.search + _cleanDevUrl.hash);
+  }
+}
+</script>"""
+          if old not in s:
+              raise SystemExit('early head anchor missing')
+          s = s.replace(old, new, 1)
+
+          old2 = """  var _is64PadDevDeploy = location.pathname.indexOf('/64-pad-dev/') !== -1;
+  if (_is64PadDevDeploy) {
+    // Real-hardware dev gates must never be interrupted by a newly deployed SW.
+    // Remove the dev registration and escape an already controlling worker once.
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+      return Promise.all(regs.map(function(r) { return r.unregister(); }));
+    }).then(function() {
+      if (navigator.serviceWorker.controller && !sessionStorage.getItem('64pad-dev-sw-cleared')) {
+        sessionStorage.setItem('64pad-dev-sw-cleared', '1');
+        location.reload();
+      }
+    });
+  } else {"""
+          new2 = """  var _is64PadDevDeploy = !!window.__IS_64PAD_DEV_DEPLOY;
+  if (_is64PadDevDeploy) {
+    // The controlled-client escape happens in <head>. Here we only remove any
+    // inactive/waiting dev registration that survived without ever controlling this page.
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+      return Promise.all(regs.filter(window.__padIsDevServiceWorkerRegistration).map(function(r) {
+        return r.unregister();
+      }));
+    });
+  } else {"""
+          if old2 not in s:
+              raise SystemExit('late dev SW block anchor missing')
+          s = s.replace(old2, new2, 1)
+          p.write_text(s)
+
+          t = Path('tests/unit/v181-dev-sw-escape-contract.test.js')
+          t.write_text(r'''import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const root = fileURLToPath(new URL('../../', import.meta.url));
+const indexHtml = readFileSync(root + 'index.html', 'utf8');
+
+describe('v1.8.1 dev service-worker escape contract', () => {
+  it('runs the dev SW controller escape before external app assets', () => {
+    const guard = indexHtml.indexOf('Dev Human Gate must never execute app assets under an already-controlling stale SW.');
+    const firstExternal = indexHtml.indexOf('<script src="error-logger.js"></script>');
+    expect(guard).toBeGreaterThan(0);
+    expect(firstExternal).toBeGreaterThan(guard);
+    expect(indexHtml).toContain('navigator.serviceWorker.controller && _devSwResetCount < 2');
+    expect(indexHtml).toContain("_devSwReloadUrl.searchParams.set('_swreset'");
+    expect(indexHtml).toContain('location.replace(_devSwReloadUrl.href)');
+  });
+
+  it('does not suppress a required controller escape with stale sessionStorage state', () => {
+    expect(indexHtml).not.toContain('64pad-dev-sw-cleared');
+    expect(indexHtml).toContain('window.__padIsDevServiceWorkerRegistration');
+    expect(indexHtml).toContain("scopePath.indexOf('/apps/64-pad-dev/')");
+    expect(indexHtml).toContain("activePath.indexOf('/apps/64-pad-dev/sw.js')");
+  });
+
+  it('keeps production service-worker registration behind the non-dev branch', () => {
+    expect(indexHtml).toContain("navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })");
+    expect(indexHtml).toContain('if (_is64PadDevDeploy)');
+    expect(indexHtml).toContain('} else {');
+  });
+});
+''')
+          PY
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+
+      - name: Unit and PWA verification
+        run: |
+          set -euo pipefail
+          npm test
+          ./tools/sw-assets-check.sh
+          npm audit --omit=dev
+          git diff --check
+
+      - name: Browser SW escape regression
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+          ln -s . 64-pad-dev
+          cat > stale-sw.js <<'EOF'
+          self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
+          self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
+          self.addEventListener('fetch', event => {
+            const url = new URL(event.request.url);
+            if (url.pathname.endsWith('/chord-resolution-ui.js')) {
+              event.respondWith(new Response('window.__STALE_ALIAS_HELPER = true;', {
+                headers: { 'Content-Type': 'application/javascript' }
+              }));
+            }
+          });
+          EOF
+          python3 -m http.server 8080 >/tmp/64pe-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; rm -f tests/e2e/.tmp-dev-sw-escape.spec.js stale-sw.js 64-pad-dev' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/ >/dev/null && break
+            sleep 1
+          done
+          cat > tests/e2e/.tmp-dev-sw-escape.spec.js <<'EOF'
+          import { test, expect } from '@playwright/test';
+
+          test('escapes an already-controlling stale dev SW before alias/readability rendering', async ({ page }) => {
+            await page.goto('http://127.0.0.1:8080/64-pad-dev/?silent=1&e2e=sw-setup');
+            await page.evaluate(async () => {
+              const reg = await navigator.serviceWorker.register('./stale-sw.js', { scope: './' });
+              await navigator.serviceWorker.ready;
+              await reg.update();
+            });
+            await page.reload();
+            await page.waitForFunction(() => !navigator.serviceWorker.controller && typeof window.padWebFormatChordDisplayName === 'function');
+            await page.waitForFunction(() => window.updatePlainDisplay && window.updatePlainDisplay.__padAliasEquationWrapped === true);
+
+            const result = await page.evaluate(() => {
+              AppState.mode = 'input';
+              PlainState.activeNotes.clear();
+              PlainState.subMode = 'idle';
+              if (typeof clearInstrumentInput === 'function') clearInstrumentInput();
+              if (typeof releaseAllMidiHeldSources === 'function') releaseAllMidiHeldSources(true);
+              if (typeof window.applyVelocityCurve !== 'function') window.applyVelocityCurve = value => value;
+              [63, 67, 70, 72].forEach(note => onMidiNoteOn(note, 100));
+              const root = document.getElementById('midi-detect');
+              const top = root && root.querySelector('.detect-top-group');
+              return {
+                controller: !!navigator.serviceWorker.controller,
+                staleHelper: !!window.__STALE_ALIAS_HELPER,
+                wrapped: updatePlainDisplay.__padAliasEquationWrapped === true,
+                topText: top ? top.textContent.replace(/\s+/g, ' ').trim() : '',
+                formatted: padWebFormatChordDisplayName('Em7(b5)(11)(omit3)'),
+              };
+            });
+
+            expect(result.controller).toBe(false);
+            expect(result.staleHelper).toBe(false);
+            expect(result.wrapped).toBe(true);
+            expect(result.topText).toContain('Eb6');
+            expect(result.topText).toContain('Cm7 / Eb');
+            expect(result.topText).toContain('=');
+            expect(result.formatted).toBe('Em7(b5,11)omit3');
+          });
+          EOF
+          npx playwright test tests/e2e/.tmp-dev-sw-escape.spec.js tests/e2e/v181-alias-runtime.spec.js tests/e2e/v181-altered-dominant-ust.spec.js --reporter=line
+          rm -f tests/e2e/.tmp-dev-sw-escape.spec.js stale-sw.js 64-pad-dev
+          git checkout -- test-results
+          git diff --check
+
+      - name: Commit verified product changes
+        run: |
+          set -euo pipefail
+          git config user.name 'daikainozaki-cyber'
+          git config user.email 'daikainozaki@gmail.com'
+          git add index.html tests/unit/v181-dev-sw-escape-contract.test.js
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'fix(v1.8.1): escape stale dev service workers before app boot'
+          git push origin HEAD:codex/v181-altered-dominant-ust
