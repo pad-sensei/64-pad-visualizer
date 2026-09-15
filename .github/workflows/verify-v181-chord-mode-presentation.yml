@@ -59,7 +59,7 @@ jobs:
           exit 1
 
       - name: Run fixed chord-mode regression
-        run: npx playwright test tests/e2e/v181-chord-mode-presentation.spec.js --project=chromium --reporter=line
+        run: npx playwright test tests/e2e/v181-chord-mode-presentation.spec.js --project=chromium --reporter=line --output=/tmp/v181-playwright-results
 
       - name: Verify tested tree stayed read-only
         if: always()
