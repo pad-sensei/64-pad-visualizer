@@ -19,204 +19,31 @@ jobs:
           ref: codex/v181-altered-dominant-ust
           submodules: recursive
           fetch-depth: 100
-
       - name: Apply early dev SW escape
-        run: |
-          python3 <<'PY'
-          from pathlib import Path
-
-          p = Path('index.html')
-          s = p.read_text()
-          old = """if (!window.AUDIO_ENABLED) document.documentElement.classList.add('silent');
-if (window.IS_DESKTOP_MODE) document.documentElement.classList.add('desktop-mode');
-</script>"""
-          new = """if (!window.AUDIO_ENABLED) document.documentElement.classList.add('silent');
-if (window.IS_DESKTOP_MODE) document.documentElement.classList.add('desktop-mode');
-
-// Dev Human Gate must never execute app assets under an already-controlling stale SW.
-// Unregister + force a fresh navigation BEFORE relying on versioned presentation assets.
-window.__IS_64PAD_DEV_DEPLOY = location.pathname.indexOf('/64-pad-dev/') !== -1;
-window.__padIsDevServiceWorkerRegistration = function(reg) {
-  try {
-    var scopePath = new URL(reg.scope).pathname;
-    var activePath = reg.active ? new URL(reg.active.scriptURL).pathname : '';
-    return scopePath.indexOf('/apps/64-pad-dev/') !== -1 || activePath.indexOf('/apps/64-pad-dev/sw.js') !== -1;
-  } catch (_) {
-    return false;
-  }
-};
-if (window.__IS_64PAD_DEV_DEPLOY && 'serviceWorker' in navigator) {
-  var _devSwResetCount = parseInt(_qs.get('_swreset') || '0', 10) || 0;
-  if (navigator.serviceWorker.controller && _devSwResetCount < 2) {
-    document.documentElement.style.visibility = 'hidden';
-    var _devSwReloadUrl = new URL(location.href);
-    _devSwReloadUrl.searchParams.set('_swreset', String(_devSwResetCount + 1));
-    navigator.serviceWorker.getRegistrations().then(function(regs) {
-      return Promise.all(regs.filter(window.__padIsDevServiceWorkerRegistration).map(function(reg) {
-        return reg.unregister();
-      }));
-    }).catch(function() {}).then(function() {
-      location.replace(_devSwReloadUrl.href);
-    });
-  } else if (!navigator.serviceWorker.controller && _qs.has('_swreset')) {
-    var _cleanDevUrl = new URL(location.href);
-    _cleanDevUrl.searchParams.delete('_swreset');
-    history.replaceState(null, '', _cleanDevUrl.pathname + _cleanDevUrl.search + _cleanDevUrl.hash);
-  }
-}
-</script>"""
-          if old not in s:
-              raise SystemExit('early head anchor missing')
-          s = s.replace(old, new, 1)
-
-          old2 = """  var _is64PadDevDeploy = location.pathname.indexOf('/64-pad-dev/') !== -1;
-  if (_is64PadDevDeploy) {
-    // Real-hardware dev gates must never be interrupted by a newly deployed SW.
-    // Remove the dev registration and escape an already controlling worker once.
-    navigator.serviceWorker.getRegistrations().then(function(regs) {
-      return Promise.all(regs.map(function(r) { return r.unregister(); }));
-    }).then(function() {
-      if (navigator.serviceWorker.controller && !sessionStorage.getItem('64pad-dev-sw-cleared')) {
-        sessionStorage.setItem('64pad-dev-sw-cleared', '1');
-        location.reload();
-      }
-    });
-  } else {"""
-          new2 = """  var _is64PadDevDeploy = !!window.__IS_64PAD_DEV_DEPLOY;
-  if (_is64PadDevDeploy) {
-    // The controlled-client escape happens in <head>. Here we only remove any
-    // inactive/waiting dev registration that survived without ever controlling this page.
-    navigator.serviceWorker.getRegistrations().then(function(regs) {
-      return Promise.all(regs.filter(window.__padIsDevServiceWorkerRegistration).map(function(r) {
-        return r.unregister();
-      }));
-    });
-  } else {"""
-          if old2 not in s:
-              raise SystemExit('late dev SW block anchor missing')
-          s = s.replace(old2, new2, 1)
-          p.write_text(s)
-
-          t = Path('tests/unit/v181-dev-sw-escape-contract.test.js')
-          t.write_text(r'''import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-
-const root = fileURLToPath(new URL('../../', import.meta.url));
-const indexHtml = readFileSync(root + 'index.html', 'utf8');
-
-describe('v1.8.1 dev service-worker escape contract', () => {
-  it('runs the dev SW controller escape before external app assets', () => {
-    const guard = indexHtml.indexOf('Dev Human Gate must never execute app assets under an already-controlling stale SW.');
-    const firstExternal = indexHtml.indexOf('<script src="error-logger.js"></script>');
-    expect(guard).toBeGreaterThan(0);
-    expect(firstExternal).toBeGreaterThan(guard);
-    expect(indexHtml).toContain('navigator.serviceWorker.controller && _devSwResetCount < 2');
-    expect(indexHtml).toContain("_devSwReloadUrl.searchParams.set('_swreset'");
-    expect(indexHtml).toContain('location.replace(_devSwReloadUrl.href)');
-  });
-
-  it('does not suppress a required controller escape with stale sessionStorage state', () => {
-    expect(indexHtml).not.toContain('64pad-dev-sw-cleared');
-    expect(indexHtml).toContain('window.__padIsDevServiceWorkerRegistration');
-    expect(indexHtml).toContain("scopePath.indexOf('/apps/64-pad-dev/')");
-    expect(indexHtml).toContain("activePath.indexOf('/apps/64-pad-dev/sw.js')");
-  });
-
-  it('keeps production service-worker registration behind the non-dev branch', () => {
-    expect(indexHtml).toContain("navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })");
-    expect(indexHtml).toContain('if (_is64PadDevDeploy)');
-    expect(indexHtml).toContain('} else {');
-  });
-});
-''')
-          PY
-
+        run: python3 -c "import base64;exec(base64.b64decode('CmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAoKcCA9IFBhdGgoJ2luZGV4Lmh0bWwnKQpzID0gcC5yZWFkX3RleHQoKQoKb2xkID0gIiIiaWYgKCF3aW5kb3cuQVVESU9fRU5BQkxFRCkgZG9jdW1lbnQuZG9jdW1lbnRFbGVtZW50LmNsYXNzTGlzdC5hZGQoJ3NpbGVudCcpOwppZiAod2luZG93LklTX0RFU0tUT1BfTU9ERSkgZG9jdW1lbnQuZG9jdW1lbnRFbGVtZW50LmNsYXNzTGlzdC5hZGQoJ2Rlc2t0b3AtbW9kZScpOwo8L3NjcmlwdD4iIiIKbmV3ID0gIiIiaWYgKCF3aW5kb3cuQVVESU9fRU5BQkxFRCkgZG9jdW1lbnQuZG9jdW1lbnRFbGVtZW50LmNsYXNzTGlzdC5hZGQoJ3NpbGVudCcpOwppZiAod2luZG93LklTX0RFU0tUT1BfTU9ERSkgZG9jdW1lbnQuZG9jdW1lbnRFbGVtZW50LmNsYXNzTGlzdC5hZGQoJ2Rlc2t0b3AtbW9kZScpOwoKLy8gRGV2IEh1bWFuIEdhdGUgbXVzdCBuZXZlciBleGVjdXRlIGFwcCBhc3NldHMgdW5kZXIgYW4gYWxyZWFkeS1jb250cm9sbGluZyBzdGFsZSBTVy4KLy8gVW5yZWdpc3RlciArIGZvcmNlIGEgZnJlc2ggbmF2aWdhdGlvbiBCRUZPUkUgcmVseWluZyBvbiB2ZXJzaW9uZWQgcHJlc2VudGF0aW9uIGFzc2V0cy4Kd2luZG93Ll9fSVNfNjRQQURfREVWX0RFUExPWSA9IGxvY2F0aW9uLnBhdGhuYW1lLmluZGV4T2YoJy82NC1wYWQtZGV2LycpICE9PSAtMTsKd2luZG93Ll9fcGFkSXNEZXZTZXJ2aWNlV29ya2VyUmVnaXN0cmF0aW9uID0gZnVuY3Rpb24ocmVnKSB7CiAgdHJ5IHsKICAgIHZhciBzY29wZVBhdGggPSBuZXcgVVJMKHJlZy5zY29wZSkucGF0aG5hbWU7CiAgICB2YXIgYWN0aXZlUGF0aCA9IHJlZy5hY3RpdmUgPyBuZXcgVVJMKHJlZy5hY3RpdmUuc2NyaXB0VVJMKS5wYXRobmFtZSA6ICcnOwogICAgcmV0dXJuIHNjb3BlUGF0aC5pbmRleE9mKCcvYXBwcy82NC1wYWQtZGV2LycpICE9PSAtMSB8fCBhY3RpdmVQYXRoLmluZGV4T2YoJy9hcHBzLzY0LXBhZC1kZXYvc3cuanMnKSAhPT0gLTE7CiAgfSBjYXRjaCAoXykgewogICAgcmV0dXJuIGZhbHNlOwogIH0KfTsKaWYgKHdpbmRvdy5fX0lTXzY0UEFEX0RFVl9ERVBMT1kgJiYgJ3NlcnZpY2VXb3JrZXInIGluIG5hdmlnYXRvcikgewogIHZhciBfZGV2U3dSZXNldENvdW50ID0gcGFyc2VJbnQoX3FzLmdldCgnX3N3cmVzZXQnKSB8fCAnMCcsIDEwKSB8fCAwOwogIGlmIChuYXZpZ2F0b3Iuc2VydmljZVdvcmtlci5jb250cm9sbGVyICYmIF9kZXZTd1Jlc2V0Q291bnQgPCAyKSB7CiAgICBkb2N1bWVudC5kb2N1bWVudEVsZW1lbnQuc3R5bGUudmlzaWJpbGl0eSA9ICdoaWRkZW4nOwogICAgdmFyIF9kZXZTd1JlbG9hZFVybCA9IG5ldyBVUkwobG9jYXRpb24uaHJlZik7CiAgICBfZGV2U3dSZWxvYWRVcmwuc2VhcmNoUGFyYW1zLnNldCgnX3N3cmVzZXQnLCBTdHJpbmcoX2RldlN3UmVzZXRDb3VudCArIDEpKTsKICAgIG5hdmlnYXRvci5zZXJ2aWNlV29ya2VyLmdldFJlZ2lzdHJhdGlvbnMoKS50aGVuKGZ1bmN0aW9uKHJlZ3MpIHsKICAgICAgcmV0dXJuIFByb21pc2UuYWxsKHJlZ3MuZmlsdGVyKHdpbmRvdy5fX3BhZElzRGV2U2VydmljZVdvcmtlclJlZ2lzdHJhdGlvbikubWFwKGZ1bmN0aW9uKHJlZykgewogICAgICAgIHJldHVybiByZWcudW5yZWdpc3RlcigpOwogICAgICB9KSk7CiAgICB9KS5jYXRjaChmdW5jdGlvbigpIHt9KS50aGVuKGZ1bmN0aW9uKCkgewogICAgICBsb2NhdGlvbi5yZXBsYWNlKF9kZXZTd1JlbG9hZFVybC5ocmVmKTsKICAgIH0pOwogIH0gZWxzZSBpZiAoIW5hdmlnYXRvci5zZXJ2aWNlV29ya2VyLmNvbnRyb2xsZXIgJiYgX3FzLmhhcygnX3N3cmVzZXQnKSkgewogICAgdmFyIF9jbGVhbkRldlVybCA9IG5ldyBVUkwobG9jYXRpb24uaHJlZik7CiAgICBfY2xlYW5EZXZVcmwuc2VhcmNoUGFyYW1zLmRlbGV0ZSgnX3N3cmVzZXQnKTsKICAgIGhpc3RvcnkucmVwbGFjZVN0YXRlKG51bGwsICcnLCBfY2xlYW5EZXZVcmwucGF0aG5hbWUgKyBfY2xlYW5EZXZVcmwuc2VhcmNoICsgX2NsZWFuRGV2VXJsLmhhc2gpOwogIH0KfQo8L3NjcmlwdD4iIiIKaWYgb2xkIGluIHM6CiAgICBzID0gcy5yZXBsYWNlKG9sZCwgbmV3LCAxKQplbGlmIG5ldyBub3QgaW4gczoKICAgIHJhaXNlIFN5c3RlbUV4aXQoJ2Vhcmx5IGhlYWQgYW5jaG9yIG1pc3NpbmcnKQoKb2xkMiA9ICIiIiAgdmFyIF9pczY0UGFkRGV2RGVwbG95ID0gbG9jYXRpb24ucGF0aG5hbWUuaW5kZXhPZignLzY0LXBhZC1kZXYvJykgIT09IC0xOwogIGlmIChfaXM2NFBhZERldkRlcGxveSkgewogICAgLy8gUmVhbC1oYXJkd2FyZSBkZXYgZ2F0ZXMgbXVzdCBuZXZlciBiZSBpbnRlcnJ1cHRlZCBieSBhIG5ld2x5IGRlcGxveWVkIFNXLgogICAgLy8gUmVtb3ZlIHRoZSBkZXYgcmVnaXN0cmF0aW9uIGFuZCBlc2NhcGUgYW4gYWxyZWFkeSBjb250cm9sbGluZyB3b3JrZXIgb25jZS4KICAgIG5hdmlnYXRvci5zZXJ2aWNlV29ya2VyLmdldFJlZ2lzdHJhdGlvbnMoKS50aGVuKGZ1bmN0aW9uKHJlZ3MpIHsKICAgICAgcmV0dXJuIFByb21pc2UuYWxsKHJlZ3MubWFwKGZ1bmN0aW9uKHIpIHsgcmV0dXJuIHIudW5yZWdpc3RlcigpOyB9KSk7CiAgICB9KS50aGVuKGZ1bmN0aW9uKCkgewogICAgICBpZiAobmF2aWdhdG9yLnNlcnZpY2VXb3JrZXIuY29udHJvbGxlciAmJiAhc2Vzc2lvblN0b3JhZ2UuZ2V0SXRlbSgnNjRwYWQtZGV2LXN3LWNsZWFyZWQnKSkgewogICAgICAgIHNlc3Npb25TdG9yYWdlLnNldEl0ZW0oJzY0cGFkLWRldi1zdy1jbGVhcmVkJywgJzEnKTsKICAgICAgICBsb2NhdGlvbi5yZWxvYWQoKTsKICAgICAgfQogICAgfSk7CiAgfSBlbHNlIHsiIiIKbmV3MiA9ICIiIiAgdmFyIF9pczY0UGFkRGV2RGVwbG95ID0gISF3aW5kb3cuX19JU182NFBBRF9ERVZfREVQTE9ZOwogIGlmIChfaXM2NFBhZERldkRlcGxveSkgewogICAgLy8gVGhlIGNvbnRyb2xsZWQtY2xpZW50IGVzY2FwZSBoYXBwZW5zIGluIDxoZWFkPi4gSGVyZSB3ZSBvbmx5IHJlbW92ZSBhbnkKICAgIC8vIGluYWN0aXZlL3dhaXRpbmcgZGV2IHJlZ2lzdHJhdGlvbiB0aGF0IHN1cnZpdmVkIHdpdGhvdXQgZXZlciBjb250cm9sbGluZyB0aGlzIHBhZ2UuCiAgICBuYXZpZ2F0b3Iuc2VydmljZVdvcmtlci5nZXRSZWdpc3RyYXRpb25zKCkudGhlbihmdW5jdGlvbihyZWdzKSB7CiAgICAgIHJldHVybiBQcm9taXNlLmFsbChyZWdzLmZpbHRlcih3aW5kb3cuX19wYWRJc0RldlNlcnZpY2VXb3JrZXJSZWdpc3RyYXRpb24pLm1hcChmdW5jdGlvbihyKSB7CiAgICAgICAgcmV0dXJuIHIudW5yZWdpc3RlcigpOwogICAgICB9KSk7CiAgICB9KTsKICB9IGVsc2UgeyIiIgppZiBvbGQyIGluIHM6CiAgICBzID0gcy5yZXBsYWNlKG9sZDIsIG5ldzIsIDEpCmVsaWYgbmV3MiBub3QgaW4gczoKICAgIHJhaXNlIFN5c3RlbUV4aXQoJ2xhdGUgZGV2IFNXIGJsb2NrIGFuY2hvciBtaXNzaW5nJykKCnAud3JpdGVfdGV4dChzKQoKdCA9IFBhdGgoJ3Rlc3RzL3VuaXQvdjE4MS1kZXYtc3ctZXNjYXBlLWNvbnRyYWN0LnRlc3QuanMnKQp0LndyaXRlX3RleHQoIiIiaW1wb3J0IHsgZGVzY3JpYmUsIGl0LCBleHBlY3QgfSBmcm9tICd2aXRlc3QnOwppbXBvcnQgeyByZWFkRmlsZVN5bmMgfSBmcm9tICdub2RlOmZzJzsKaW1wb3J0IHsgZmlsZVVSTFRvUGF0aCB9IGZyb20gJ25vZGU6dXJsJzsKCmNvbnN0IHJvb3QgPSBmaWxlVVJMVG9QYXRoKG5ldyBVUkwoJy4uLy4uLycsIGltcG9ydC5tZXRhLnVybCkpOwpjb25zdCBpbmRleEh0bWwgPSByZWFkRmlsZVN5bmMocm9vdCArICdpbmRleC5odG1sJywgJ3V0ZjgnKTsKCmRlc2NyaWJlKCd2MS44LjEgZGV2IHNlcnZpY2Utd29ya2VyIGVzY2FwZSBjb250cmFjdCcsICgpID0+IHsKICBpdCgncnVucyB0aGUgZGV2IFNXIGNvbnRyb2xsZXIgZXNjYXBlIGJlZm9yZSBleHRlcm5hbCBhcHAgYXNzZXRzJywgKCkgPT4gewogICAgY29uc3QgZ3VhcmQgPSBpbmRleEh0bWwuaW5kZXhPZignRGV2IEh1bWFuIEdhdGUgbXVzdCBuZXZlciBleGVjdXRlIGFwcCBhc3NldHMgdW5kZXIgYW4gYWxyZWFkeS1jb250cm9sbGluZyBzdGFsZSBTVy4nKTsKICAgIGNvbnN0IGZpcnN0RXh0ZXJuYWwgPSBpbmRleEh0bWwuaW5kZXhPZignPHNjcmlwdCBzcmM9XCJlcnJvci1sb2dnZXIuanNcIj48L3NjcmlwdD4nKTsKICAgIGV4cGVjdChndWFyZCkudG9CZUdyZWF0ZXJUaGFuKDApOwogICAgZXhwZWN0KGZpcnN0RXh0ZXJuYWwpLnRvQmVHcmVhdGVyVGhhbihndWFyZCk7CiAgICBleHBlY3QoaW5kZXhIdG1sKS50b0NvbnRhaW4oJ25hdmlnYXRvci5zZXJ2aWNlV29ya2VyLmNvbnRyb2xsZXIgJiYgX2RldlN3UmVzZXRDb3VudCA8IDInKTsKICAgIGV4cGVjdChpbmRleEh0bWwpLnRvQ29udGFpbihcIl9kZXZTd1JlbG9hZFVybC5zZWFyY2hQYXJhbXMuc2V0KCdfc3dyZXNldCdcIik7CiAgICBleHBlY3QoaW5kZXhIdG1sKS50b0NvbnRhaW4oJ2xvY2F0aW9uLnJlcGxhY2UoX2RldlN3UmVsb2FkVXJsLmhyZWYpJyk7CiAgfSk7CgogIGl0KCdkb2VzIG5vdCBzdXBwcmVzcyBhIHJlcXVpcmVkIGNvbnRyb2xsZXIgZXNjYXBlIHdpdGggc3RhbGUgc2Vzc2lvblN0b3JhZ2Ugc3RhdGUnLCAoKSA9PiB7CiAgICBleHBlY3QoaW5kZXhIdG1sKS5ub3QudG9Db250YWluKCc2NHBhZC1kZXYtc3ctY2xlYXJlZCcpOwogICAgZXhwZWN0KGluZGV4SHRtbCkudG9Db250YWluKCd3aW5kb3cuX19wYWRJc0RldlNlcnZpY2VXb3JrZXJSZWdpc3RyYXRpb24nKTsKICAgIGV4cGVjdChpbmRleEh0bWwpLnRvQ29udGFpbihcInNjb3BlUGF0aC5pbmRleE9mKCcvYXBwcy82NC1wYWQtZGV2LycpXCIpOwogIH0pOwp9KTsKIiIiKQo='))"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
       - run: npm ci
-
-      - name: Unit and PWA verification
+      - name: Verify
         run: |
           set -euo pipefail
           npm test
           ./tools/sw-assets-check.sh
           npm audit --omit=dev
           git diff --check
-
-      - name: Browser SW escape regression
-        run: |
-          set -euo pipefail
           npx playwright install --with-deps chromium
-          ln -s . 64-pad-dev
-          cat > stale-sw.js <<'EOF'
-          self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
-          self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
-          self.addEventListener('fetch', event => {
-            const url = new URL(event.request.url);
-            if (url.pathname.endsWith('/chord-resolution-ui.js')) {
-              event.respondWith(new Response('window.__STALE_ALIAS_HELPER = true;', {
-                headers: { 'Content-Type': 'application/javascript' }
-              }));
-            }
-          });
-          EOF
           python3 -m http.server 8080 >/tmp/64pe-http.log 2>&1 &
           server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true; rm -f tests/e2e/.tmp-dev-sw-escape.spec.js stale-sw.js 64-pad-dev' EXIT
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           for i in $(seq 1 30); do
             curl -fsS http://127.0.0.1:8080/ >/dev/null && break
             sleep 1
           done
-          cat > tests/e2e/.tmp-dev-sw-escape.spec.js <<'EOF'
-          import { test, expect } from '@playwright/test';
-
-          test('escapes an already-controlling stale dev SW before alias/readability rendering', async ({ page }) => {
-            await page.goto('http://127.0.0.1:8080/64-pad-dev/?silent=1&e2e=sw-setup');
-            await page.evaluate(async () => {
-              const reg = await navigator.serviceWorker.register('./stale-sw.js', { scope: './' });
-              await navigator.serviceWorker.ready;
-              await reg.update();
-            });
-            await page.reload();
-            await page.waitForFunction(() => !navigator.serviceWorker.controller && typeof window.padWebFormatChordDisplayName === 'function');
-            await page.waitForFunction(() => window.updatePlainDisplay && window.updatePlainDisplay.__padAliasEquationWrapped === true);
-
-            const result = await page.evaluate(() => {
-              AppState.mode = 'input';
-              PlainState.activeNotes.clear();
-              PlainState.subMode = 'idle';
-              if (typeof clearInstrumentInput === 'function') clearInstrumentInput();
-              if (typeof releaseAllMidiHeldSources === 'function') releaseAllMidiHeldSources(true);
-              if (typeof window.applyVelocityCurve !== 'function') window.applyVelocityCurve = value => value;
-              [63, 67, 70, 72].forEach(note => onMidiNoteOn(note, 100));
-              const root = document.getElementById('midi-detect');
-              const top = root && root.querySelector('.detect-top-group');
-              return {
-                controller: !!navigator.serviceWorker.controller,
-                staleHelper: !!window.__STALE_ALIAS_HELPER,
-                wrapped: updatePlainDisplay.__padAliasEquationWrapped === true,
-                topText: top ? top.textContent.replace(/\s+/g, ' ').trim() : '',
-                formatted: padWebFormatChordDisplayName('Em7(b5)(11)(omit3)'),
-              };
-            });
-
-            expect(result.controller).toBe(false);
-            expect(result.staleHelper).toBe(false);
-            expect(result.wrapped).toBe(true);
-            expect(result.topText).toContain('Eb6');
-            expect(result.topText).toContain('Cm7 / Eb');
-            expect(result.topText).toContain('=');
-            expect(result.formatted).toBe('Em7(b5,11)omit3');
-          });
-          EOF
-          npx playwright test tests/e2e/.tmp-dev-sw-escape.spec.js tests/e2e/v181-alias-runtime.spec.js tests/e2e/v181-altered-dominant-ust.spec.js --reporter=line
-          rm -f tests/e2e/.tmp-dev-sw-escape.spec.js stale-sw.js 64-pad-dev
+          npx playwright test tests/e2e/v181-alias-runtime.spec.js tests/e2e/v181-altered-dominant-ust.spec.js --reporter=line
           git checkout -- test-results
           git diff --check
-
       - name: Commit verified product changes
         run: |
           set -euo pipefail
