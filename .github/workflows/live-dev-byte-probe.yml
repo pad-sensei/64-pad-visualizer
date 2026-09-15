@@ -1,0 +1,73 @@
+name: Probe live 64-pad-dev delivery bytes
+
+on:
+  push:
+    branches:
+      - deploy/v181-sw-human-gate-20260915
+    paths:
+      - .github/workflows/live-dev-byte-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: deploy/v181-sw-human-gate-20260915
+          submodules: recursive
+      - name: Compare live bytes with deployed candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          nonce="$(date +%s)-${GITHUB_SHA:0:12}"
+          base="https://murinaikurashi.com/apps/64-pad-dev"
+
+          probe() {
+            local label="$1"
+            local path="$2"
+            local local_file="$3"
+            local body="/tmp/${label}.body"
+            local headers="/tmp/${label}.headers"
+            curl -fsSL --max-time 30 \
+              -H 'Cache-Control: no-cache, no-store, max-age=0' \
+              -H 'Pragma: no-cache' \
+              -D "$headers" \
+              "${base}/${path}${path%%\?*}" >/dev/null 2>&1 || true
+            local sep='?'
+            [[ "$path" == *'?'* ]] && sep='&'
+            curl -fsSL --max-time 30 \
+              -H 'Cache-Control: no-cache, no-store, max-age=0' \
+              -H 'Pragma: no-cache' \
+              -D "$headers" \
+              "${base}/${path}${sep}delivery_probe=${nonce}" \
+              -o "$body"
+            echo "===== ${label} headers ====="
+            cat "$headers"
+            echo "===== ${label} hashes ====="
+            printf 'repo  '; sha256sum "$local_file"
+            printf 'live  '; sha256sum "$body"
+            if cmp -s "$local_file" "$body"; then
+              echo "BYTE_MATCH ${label}=yes"
+            else
+              echo "BYTE_MATCH ${label}=NO"
+            fi
+          }
+
+          probe index '' index.html
+          probe helper 'chord-resolution-ui.js?v=1.8.1-alias-equation8' chord-resolution-ui.js
+          probe sw 'sw.js' sw.js
+
+          echo '===== live index markers ====='
+          grep -F "Dev Human Gate must never execute app assets under an already-controlling stale SW." /tmp/index.body || true
+          grep -F "__DEV_SW_ESCAPE_FAILED" /tmp/index.body || true
+          grep -F "chord-resolution-ui.js?v=1.8.1-alias-equation8" /tmp/index.body || true
+          echo '===== live helper markers ====='
+          grep -F "padWebFormatChordDisplayName" /tmp/helper.body | head -n 3 || true
+          grep -F "padWebGetPrimaryExactAliasEntries" /tmp/helper.body | head -n 3 || true
+          echo '===== live SW markers ====='
+          head -n 3 /tmp/sw.body
