@@ -6,8 +6,10 @@ on:
       - codex/v181-altered-dominant-ust
 
 # Option A carrier contract (Human ruling 2026-09-15):
-# - The regression assertions are already fixed in commit
+# - Chord-mode presentation regression was fixed first in commit
 #   27cecd2d7e2b107dbefbd70db31394d03158193e.
+# - Shared Push formatter source contract was then fixed tests-only in commit
+#   21ba8c814793f1737100ac98106d66bf2f7ffb43.
 # - This carrier edits PRODUCT CODE ONLY (midi.js).
 # - It never edits tests/assertions, never force-pushes, and has no admin override.
 # - The implementation payload below is intentionally plaintext/human-readable.
@@ -31,8 +33,10 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          git merge-base --is-ancestor 27cecd2d7e2b107dbefbd70db31394d03158193e HEAD
-          git diff --exit-code 27cecd2d7e2b107dbefbd70db31394d03158193e HEAD -- tests/e2e/v181-chord-mode-presentation.spec.js
+          git merge-base --is-ancestor 21ba8c814793f1737100ac98106d66bf2f7ffb43 HEAD
+          git diff --exit-code 21ba8c814793f1737100ac98106d66bf2f7ffb43 HEAD -- \
+            tests/e2e/v181-chord-mode-presentation.spec.js \
+            tests/unit/v181-chord-resolution-consumer.test.js
           test "$(git -C pad-core rev-parse HEAD)" = 65bc1fdd69d9fa50b3150a562be5b907aa288d1a
           test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
 
