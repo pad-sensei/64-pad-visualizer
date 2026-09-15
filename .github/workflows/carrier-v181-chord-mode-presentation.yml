@@ -87,12 +87,23 @@ jobs:
                 && typeof AppState !== 'undefined' && AppState.mode === 'input'
                 && typeof padWebFormatTopResolvedChordText === 'function'
                 && typeof lastDetectedCandidates !== 'undefined') {
+              var resolvedTopText = padWebFormatTopResolvedChordText(lastDetectedCandidates);
+              if (resolvedTopText) chord = resolvedTopText;
+            }
           '''
           new_push = '''  if (!pushHeldSlot
                 && typeof AppState !== 'undefined'
                 && (AppState.mode === 'input' || AppState.mode === 'chord')
-                && typeof padWebFormatTopResolvedChordText === 'function'
-                && typeof lastDetectedCandidates !== 'undefined') {
+                && typeof padWebFormatTopResolvedChordText === 'function') {
+              var resolvedCandidates = null;
+              if (AppState.mode === 'input' && typeof lastDetectedCandidates !== 'undefined') {
+                resolvedCandidates = lastDetectedCandidates;
+              } else if (AppState.mode === 'chord' && notes.length > 0 && typeof detectChord === 'function') {
+                resolvedCandidates = detectChord(notes);
+              }
+              var resolvedTopText = resolvedCandidates ? padWebFormatTopResolvedChordText(resolvedCandidates) : '';
+              if (resolvedTopText) chord = resolvedTopText;
+            }
           '''
 
           if text.count(old_writer) != 1:
