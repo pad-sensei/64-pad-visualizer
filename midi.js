@@ -446,11 +446,29 @@ function updateMidiDisplay() {
     const ustInline = (typeof padWebFormatObservedUstInlineFromPayload === 'function')
       ? padWebFormatObservedUstInlineFromPayload(observedPayload, legacyUstText) : '';
     const escapeHtml = typeof padWebEscapeHtml === 'function' ? padWebEscapeHtml : String;
-    let html = '<div style="color:var(--accent);font-weight:700;font-size:1.1rem;">' + escapeHtml(best.name) + ustInline + '</div>';
-    if (candidates.length > 1) {
+    const displayName = name => typeof padWebFormatChordDisplayName === 'function'
+      ? padWebFormatChordDisplayName(name) : String(name || '');
+    const topText = typeof padWebFormatTopResolvedChordText === 'function'
+      ? padWebFormatTopResolvedChordText(candidates)
+      : displayName(best.name);
+    const topIndexes = new Set([0]);
+    if (typeof padWebGetResolvedPresentation === 'function') {
+      const presentation = padWebGetResolvedPresentation(candidates);
+      (presentation.entries || []).forEach(entry => topIndexes.add(entry.index));
+      if (presentation.equivalent && typeof padWebGetNeutralTopEntries === 'function') {
+        padWebGetNeutralTopEntries(candidates, presentation)
+          .forEach(entry => topIndexes.add(entry.index));
+      }
+    }
+    let html = '<div style="color:var(--accent);font-weight:700;font-size:1.1rem;">' + escapeHtml(topText || displayName(best.name)) + ustInline + '</div>';
+    const secondaryCandidates = candidates
+      .map((candidate, index) => ({ candidate, index }))
+      .filter(entry => entry.index > 0 && !topIndexes.has(entry.index));
+    if (secondaryCandidates.length > 0) {
       html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">';
-      candidates.slice(1).forEach(c => {
-        html += '<span style="font-size:0.6rem;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.08);color:var(--text-muted);">' + escapeHtml(c.name) + '</span>';
+      secondaryCandidates.forEach(entry => {
+        const c = entry.candidate;
+        html += '<span style="font-size:0.6rem;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.08);color:var(--text-muted);">' + escapeHtml(displayName(c.name)) + '</span>';
       });
       html += '</div>';
     }
@@ -1476,10 +1494,16 @@ function padWebGetPushDisplaySnapshot() {
     chord = heldSlot ? heldSlot.chordName : '';
   }
   if (!pushHeldSlot
-      && typeof AppState !== 'undefined' && AppState.mode === 'input'
-      && typeof padWebFormatTopResolvedChordText === 'function'
-      && typeof lastDetectedCandidates !== 'undefined') {
-    var resolvedTopText = padWebFormatTopResolvedChordText(lastDetectedCandidates);
+      && typeof AppState !== 'undefined'
+      && (AppState.mode === 'input' || AppState.mode === 'chord')
+      && typeof padWebFormatTopResolvedChordText === 'function') {
+    var resolvedCandidates = null;
+    if (AppState.mode === 'input' && typeof lastDetectedCandidates !== 'undefined') {
+      resolvedCandidates = lastDetectedCandidates;
+    } else if (AppState.mode === 'chord' && notes.length > 0 && typeof detectChord === 'function') {
+      resolvedCandidates = detectChord(notes);
+    }
+    var resolvedTopText = resolvedCandidates ? padWebFormatTopResolvedChordText(resolvedCandidates) : '';
     if (resolvedTopText) chord = resolvedTopText;
   }
   if (!chord) {
