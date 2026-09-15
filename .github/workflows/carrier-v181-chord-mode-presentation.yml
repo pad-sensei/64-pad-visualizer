@@ -1,0 +1,156 @@
+name: Carrier v1.8.1 chord-mode presentation repair
+
+on:
+  push:
+    branches:
+      - codex/v181-altered-dominant-ust
+
+# Option A carrier contract (Human ruling 2026-09-15):
+# - The regression assertions are already fixed in commit
+#   27cecd2d7e2b107dbefbd70db31394d03158193e.
+# - This carrier edits PRODUCT CODE ONLY (midi.js).
+# - It never edits tests/assertions, never force-pushes, and has no admin override.
+# - The implementation payload below is intentionally plaintext/human-readable.
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'carrier: apply chord-mode presentation repair'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout branch tip
+        uses: actions/checkout@v4
+        with:
+          ref: codex/v181-altered-dominant-ust
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Verify Option A fixed-test boundary
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git merge-base --is-ancestor 27cecd2d7e2b107dbefbd70db31394d03158193e HEAD
+          git diff --exit-code 27cecd2d7e2b107dbefbd70db31394d03158193e HEAD -- tests/e2e/v181-chord-mode-presentation.spec.js
+          test "$(git -C pad-core rev-parse HEAD)" = 65bc1fdd69d9fa50b3150a562be5b907aa288d1a
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+
+      - name: Apply plaintext product-only repair
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('midi.js')
+          text = path.read_text()
+
+          old_writer = '''    const escapeHtml = typeof padWebEscapeHtml === 'function' ? padWebEscapeHtml : String;
+              let html = '<div style="color:var(--accent);font-weight:700;font-size:1.1rem;">' + escapeHtml(best.name) + ustInline + '</div>';
+              if (candidates.length > 1) {
+                html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">';
+                candidates.slice(1).forEach(c => {
+                  html += '<span style="font-size:0.6rem;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.08);color:var(--text-muted);">' + escapeHtml(c.name) + '</span>';
+                });
+                html += '</div>';
+              }
+          '''
+          new_writer = '''    const escapeHtml = typeof padWebEscapeHtml === 'function' ? padWebEscapeHtml : String;
+              const displayName = name => typeof padWebFormatChordDisplayName === 'function'
+                ? padWebFormatChordDisplayName(name) : String(name || '');
+              const topText = typeof padWebFormatTopResolvedChordText === 'function'
+                ? padWebFormatTopResolvedChordText(candidates)
+                : displayName(best.name);
+              const topIndexes = new Set([0]);
+              if (typeof padWebGetResolvedPresentation === 'function') {
+                const presentation = padWebGetResolvedPresentation(candidates);
+                (presentation.entries || []).forEach(entry => topIndexes.add(entry.index));
+                if (presentation.equivalent && typeof padWebGetNeutralTopEntries === 'function') {
+                  padWebGetNeutralTopEntries(candidates, presentation)
+                    .forEach(entry => topIndexes.add(entry.index));
+                }
+              }
+              let html = '<div style="color:var(--accent);font-weight:700;font-size:1.1rem;">' + escapeHtml(topText || displayName(best.name)) + ustInline + '</div>';
+              const secondaryCandidates = candidates
+                .map((candidate, index) => ({ candidate, index }))
+                .filter(entry => entry.index > 0 && !topIndexes.has(entry.index));
+              if (secondaryCandidates.length > 0) {
+                html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">';
+                secondaryCandidates.forEach(entry => {
+                  const c = entry.candidate;
+                  html += '<span style="font-size:0.6rem;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.08);color:var(--text-muted);">' + escapeHtml(displayName(c.name)) + '</span>';
+                });
+                html += '</div>';
+              }
+          '''
+          old_push = '''  if (!pushHeldSlot
+                && typeof AppState !== 'undefined' && AppState.mode === 'input'
+                && typeof padWebFormatTopResolvedChordText === 'function'
+                && typeof lastDetectedCandidates !== 'undefined') {
+          '''
+          new_push = '''  if (!pushHeldSlot
+                && typeof AppState !== 'undefined'
+                && (AppState.mode === 'input' || AppState.mode === 'chord')
+                && typeof padWebFormatTopResolvedChordText === 'function'
+                && typeof lastDetectedCandidates !== 'undefined') {
+          '''
+
+          if text.count(old_writer) != 1:
+              raise SystemExit(f'writer anchor count={text.count(old_writer)}; expected 1')
+          if text.count(old_push) != 1:
+              raise SystemExit(f'push anchor count={text.count(old_push)}; expected 1')
+
+          text = text.replace(old_writer, new_writer, 1).replace(old_push, new_push, 1)
+          path.write_text(text)
+          PY
+
+          test "$(git diff --name-only | tr -d '\r')" = "midi.js"
+          git diff --check
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit regression suite
+        run: npm test
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start no-cache test server
+        run: |
+          set -euo pipefail
+          python3 _nocache_server.py 8080 > /tmp/64pe-carrier-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8080/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/64pe-carrier-server.log
+          exit 1
+
+      - name: Run frozen presentation regressions
+        run: |
+          set -euo pipefail
+          npx playwright test \
+            tests/e2e/v181-chord-mode-presentation.spec.js \
+            tests/e2e/v181-alias-runtime.spec.js \
+            --project=chromium --reporter=line --output=/tmp/v181-carrier-playwright
+
+      - name: Commit product code only
+        run: |
+          set -euo pipefail
+          test "$(git diff --name-only | tr -d '\r')" = "midi.js"
+          git diff --check
+          git add midi.js
+          test "$(git diff --cached --name-only | tr -d '\r')" = "midi.js"
+          git config user.name "TUNER carrier"
+          git config user.email "tuner-carrier@users.noreply.github.com"
+          git commit -m "fix(v1.8.1): unify chord-mode presentation"
+          git push origin HEAD:codex/v181-altered-dominant-ust
