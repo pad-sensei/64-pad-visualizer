@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>64 Pad Dev reset</title>
+<style>
+body{font:16px/1.6 system-ui,sans-serif;max-width:720px;margin:48px auto;padding:0 20px;color:#111;background:#fff}
+#status{white-space:pre-wrap}
+.error{border:2px solid #b00020;border-radius:8px;padding:16px}
+</style>
+</head>
+<body>
+<h1>64 Pad Dev session reset</h1>
+<p id="status">dev用Service Workerを確認しています…</p>
+<script>
+(async function () {
+  var status = document.getElementById('status');
+  var devPath = '/apps/64-pad-dev/';
+
+  function urlsFor(reg) {
+    return [reg.installing, reg.waiting, reg.active]
+      .filter(Boolean)
+      .map(function(worker) { return worker.scriptURL || ''; });
+  }
+
+  function isDevRegistration(reg) {
+    try {
+      var scope = new URL(reg.scope);
+      if (scope.origin !== location.origin) return false;
+      if (scope.pathname.indexOf(devPath) !== -1) return true;
+      return urlsFor(reg).some(function(url) {
+        return new URL(url).pathname.indexOf(devPath + 'sw.js') !== -1;
+      });
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function canControlDev(reg) {
+    try {
+      var scope = new URL(reg.scope);
+      if (scope.origin !== location.origin) return false;
+      var path = scope.pathname;
+      if (!path.endsWith('/')) path += '/';
+      return devPath.indexOf(path) === 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  try {
+    if (!('serviceWorker' in navigator)) {
+      status.textContent = 'Service Worker非対応です。dev版へ移動します。';
+    } else {
+      var regs = await navigator.serviceWorker.getRegistrations();
+      var devRegs = regs.filter(isDevRegistration);
+      await Promise.all(devRegs.map(function(reg) { return reg.unregister(); }));
+
+      var remaining = await navigator.serviceWorker.getRegistrations();
+      var remainingDev = remaining.filter(isDevRegistration);
+      var ancestorControllers = remaining.filter(function(reg) {
+        return !isDevRegistration(reg) && canControlDev(reg);
+      });
+
+      if (remainingDev.length) {
+        throw new Error('dev用Service Workerの解除に失敗しました。');
+      }
+      if (ancestorControllers.length) {
+        document.body.classList.add('error');
+        status.textContent = 'devより上位scopeのService Workerが残っています。安全のため自動解除せずHuman Gateを停止します。\n' +
+          ancestorControllers.map(function(reg) { return 'scope: ' + reg.scope; }).join('\n');
+        return;
+      }
+
+      status.textContent = 'dev用Service Workerを解除しました。最新dev版へ移動します…';
+    }
+
+    var target = new URL('/apps/64-pad-dev/', location.origin);
+    target.searchParams.set('dev_reset', String(Date.now()));
+    target.searchParams.set('utm_source', 'chatgpt');
+    location.replace(target.href);
+  } catch (err) {
+    document.body.classList.add('error');
+    status.textContent = 'resetに失敗しました。Human Gateを停止します。\n' + String(err && err.message ? err.message : err);
+  }
+})();
+</script>
+</body>
+</html>
