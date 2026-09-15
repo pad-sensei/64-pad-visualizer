@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>64 Pad Dev runtime diagnostic</title>
+<style>
+body{font:15px/1.55 system-ui,sans-serif;max-width:820px;margin:32px auto;padding:0 18px;color:#111;background:#fff}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f4f4;padding:14px;border-radius:8px}
+.ok{border-left:5px solid #16803b}.bad{border-left:5px solid #b00020}.wait{border-left:5px solid #777}
+iframe{width:1px;height:1px;border:0;position:absolute;left:-9999px}
+</style>
+</head>
+<body>
+<h1>64 Pad Dev runtime diagnostic</h1>
+<p>このページは診断結果を外部送信しません。dev版を同一originの隠しiframeで開き、実行中のService Workerと表示コードを確認します。</p>
+<pre id="out" class="wait">診断中…</pre>
+<iframe id="probe" title="64 Pad Dev probe"></iframe>
+<script>
+(async function(){
+  var out=document.getElementById('out');
+  var frame=document.getElementById('probe');
+  var devPath='/apps/64-pad-dev/';
+  function workerUrls(reg){return [reg.installing,reg.waiting,reg.active].filter(Boolean).map(function(w){return w.scriptURL||'';});}
+  function isDevRegistration(reg){
+    try{
+      var scope=new URL(reg.scope);
+      if(scope.origin!==location.origin)return false;
+      if(scope.pathname.indexOf(devPath)!==-1)return true;
+      return workerUrls(reg).some(function(url){return new URL(url).pathname.indexOf(devPath+'sw.js')!==-1;});
+    }catch(_){return false;}
+  }
+  function canControlDev(reg){
+    try{
+      var scope=new URL(reg.scope);
+      if(scope.origin!==location.origin)return false;
+      var p=scope.pathname;if(!p.endsWith('/'))p+='/';
+      return devPath.indexOf(p)===0;
+    }catch(_){return false;}
+  }
+  function show(obj,ok){out.className=ok?'ok':'bad';out.textContent=JSON.stringify(obj,null,2);}
+  try{
+    var parentRegs='serviceWorker' in navigator?await navigator.serviceWorker.getRegistrations():[];
+    var parentInfo={
+      parentController:navigator.serviceWorker&&navigator.serviceWorker.controller?navigator.serviceWorker.controller.scriptURL:null,
+      registrations:parentRegs.map(function(r){return{scope:r.scope,active:r.active&&r.active.scriptURL||null,dev:isDevRegistration(r),canControlDev:canControlDev(r)};})
+    };
+    var devRegs=parentRegs.filter(isDevRegistration);
+    await Promise.all(devRegs.map(function(r){return r.unregister();}));
+    var remaining='serviceWorker' in navigator?await navigator.serviceWorker.getRegistrations():[];
+    var ancestors=remaining.filter(function(r){return !isDevRegistration(r)&&canControlDev(r);});
+    if(ancestors.length){
+      show({stage:'ancestor-controller-block',parent:parentInfo,remainingAncestors:ancestors.map(function(r){return{scope:r.scope,active:r.active&&r.active.scriptURL||null};})},false);
+      return;
+    }
+
+    var target=new URL(devPath,location.origin);
+    target.searchParams.set('runtime_diag',String(Date.now()));
+    frame.src=target.href;
+
+    var deadline=Date.now()+15000;
+    var w;
+    while(Date.now()<deadline){
+      await new Promise(function(resolve){setTimeout(resolve,300);});
+      try{
+        w=frame.contentWindow;
+        if(w&&w.location&&w.location.pathname===devPath&&typeof w.detectChord==='function'&&typeof w.onMidiNoteOn==='function')break;
+      }catch(_){}
+    }
+    if(!w||typeof w.detectChord!=='function')throw new Error('dev runtime did not become ready within 15s');
+
+    var runtime=await w.eval(`(async function(){
+      var before={
+        href:location.href,
+        controller:navigator.serviceWorker&&navigator.serviceWorker.controller?navigator.serviceWorker.controller.scriptURL:null,
+        registrations:navigator.serviceWorker?(await navigator.serviceWorker.getRegistrations()).map(function(r){return{scope:r.scope,active:r.active&&r.active.scriptURL||null};}):[],
+        formatterType:typeof window.padWebFormatChordDisplayName,
+        formatterSample:typeof window.padWebFormatChordDisplayName==='function'?window.padWebFormatChordDisplayName('Em7(b5)(11)(omit3)'):null,
+        wrapped:typeof window.updatePlainDisplay==='function'&&window.updatePlainDisplay.__padAliasEquationWrapped===true,
+        helperEntries:performance.getEntriesByType('resource').map(function(e){return e.name;}).filter(function(x){return x.indexOf('chord-resolution-ui.js')!==-1;}),
+        devEscapeFailed:!!window.__DEV_SW_ESCAPE_FAILED
+      };
+      AppState.mode='input';
+      PlainState.activeNotes.clear();
+      PlainState.subMode='idle';
+      if(typeof clearInstrumentInput==='function')clearInstrumentInput();
+      if(typeof releaseAllMidiHeldSources==='function')releaseAllMidiHeldSources(true);
+      if(typeof window.applyVelocityCurve!=='function')window.applyVelocityCurve=function(v){return v;};
+      [63,67,70,72].forEach(function(note){onMidiNoteOn(note,100);});
+      var candidates=detectChord([63,67,70,72]);
+      var root=document.getElementById('midi-detect');
+      var top=root&&root.querySelector('.detect-top-group');
+      return {before:before,after:{
+        topText:top?top.textContent.replace(/\\s+/g,' ').trim():'',
+        topIndexes:top?Array.from(top.querySelectorAll('[data-candidate-idx]')).map(function(el){return Number(el.dataset.candidateIdx);}):[],
+        rootText:root?root.textContent.replace(/\\s+/g,' ').trim():'',
+        aliasIndex:candidates.findIndex(function(c){return c.name==='Cm7 / Eb';}),
+        firstCandidates:candidates.slice(0,5).map(function(c){return{name:c.name,score:c.resolutionScore,top:c.isTopRanked,completeness:c.resolutionCompleteness};})
+      }};
+    })()`);
+    var ok=runtime.before.controller===null&&runtime.before.wrapped===true&&runtime.before.formatterSample==='Em7(b5,11)omit3'&&runtime.after.topText.indexOf('Eb6')!==-1&&runtime.after.topText.indexOf('Cm7 / Eb')!==-1&&runtime.after.topText.indexOf('=')!==-1;
+    show({stage:ok?'runtime-ok':'runtime-mismatch',parent:parentInfo,runtime:runtime},ok);
+  }catch(err){show({stage:'diagnostic-error',message:String(err&&err.stack||err)},false);}
+})();
+</script>
+</body>
+</html>
