@@ -6,7 +6,7 @@ import { fitPushPixelText } from '../../push-display-text-fit.js';
 
 // Complete display consumer, with DOM/canvas/USB boundary fakes. This asserts
 // invalidation and idle work, not real browser timing or physical display pixels.
-function fixture({ desktop = false, supported = true, secure = true } = {}) {
+function fixture({ desktop = false, supported = true, secure = true, initialSnapshot } = {}) {
   const elements = new Map();
   const observers = [];
   const frames = [];
@@ -16,7 +16,7 @@ function fixture({ desktop = false, supported = true, secure = true } = {}) {
   let readCount = 0;
   let encodeCount = 0;
   let display;
-  let snapshot = { mode: 'scale', key: 'C', scale: 'Major (Ionian)', notes: [] };
+  let snapshot = initialSnapshot || { mode: 'scale', key: 'C', scale: 'Major (Ionian)', notes: [] };
   const context2d = {
     fillStyle: '', textBaseline: '', font: '',
     fillRect(...args) { paint.push([this.fillStyle, ...args]); },
@@ -87,12 +87,77 @@ function fixture({ desktop = false, supported = true, secure = true } = {}) {
     modeClick: () => listeners.get('mode-scale:click')?.(),
     setState: state => display.status(state, state),
     metrics: () => ({ reads: readCount, encodes: encodeCount, frames: frames.length }),
+    lastPaint: () => JSON.parse(frames.at(-1)),
     connectCount: () => connectCount,
     hasButton: () => elements.has('push-webusb-display-btn'),
   };
 }
 
 describe('Push display follows rendered musical state only while active', () => {
+  it('reserves the complete long alias headline area before drawing UST detail', async () => {
+    const f = fixture({ initialSnapshot: {
+      mode: 'chord',
+      chord: 'Cm7(9) = EbMaj7(13) / C',
+      notes: [],
+      ust: 'Gm (V) / Cm7',
+      shell: 'R m3 b7',
+      tensions: '9',
+      key: 'C',
+      scale: 'Major Scale',
+    } });
+    await f.click();
+    const paint = f.lastPaint();
+    const headline = paint.filter(([color, x, y]) => color === '#ffdb5c' && x >= 32 && x < 730 && y >= 42 && y < 70);
+    const ust = paint.filter(([color, x, y]) => color === '#ffdb5c' && x >= 430 && y >= 70 && y < 100);
+    const headlineRight = Math.max(...headline.map(([, x, , width]) => x + width));
+    const ustLeft = Math.min(...ust.map(([, x]) => x));
+    assert.ok(headline.length > 0);
+    assert.ok(ust.length > 0);
+    assert.ok(ustLeft > headlineRight + 8, `UST begins at ${ustLeft}; headline ends at ${headlineRight}`);
+  });
+
+  it('keeps long UST labels complete and inside the reserved right column', async () => {
+    const detailX = 744;
+    const detailWidth = 960 - detailX - 12;
+    const cases = [
+      {
+        ust: 'Bm (bII) [b9,3,b13] / Bb7',
+        first: 'UST Bm (bII) [b9,3,b13]',
+        second: '/ Bb7',
+      },
+      {
+        ust: 'Daug (III) [3,b13,1] / Bb7',
+        first: 'UST Daug (III) [3,b13,1]',
+        second: '/ Bb7',
+      },
+    ];
+    for (const item of cases) {
+      const f = fixture({ initialSnapshot: {
+        mode: 'chord', chord: 'Cm7(9) = EbMaj7(13) / C', notes: [],
+        ust: item.ust, shell: '', tensions: '', key: 'C', scale: 'Major Scale',
+      } });
+      await f.click();
+      const expectedFirst = fitPushPixelText(item.first, 2, detailWidth);
+      const expectedSecond = fitPushPixelText(item.second, 2, detailWidth);
+      assert.equal(expectedFirst.text, item.first);
+      assert.equal(expectedSecond.text, item.second);
+      const paint = f.lastPaint();
+      const rightEdge = (yMin, yMax, label, expected) => {
+        const pixels = paint.filter(([color, x, y]) => (
+          color === '#ffdb5c' && x >= detailX && y >= yMin && y < yMax
+        ));
+        assert.ok(pixels.length > 0, `${label} produced no UST pixels`);
+        const right = Math.max(...pixels.map(([, x, , width]) => x + width));
+        // Glyphs such as ] intentionally leave trailing empty columns; a
+        // missing character would move the painted edge back by 6-cell units.
+        assert.ok(right >= detailX + expected.width - 3 * expected.scale, `${label} was truncated at ${right}`);
+        assert.ok(right <= detailX + detailWidth, `${label} overflowed at ${right}`);
+      };
+      rightEdge(70, 79, `${item.ust} first line`, expectedFirst);
+      rightEdge(81, 104, `${item.ust} second line`, expectedSecond);
+    }
+  });
+
   it('refreshes key-only changes while running without a detect mutation or mode click', async () => {
     const f = fixture();
     await f.click();

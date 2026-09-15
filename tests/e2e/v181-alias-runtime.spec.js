@@ -53,6 +53,90 @@ test.describe('v1.8.1 live alias equation', () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test('renders accepted aliases through every non-Input MIDI display path', async ({ page }) => {
+    const pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+
+    await page.goto('./?silent=1&e2e=v181-non-input-alias');
+    await page.waitForLoadState('domcontentloaded');
+
+    const result = await page.evaluate(async () => {
+      const reset = () => {
+        if (typeof releaseAllMidiHeldSources === 'function') releaseAllMidiHeldSources(true);
+        midiActiveNotes.clear();
+        PlainState.activeNotes.clear();
+        PlainState.subMode = 'idle';
+        padExtNotes.clear();
+        BuilderState.root = null;
+        BuilderState.quality = null;
+        linkMode = false;
+        lastDetectedNotes = [];
+        lastDetectedCandidates = [];
+        if (typeof padWebSetLatestObservedShellUstPayload === 'function') {
+          padWebSetLatestObservedShellUstPayload(null);
+        }
+      };
+      const waitForMidiRender = () => new Promise(resolve => setTimeout(resolve, 70));
+      const modes = ['chord', 'scale', 'link'];
+      const outputs = {};
+
+      for (const mode of modes) {
+        reset();
+        AppState.mode = mode === 'link' ? 'chord' : mode;
+        linkMode = mode === 'link';
+        [63, 67, 70, 72].forEach(note => onMidiNoteOn(note, 100));
+        await waitForMidiRender();
+        const payload = padWebGetLatestObservedShellUstPayload();
+        outputs[mode] = {
+          text: document.getElementById('midi-detect').textContent.replace(/\s+/g, ' ').trim(),
+          pushChord: padWebGetPushDisplaySnapshot().chord,
+          payloadName: payload && payload.chord && payload.chord.name,
+          activeNotes: Array.from(midiActiveNotes).sort((a, b) => a - b),
+        };
+      }
+
+      return outputs;
+    });
+
+    for (const mode of ['chord', 'scale', 'link']) {
+      expect(result[mode].text).toContain('Eb6 = Cm7 / Eb');
+      expect(result[mode].pushChord).toContain('Eb6 = Cm7 / Eb');
+      expect(result[mode].payloadName).toBe('Eb6');
+      expect(result[mode].activeNotes).toEqual([63, 67, 70, 72]);
+    }
+    expect(pageErrors).toEqual([]);
+  });
+
+  test('normalizes readability labels in the non-Input MIDI writer', async ({ page }) => {
+    const pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+
+    await page.goto('./?silent=1&e2e=v181-non-input-readable');
+    await page.waitForLoadState('domcontentloaded');
+
+    const result = await page.evaluate(() => {
+      AppState.mode = 'chord';
+      linkMode = false;
+      BuilderState.root = null;
+      BuilderState.quality = null;
+      midiActiveNotes.clear();
+      [52, 55, 58, 62, 69].forEach(note => midiActiveNotes.add(note));
+      updateMidiDisplay();
+      return {
+        text: document.getElementById('midi-detect').textContent.replace(/\s+/g, ' ').trim(),
+        pushChord: padWebGetPushDisplaySnapshot().chord,
+        rawLabel: detectChord([52, 55, 58, 62, 69])[0].name,
+      };
+    });
+
+    expect(result.rawLabel).toBe('Em7(b5)(11)');
+    expect(result.text).toContain('Em7(b5,11)');
+    expect(result.text).not.toContain('Em7(b5)(11)');
+    expect(result.pushChord).toContain('Em7(b5,11)');
+    expect(result.pushChord).not.toContain('Em7(b5)(11)');
+    expect(pageErrors).toEqual([]);
+  });
+
   test('normalizes a stacked modifier label in the live Web presentation', async ({ page }) => {
     await page.goto('./?silent=1&e2e=v181-readable-label');
     await page.waitForLoadState('domcontentloaded');

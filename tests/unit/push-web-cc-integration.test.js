@@ -14,7 +14,7 @@ describe('Web Push control integration contract', () => {
     expect(html.indexOf('push-midi-port-contract.js?v=1.8.0-liveport3')).toBeGreaterThan(0);
     expect(html.indexOf('push-midi-cc-map.js?v=1.8.0')).toBeGreaterThan(html.indexOf('push-midi-port-contract.js?v=1.8.0-liveport3'));
     expect(html.indexOf('push-web-control.js?v=1.8.0-active-color')).toBeGreaterThan(html.indexOf('push-midi-cc-map.js?v=1.8.0'));
-    expect(html.indexOf('midi.js?v=1.8.1-altered-ust1')).toBeGreaterThan(html.indexOf('push-web-control.js?v=1.8.0-active-color'));
+    expect(html.indexOf('midi.js?v=1.8.1-midi-alias-equation1')).toBeGreaterThan(html.indexOf('push-web-control.js?v=1.8.0-active-color'));
     expect(sw).toContain("'push-midi-port-contract.js?v=1.8.0-liveport3'");
     expect(sw).toContain("'push-midi-cc-map.js?v=1.8.0'");
     expect(sw).toContain("'push-web-control.js?v=1.8.0-active-color'");

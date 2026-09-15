@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const observed = require('../../pad-core/observed-structure.js');
+const ui = require('../../chord-resolution-ui.js');
 Object.assign(globalThis, observed);
 const {
   padWebNormalizeObservedSources,
@@ -168,6 +169,25 @@ describe('Web observed Shell/UST consumer', () => {
     } finally {
       if (previousT === undefined) delete globalThis.t;
       else globalThis.t = previousT;
+    }
+  });
+  it('uses contextual flat spelling in the code summary without mutating the payload', () => {
+    const previous = globalThis.padWebFormatChordDisplayName;
+    globalThis.padWebFormatChordDisplayName = ui.padWebFormatChordDisplayName;
+    const cases = [
+      ['Gbm7(b5)', 'Gbm7(b5)'],
+      ['DbMaj7 / G#', 'DbMaj7 / Ab'],
+      ['Cm7(b5) / Bb', 'Cm7(b5) / Bb'],
+    ];
+    try {
+      for (const [rawName, displayName = rawName] of cases) {
+        const payload = { available: true, chord: { name: rawName }, shell: null, ust: null };
+        expect(padWebFormatObservedStructureHtml(payload)).toContain(`Chord: ${displayName}`);
+        expect(payload.chord.name).toBe(rawName);
+      }
+    } finally {
+      if (previous === undefined) delete globalThis.padWebFormatChordDisplayName;
+      else globalThis.padWebFormatChordDisplayName = previous;
     }
   });
   it('builds a versioned JSON-safe payload for the physical Cm7 Q4 fixture', () => {

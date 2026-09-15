@@ -117,13 +117,32 @@ if (enabled) {
       }
     }
 
+    function drawFittedPixelText(raw, x, y, maxScale, color, maxWidth) {
+      const fitted = fitPushPixelText(raw, maxScale, maxWidth);
+      const lineHeight = 9 * fitted.scale;
+      fitted.lines.forEach((line, index) => {
+        drawPixelText(line, x, y + index * lineHeight, fitted.scale, color, line.length);
+      });
+      return fitted;
+    }
+
     function drawUtf8Text(text, x, y, color, maxWidth = 420) {
       if (!text) return;
       context.fillStyle = color;
       context.font = '15px "M PLUS 1 Code", ui-monospace, monospace';
-      let value = String(text);
-      while (value && context.measureText(value).width > maxWidth) value = value.slice(0, -1);
-      context.fillText(value, x, y);
+      const lines = [];
+      let line = '';
+      for (const char of String(text)) {
+        const next = line + char;
+        if (line && context.measureText(next).width > maxWidth) {
+          lines.push(line);
+          line = char;
+        } else {
+          line = next;
+        }
+      }
+      if (line || lines.length === 0) lines.push(line);
+      lines.forEach((value, index) => context.fillText(value, x, y + index * 16));
     }
 
     function drawControlRow(labels, y, states) {
@@ -200,14 +219,26 @@ if (enabled) {
         }
         if (snap.notes?.length) drawPixelText(`NOTE: ${snap.notes.join(' ')}`, 36, 82, 1, '#ccdae0', 34);
 
-        const detailX = 430;
+        // Reserve the right column for UST/Shell/Tension detail. The headline
+        // keeps its full fit width on the left; detail must never paint through
+        // that semantic equation, even when the headline is still scale 4.
+        const detailX = 744;
+        const detailWidth = WIDTH - detailX - 12;
+        let detailY = 70;
         if (snap.ust) {
           const parts = String(snap.ust).split(' / ');
-          drawPixelText(`UST ${parts[0]}`, detailX, 70, 2, '#ffdb5c', 34);
-          if (parts.length > 1) drawPixelText(`/ ${parts.slice(1).join(' / ')}`, detailX, 88, 1, '#ffdb5c', 64);
+          const first = drawFittedPixelText(`UST ${parts[0]}`, detailX, detailY, 2, '#ffdb5c', detailWidth);
+          detailY += first.lines.length * 9 * first.scale + 2;
+          if (parts.length > 1) {
+            const second = drawFittedPixelText(`/ ${parts.slice(1).join(' / ')}`, detailX, detailY, 2, '#ffdb5c', detailWidth);
+            detailY += second.lines.length * 9 * second.scale + 2;
+          }
         }
-        if (snap.shell) drawUtf8Text(`Shell: ${snap.shell}`, detailX, 104, '#ccdae0');
-        if (snap.tensions) drawUtf8Text(`Tension ${snap.tensions}`, detailX, 122, '#ffb848');
+        if (snap.shell) {
+          drawUtf8Text(`Shell: ${snap.shell}`, detailX, Math.max(104, detailY), '#ccdae0', detailWidth);
+          detailY = Math.max(104, detailY) + 16;
+        }
+        if (snap.tensions) drawUtf8Text(`Tension ${snap.tensions}`, detailX, Math.max(122, detailY), '#ffb848', detailWidth);
       }
 
       const modeLabel = snap.mode === 'scale' ? 'Scale' : snap.mode === 'chord' ? 'Chord' : snap.mode === 'input' ? 'Input' : snap.mode || '';

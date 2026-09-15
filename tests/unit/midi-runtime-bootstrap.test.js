@@ -23,7 +23,7 @@ describe('browser MIDI ownership bootstrap', () => {
     const swPath = path.resolve(here, '../../sw.js');
     const sw = fs.readFileSync(swPath, 'utf8');
     const observedCore = sw.indexOf('pad-core/observed-structure.js?v=6.7.52');
-    const consumer = sw.indexOf('observed-ust-consumer.js?v=6.7.52');
+    const consumer = sw.indexOf('observed-ust-consumer.js?v=6.7.53');
     const helper = sw.search(/midi-input-state\.js\?v=[\d.]+/);
     const midi = sw.search(/midi\.js\?v=[\d.]+/);
 
@@ -57,7 +57,7 @@ describe('browser MIDI ownership bootstrap', () => {
 
     for (const asset of [
       'pad-core/observed-structure.js?v=6.7.52',
-      'observed-ust-consumer.js?v=6.7.52',
+      'observed-ust-consumer.js?v=6.7.53',
     ]) {
       expect(helper).toContain(asset);
       expect(sw).toContain(`'${asset}'`);

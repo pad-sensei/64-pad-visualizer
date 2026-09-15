@@ -71,6 +71,41 @@ describe('v1.8.1 chord-resolution consumer', () => {
     }
   });
 
+  it('keeps slash bass spelling consistent with the primary flat context only', () => {
+    const cases = [
+      {
+        notes: [54, 57, 60, 64],
+        rawPrimary: 'Gbm7(b5)',
+        rawAlias: 'Am6 / F#',
+        displayAlias: 'Am6 / Gb',
+      },
+      {
+        notes: [56, 60, 61, 65],
+        rawPrimary: 'DbMaj7 / G#',
+        rawAlias: 'DbMaj / G#',
+        displayAlias: 'DbMaj / Ab',
+      },
+      {
+        notes: [58, 60, 63, 66],
+        rawPrimary: 'Cm7(b5) / Bb',
+        rawAlias: 'Ebm6 / A#',
+        displayAlias: 'Ebm6 / Bb',
+      },
+    ];
+
+    for (const item of cases) {
+      const results = detectChord(item.notes);
+      expect(results[0].name).toBe(item.rawPrimary);
+      expect(results.map(candidate => candidate.name)).toContain(item.rawAlias);
+      expect(ui.padWebFormatChordDisplayName(item.rawAlias, results[0].name)).toBe(item.displayAlias);
+      expect(results[0].name).toBe(item.rawPrimary);
+    }
+
+    expect(ui.padWebFormatChordDisplayName('C7 / F#', 'C7 / F#')).toBe('C7 / F#');
+    expect(ui.padWebFormatChordDisplayName('Cm7(b5) / Bb', 'Cm7(b5) / Bb')).toBe('Cm7(b5) / Bb');
+    expect(ui.padWebFormatChordDisplayName('Gbm7(b5)', 'Gbm7(b5)')).toBe('Gbm7(b5)');
+  });
+
   it('preserves non-alias rank-1 ties in the Push headline when an alias equation exists', () => {
     const results = detectChord([54, 67, 70, 72, 75]);
     const presentation = ui.padWebGetResolvedPresentation(results);
@@ -172,9 +207,9 @@ describe('v1.8.1 chord-resolution consumer', () => {
     const sw = readFileSync(root + 'sw.js', 'utf8');
     for (const asset of [
       'pad-core/chord-resolver.js?v=1.8.1-resolution2',
-      'chord-resolution-ui.js?v=1.8.1-alias-equation8',
+      'chord-resolution-ui.js?v=1.8.1-alias-equation9',
       'plain.js?v=1.8.1-resolution2',
-      'midi.js?v=1.8.1-altered-ust1',
+      'midi.js?v=1.8.1-midi-alias-equation1',
     ]) {
       expect(index).toContain(asset);
       expect(sw).toContain(asset);
