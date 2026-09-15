@@ -19,6 +19,38 @@ window.IS_DESKTOP_MODE = _qs.get('desktop') === '1';
 window.AUDIO_ENABLED = !_qs.has('silent');
 if (!window.AUDIO_ENABLED) document.documentElement.classList.add('silent');
 if (window.IS_DESKTOP_MODE) document.documentElement.classList.add('desktop-mode');
+
+// Dev Human Gate must never execute app assets under an already-controlling stale SW.
+// Unregister + force a fresh navigation BEFORE relying on versioned presentation assets.
+window.__IS_64PAD_DEV_DEPLOY = location.pathname.indexOf('/64-pad-dev/') !== -1;
+window.__padIsDevServiceWorkerRegistration = function(reg) {
+  try {
+    var scopePath = new URL(reg.scope).pathname;
+    var activePath = reg.active ? new URL(reg.active.scriptURL).pathname : '';
+    return scopePath.indexOf('/apps/64-pad-dev/') !== -1 || activePath.indexOf('/apps/64-pad-dev/sw.js') !== -1;
+  } catch (_) {
+    return false;
+  }
+};
+if (window.__IS_64PAD_DEV_DEPLOY && 'serviceWorker' in navigator) {
+  var _devSwResetCount = parseInt(_qs.get('_swreset') || '0', 10) || 0;
+  if (navigator.serviceWorker.controller && _devSwResetCount < 2) {
+    document.documentElement.style.visibility = 'hidden';
+    var _devSwReloadUrl = new URL(location.href);
+    _devSwReloadUrl.searchParams.set('_swreset', String(_devSwResetCount + 1));
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+      return Promise.all(regs.filter(window.__padIsDevServiceWorkerRegistration).map(function(reg) {
+        return reg.unregister();
+      }));
+    }).catch(function() {}).then(function() {
+      location.replace(_devSwReloadUrl.href);
+    });
+  } else if (!navigator.serviceWorker.controller && _qs.has('_swreset')) {
+    var _cleanDevUrl = new URL(location.href);
+    _cleanDevUrl.searchParams.delete('_swreset');
+    history.replaceState(null, '', _cleanDevUrl.pathname + _cleanDevUrl.search + _cleanDevUrl.hash);
+  }
+}
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>64 Pad Explorer - パッドでスケール・コード・ボイシングを可視化【無料】</title>
@@ -963,17 +995,14 @@ if (window.IS_DESKTOP_MODE) {
 </script>
 <script>
 if ('serviceWorker' in navigator) {
-  var _is64PadDevDeploy = location.pathname.indexOf('/64-pad-dev/') !== -1;
+  var _is64PadDevDeploy = !!window.__IS_64PAD_DEV_DEPLOY;
   if (_is64PadDevDeploy) {
-    // Real-hardware dev gates must never be interrupted by a newly deployed SW.
-    // Remove the dev registration and escape an already controlling worker once.
+    // The controlled-client escape happens in <head>. Here we only remove any
+    // inactive/waiting dev registration that survived without ever controlling this page.
     navigator.serviceWorker.getRegistrations().then(function(regs) {
-      return Promise.all(regs.map(function(r) { return r.unregister(); }));
-    }).then(function() {
-      if (navigator.serviceWorker.controller && !sessionStorage.getItem('64pad-dev-sw-cleared')) {
-        sessionStorage.setItem('64pad-dev-sw-cleared', '1');
-        location.reload();
-      }
+      return Promise.all(regs.filter(window.__padIsDevServiceWorkerRegistration).map(function(r) {
+        return r.unregister();
+      }));
     });
   } else {
     // Clean up old ?v= registrations (they create zombie SWs)
