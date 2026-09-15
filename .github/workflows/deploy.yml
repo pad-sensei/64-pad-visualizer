@@ -47,6 +47,9 @@ jobs:
           remote_key: ${{ secrets.XSERVER_SSH_KEY }}
 
   trigger-desktop:
+    # Web/Push v1.8.1 ships before Desktop. Keep this job explicit for the
+    # later Desktop release, but never dispatch it from a Web main push.
+    if: ${{ false }}
     needs: deploy
     runs-on: ubuntu-latest
     steps:

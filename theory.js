@@ -1108,6 +1108,7 @@ function detectedUstQuartalAvailable(notes, rootPC, offset) {
 var DETECTED_UST_QUALITIES = {
   major: { suffix: '\u25B3', intervals: [0, 4, 7] },
   m: { suffix: 'm', intervals: [0, 3, 7] },
+  aug: { suffix: 'aug', intervals: [0, 4, 8] },
   q: { suffix: 'Q', intervals: [0, 5, 10], quartal: true }
 };
 
@@ -1124,6 +1125,7 @@ var DETECTED_UST_RULES = {
     { offset: 2, quality: 'major' },  // II: 9, #11, 13
     { offset: 3, quality: 'm' },      // bIIIm: #9, #11, b7
     { offset: 3, quality: 'major' },  // bIII: #9, 5, b7
+    { offset: 4, quality: 'aug' },    // IIIaug: 3, b13, R
     { offset: 6, quality: 'm' },      // bVm: #11, 13, b9
     { offset: 6, quality: 'major' },  // bV: #11, b7, b9
     { offset: 8, quality: 'major' },  // bVI: b13, R, #9

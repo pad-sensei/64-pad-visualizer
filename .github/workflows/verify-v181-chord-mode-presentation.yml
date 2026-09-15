@@ -1,0 +1,70 @@
+name: Verify v1.8.1 chord-mode presentation regression
+
+on:
+  push:
+    branches:
+      - codex/v181-altered-dominant-ust
+  workflow_dispatch:
+
+# Read-only evidence for the tests-first Option A gate.
+# This workflow MUST NOT modify, commit, push, deploy, or rewrite assertions.
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact event SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: recursive
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify checkout identity
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C pad-core rev-parse HEAD)" = 65bc1fdd69d9fa50b3150a562be5b907aa288d1a
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+          git diff --check HEAD^ HEAD
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start no-cache test server
+        run: |
+          set -euo pipefail
+          python3 _nocache_server.py 8080 > /tmp/64pe-nocache.log 2>&1 &
+          echo $! > /tmp/64pe-nocache.pid
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8080/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/64pe-nocache.log
+          exit 1
+
+      - name: Run fixed chord-mode regression
+        run: npx playwright test tests/e2e/v181-chord-mode-presentation.spec.js --project=chromium --reporter=line --output=/tmp/v181-playwright-results
+
+      - name: Verify tested tree stayed read-only
+        if: always()
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code
+          git diff --cached --exit-code

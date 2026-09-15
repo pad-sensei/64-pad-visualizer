@@ -159,7 +159,7 @@ describe('detectChord', () => {
     it('detects add chords beyond add9 on major triads', () => {
       expect(detectChord([60, 64, 67, 77])[0].name).toBe('Cadd11');
       expect(detectChord([60, 64, 67, 78])[0].name).toBe('Cadd#11');
-      expect(detectChord([60, 64, 67, 68])[0].name).toBe('Caddb13');
+      expect(detectChord([60, 64, 67, 68])[0].name).toBe('C(b6)');
     });
 
     it('detects add chords beyond add9 on minor triads', () => {
@@ -220,7 +220,18 @@ describe('detectChord', () => {
       const results = detectChord([59, 67, 69, 74]);
       expect(results.length).toBeGreaterThan(0);
       expect(results[0].name).toBe('Gadd9 / B');
-      expect(results.some(r => r.name === 'Bm7(b13)')).toBe(false);
+      const altered = results.find(r => r.name === 'Bm7(b13)');
+      expect(altered).toBeDefined();
+      expect(altered.score).toBeLessThan(results[0].score);
+    });
+
+    it('prefers BbMaj7 / D over the D-minor b6 color', () => {
+      const results = detectChord([62, 65, 69, 70]);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].name).toBe('BbMaj7 / D');
+      const lower = results.find(r => r.name === 'Dm(b6)');
+      expect(lower).toBeDefined();
+      expect(lower.score).toBeLessThan(results[0].score);
     });
 
     it('recognizes jazz half-diminished omit3 voicings', () => {

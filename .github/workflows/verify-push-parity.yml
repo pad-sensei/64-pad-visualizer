@@ -1,0 +1,86 @@
+name: Verify Push parity (exact head)
+
+on:
+  push:
+    branches:
+      - codex/web-v180-push-human-gate-followup
+  workflow_dispatch:
+
+# Verification only. No source generation, commits, pushes or deployment.
+# The run head, checkout head and tested head must be the same immutable SHA.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    # Use the existing Web test environment, not DOJO's repo-scoped Mac runner.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout event SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: recursive
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify checkout identity
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C audio-core rev-parse HEAD)" = dd1ef52e7681eb459bb35c729226063c5638c506
+          git diff --check HEAD^ HEAD
+          printf 'Tested head: `%s`\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax and behavioral regression suites
+        run: |
+          set -euo pipefail
+          for f in push-web-control midi builder instruments plain; do node --check "$f.js"; done
+          node tests/push-standalone-parity.cjs
+          node audio-core/tests/worklet-sustain-bootstrap-smoke.cjs
+          npm test
+
+      - name: PWA URL coverage and Pedal/CV boundaries
+        run: |
+          set -euo pipefail
+          ./tools/sw-assets-check.sh
+          node <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const index = fs.readFileSync('index.html', 'utf8');
+          const sw = fs.readFileSync('sw.js', 'utf8');
+          const urls = [...new Set([...index.matchAll(/(?:src|href)=["']([^"']+\.(?:js|css)(?:\?[^"']*)?)["']/g)]
+            .map(match => match[1]).filter(url => !/^(?:[a-z]+:)?\/\//i.test(url)))];
+          assert(urls.length > 0, 'No local static JS/CSS URLs were checked');
+          const missing = urls.filter(url => !sw.includes("'" + url + "'") && !sw.includes('"' + url + '"'));
+          // Existing debt on main, disclosed by PR #22 audit; do not hide it in a
+          // versioned-only count. Any other missing asset fails this check.
+          assert.deepEqual(missing.filter(url => url !== 'error-logger.js'), []);
+          const summary = `PWA local static JS/CSS: ${urls.length}; precached: ${urls.length - missing.length}; known unversioned missing: ${JSON.stringify(missing)}`;
+          console.log(summary);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + '\n');
+          const source = ['midi.js', 'push-web-control.js', 'push-midi-cc-map.js', 'push-midi-port-contract.js']
+            .map(file => fs.readFileSync(file, 'utf8')).join('\n');
+          for (const forbidden of ['initializePush3PedalMode', '0x37, 0x26, 0x50', '0x37,0x26,0x50']) {
+            assert(!source.includes(forbidden), `Forbidden automatic Pedal/CV configuration: ${forbidden}`);
+          }
+          console.log('Pedal/CV negative guard: PASS');
+          NODE
+
+      - name: Verify tested tree was not changed
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code
+          git diff --cached --exit-code
+          printf 'Read-only verification completed at `%s`; no commit, push or deploy.\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

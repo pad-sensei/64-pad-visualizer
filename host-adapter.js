@@ -85,9 +85,7 @@ if (typeof window.audioCoreConfig === 'undefined') {
   // entry shape: { value, label, engineKey, presetKey, useCabinet }
   cfg.presetDropdown = mergeDefaults(cfg.presetDropdown, {
     filter: function(entry) {
-      // 64PE host: HPS gate for amp/cabinet presets
-      var hpsUnlocked = new URLSearchParams(window.location.search).has('hps');
-      if (entry.useCabinet && !hpsUnlocked) return false;
+      // v1.8.0: preset availability is a standard 64 Pad Explorer feature.
       return true;
     },
     render: function(entries) {
@@ -228,19 +226,17 @@ if (typeof window.audioCoreConfig === 'undefined') {
       // 設計。E.PIANO MIXER section (個別 slider) は ?hps gate で dev のみ表示。
       // 通常起動 (?hps 無し) では preset 切替で snapshot 自動適用が音色を決め、
       // ユーザーは何も触らない。
-      var hpsUnlocked = false;
-      try { hpsUnlocked = new URLSearchParams(window.location.search).has('hps'); } catch (_) {}
       var sec = document.getElementById('ep-mixer-section');
-      if (sec) sec.style.display = (state.isEpiano && hpsUnlocked) ? '' : 'none';
+      if (sec) sec.style.display = state.isEpiano ? '' : 'none';
       var revSec = document.getElementById('ep-reverb-section');
-      if (revSec) revSec.style.display = (state.hasSpring && hpsUnlocked) ? '' : 'none';
+      if (revSec) revSec.style.display = state.hasSpring ? '' : 'none';
       // Bass/Treble UI も dev panel 一部として ?hps 限定表示。Stage は最終段
       // BiquadFilter (master-tail)、Suitcase は audio-core 内 amp Baxandall を
       // 制御する経路 (audio-ui-binding _eqSlider 参照)。
       var bass = document.getElementById('ep-eq-bass-label');
       var treble = document.getElementById('ep-eq-treble-label');
-      if (bass) bass.style.display = (state.isEpiano && hpsUnlocked) ? '' : 'none';
-      if (treble) treble.style.display = (state.isEpiano && hpsUnlocked) ? '' : 'none';
+      if (bass) bass.style.display = state.isEpiano ? '' : 'none';
+      if (treble) treble.style.display = state.isEpiano ? '' : 'none';
       // 2026-04-27: master-tail に preset 切替を伝える (Stage→slider 値、
       // Suitcase→flat)。MasterTail 未 init 時は no-op、init 後の preset 切替
       // (Suitcase ↔ Stage) で最終段の Bass/Treble が正しく反映/リセットされる。

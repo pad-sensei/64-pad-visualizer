@@ -4,6 +4,7 @@
 
 // --- Undo stack for memory slots ---
 const undoStack = [];
+const redoStack = [];
 const MAX_UNDO = 30;
 
 // ========================================
@@ -26,6 +27,7 @@ function loadBank(bankId) {
   PlainState.currentSlot = null;
   PlainState.captureIndex = 0;
   undoStack.length = 0;
+  redoStack.length = 0;
   BankState.activeBankId = bankId;
   loadBankMemory();
   updateBankUI();
@@ -128,12 +130,14 @@ function updateBankUI() {
 }
 
 function pushUndoState() {
+  redoStack.length = 0;
   undoStack.push(PlainState.memory.map(cloneMemorySlot));
   if (undoStack.length > MAX_UNDO) undoStack.shift();
 }
 
 function undoMemory() {
   if (undoStack.length === 0) return;
+  redoStack.push(PlainState.memory.map(cloneMemorySlot));
   PlainState.memory = undoStack.pop();
   PlainState.currentSlot = null;
   updateMemorySlotUI();
@@ -144,6 +148,18 @@ function undoMemory() {
     clearTimeout(toast._timer);
     toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 1200);
   }
+  saveAppSettings();
+}
+
+// Standalone Shift+Undo / Jog left side tap: restore the state undone last.
+// A new edit or bank switch invalidates redo; snapshots retain voicing metadata.
+function redoMemory() {
+  if (redoStack.length === 0) return;
+  undoStack.push(PlainState.memory.map(cloneMemorySlot));
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  PlainState.memory = redoStack.pop();
+  PlainState.currentSlot = null;
+  updateMemorySlotUI();
   saveAppSettings();
 }
 
@@ -801,11 +817,20 @@ function updatePlainDisplay() {
       ? padWebFormatObservedUstInlineFromPayload(observedPayload, legacyUstText)
       : '';
     const escapeHtml = typeof padWebEscapeHtml === 'function' ? padWebEscapeHtml : String;
-    let html = '<span class="detect-candidate-best" draggable="true" data-candidate-idx="0" onclick="transferDetectedCandidate(0,this)">' + escapeHtml(best.name) + ustInline + '</span>';
-    if (candidates.length > 1) {
+    const topCandidates = typeof padWebGetTopResolvedCandidates === 'function'
+      ? padWebGetTopResolvedCandidates(candidates) : [best];
+    const topCount = Math.max(1, topCandidates.length);
+    let html = '<div class="detect-top-group" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">';
+    candidates.slice(0, topCount).forEach((c, i) => {
+      html += '<span class="detect-candidate-best" draggable="true" data-candidate-idx="' + i + '" onclick="transferDetectedCandidate(' + i + ',this)">'
+        + escapeHtml(c.name) + (i === 0 ? ustInline : '') + '</span>';
+    });
+    html += '</div>';
+    if (candidates.length > topCount) {
       html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">';
-      candidates.slice(1).forEach((c, i) => {
-        html += '<span class="detect-candidate" draggable="true" data-candidate-idx="' + (i + 1) + '" onclick="transferDetectedCandidate(' + (i + 1) + ',this)">' + escapeHtml(c.name) + '</span>';
+      candidates.slice(topCount).forEach((c, i) => {
+        const idx = topCount + i;
+        html += '<span class="detect-candidate" draggable="true" data-candidate-idx="' + idx + '" onclick="transferDetectedCandidate(' + idx + ',this)">' + escapeHtml(c.name) + '</span>';
       });
       html += '</div>';
     }

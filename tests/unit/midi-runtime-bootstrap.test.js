@@ -11,8 +11,8 @@ const index = fs.readFileSync(indexPath, 'utf8');
 
 describe('browser MIDI ownership bootstrap', () => {
   it('loads the ownership helper before the MIDI runtime in the app shell', () => {
-    const helper = index.indexOf('midi-input-state.js?v=6.7.52');
-    const midi = index.indexOf('midi.js?v=6.7.52');
+    const helper = index.search(/midi-input-state\.js\?v=[\d.]+/);
+    const midi = index.search(/midi\.js\?v=[\d.]+/);
 
     expect(helper).toBeGreaterThanOrEqual(0);
     expect(midi).toBeGreaterThanOrEqual(0);
@@ -24,8 +24,8 @@ describe('browser MIDI ownership bootstrap', () => {
     const sw = fs.readFileSync(swPath, 'utf8');
     const observedCore = sw.indexOf('pad-core/observed-structure.js?v=6.7.52');
     const consumer = sw.indexOf('observed-ust-consumer.js?v=6.7.52');
-    const helper = sw.indexOf('midi-input-state.js?v=6.7.52');
-    const midi = sw.indexOf('midi.js?v=6.7.52');
+    const helper = sw.search(/midi-input-state\.js\?v=[\d.]+/);
+    const midi = sw.search(/midi\.js\?v=[\d.]+/);
 
     expect(observedCore).toBeGreaterThanOrEqual(0);
     expect(consumer).toBeGreaterThan(observedCore);
@@ -33,16 +33,16 @@ describe('browser MIDI ownership bootstrap', () => {
     expect(midi).toBeGreaterThan(helper);
   });
 
-  it('precaches the parser-time master tail at the app-shell cache version', () => {
-    const version = index.match(/midi-input-state\.js\?v=([\d.]+)/)?.[1];
+  it('precaches parser-time audio assets at the dynamically injected audio cache version', () => {
+    const audioVersion = index.match(/window\.APP_VERSION\s*=\s*'([\d.]+)'/)?.[1];
     const dynamicMasterTail = index.indexOf("'master-tail.js'");
     const dynamicAudioBinding = index.indexOf("'audio-ui-binding.js'");
     const swPath = path.resolve(here, '../../sw.js');
     const sw = fs.readFileSync(swPath, 'utf8');
-    const precachedMasterTail = sw.indexOf(`'master-tail.js?v=${version}'`);
-    const precachedAudioBinding = sw.indexOf(`'audio-ui-binding.js?v=${version}'`);
+    const precachedMasterTail = sw.indexOf(`'master-tail.js?v=${audioVersion}'`);
+    const precachedAudioBinding = sw.indexOf(`'audio-ui-binding.js?v=${audioVersion}'`);
 
-    expect(version).toBeTruthy();
+    expect(audioVersion).toBeTruthy();
     expect(dynamicMasterTail).toBeGreaterThanOrEqual(0);
     expect(dynamicAudioBinding).toBeGreaterThan(dynamicMasterTail);
     expect(precachedMasterTail).toBeGreaterThanOrEqual(0);
