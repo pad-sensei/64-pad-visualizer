@@ -24,22 +24,47 @@
     return true;
   }
 
+  function padWebChordSpellingContext(name) {
+    var source = String(name || '');
+    var root = source.match(/^[A-G](?:#|b)?/);
+    var bass = source.match(/\/\s*([A-G](?:#|b)?)$/);
+    var rootAccidental = root && root[0].slice(1);
+    var bassAccidental = bass && bass[1].slice(1);
+    if (rootAccidental === 'b' || bassAccidental === 'b') return 'flat';
+    if (rootAccidental === '#' || bassAccidental === '#') return 'sharp';
+    return '';
+  }
+
+  function padWebFormatSlashBassName(name, spelling) {
+    if (!spelling) return name;
+    var names = spelling === 'flat'
+      ? ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']
+      : ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    return String(name || '').replace(/(\/\s*)([A-G](?:#|b)?)$/, function(_, separator, bass) {
+      var natural = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[bass[0]];
+      var offset = bass.slice(1) === '#' ? 1 : bass.slice(1) === 'b' ? -1 : 0;
+      var pitchClass = (natural + offset + 12) % 12;
+      return separator + names[pitchClass];
+    });
+  }
+
   // v1.8.1 readability: raw resolver names stay canonical; only presentation is normalized.
   // Adjacent alteration/tension groups share one parenthesis pair, while Japanese-facing
   // omit notation stays outside parentheses. Slash bass remains the final suffix.
-  function padWebFormatChordDisplayName(name) {
+  function padWebFormatChordDisplayName(name, contextName) {
     var source = String(name || '');
     if (!source) return source;
+    var spelling = padWebChordSpellingContext(contextName || source);
 
     var slashIndex = source.lastIndexOf(' / ');
     var body = slashIndex >= 0 ? source.slice(0, slashIndex) : source;
     var slashSuffix = slashIndex >= 0 ? source.slice(slashIndex) : '';
     var match = body.match(/^(.*?)(\([^()]*\)(?:\([^()]*\))*)$/);
-    if (!match) return source;
+    if (!match) return padWebFormatSlashBassName(source, spelling);
 
     var base = match[1];
     var groups = match[2].match(/\([^()]*\)/g) || [];
-    if (groups.length === 0) return source;
+    if (groups.length === 0) return padWebFormatSlashBassName(source, spelling);
 
     var modifiers = [];
     var omits = [];
@@ -61,12 +86,12 @@
     // Human ruling 2026-09-15: an omit-only label keeps its parenthesis
     // as the visual boundary (e.g. C7(omit3)); omit moves outside only when
     // another alteration/tension group already provides that boundary.
-    if (modifiers.length === 0 && omits.length > 0) return source;
+    if (modifiers.length === 0 && omits.length > 0) return padWebFormatSlashBassName(source, spelling);
 
     var display = base;
     if (modifiers.length > 0) display += '(' + modifiers.join(',') + ')';
     if (omits.length > 0) display += omits.join('');
-    return display + slashSuffix;
+    return padWebFormatSlashBassName(display + slashSuffix, spelling);
   }
 
   function padWebCandidateIsFullExact(candidate) {
@@ -151,10 +176,11 @@
 
   function padWebFormatTopResolvedChordText(candidates) {
     var presentation = padWebGetResolvedPresentation(candidates);
+    var contextName = candidates && candidates[0] && candidates[0].name || '';
     var text = presentation.entries
       .map(function(entry) {
         var name = entry.candidate && entry.candidate.name || '';
-        return padWebFormatChordDisplayName(name);
+        return padWebFormatChordDisplayName(name, contextName);
       })
       .filter(Boolean)
       .join(presentation.separator);
@@ -164,7 +190,7 @@
     var neutralNames = padWebGetNeutralTopEntries(candidates, presentation)
       .map(function(entry) {
         var name = entry.candidate && entry.candidate.name || '';
-        return padWebFormatChordDisplayName(name);
+        return padWebFormatChordDisplayName(name, contextName);
       })
       .filter(Boolean);
     if (neutralNames.length > 0) {
@@ -208,9 +234,9 @@
     return span;
   }
 
-  function padWebSetCandidateDisplayName(node, name) {
+  function padWebSetCandidateDisplayName(node, name, contextName) {
     if (typeof document === 'undefined' || !node) return;
-    var label = padWebFormatChordDisplayName(name);
+    var label = padWebFormatChordDisplayName(name, contextName);
     if (!label) return;
     var first = node.firstChild;
     if (first && first.nodeType === 3) first.nodeValue = label;
@@ -219,9 +245,10 @@
 
   function padWebApplyCandidateDisplayNames(root, candidates) {
     if (typeof document === 'undefined' || !root || !Array.isArray(candidates)) return;
+    var contextName = candidates[0] && candidates[0].name || '';
     candidates.forEach(function(candidate, index) {
       var node = root.querySelector('[data-candidate-idx="' + index + '"]');
-      if (node) padWebSetCandidateDisplayName(node, candidate && candidate.name || '');
+      if (node) padWebSetCandidateDisplayName(node, candidate && candidate.name || '', contextName);
     });
   }
 

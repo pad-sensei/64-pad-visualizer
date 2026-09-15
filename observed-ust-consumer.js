@@ -281,7 +281,15 @@ function padWebFormatObservedStructureHtml(payload) {
   var shellLabel = padWebEscapeHtml(typeof t === 'function' ? t('help.observed_shell') : 'Shell');
   var ustLabel = padWebEscapeHtml(typeof t === 'function' ? t('help.observed_ust') : 'UST');
   var parts = [];
-  if (payload.chord && payload.chord.name) parts.push(label + ': ' + padWebEscapeHtml(payload.chord.name));
+  if (payload.chord && payload.chord.name) {
+    // Keep the resolver's canonical name in the payload, while applying the
+    // same contextual spelling policy used by the detected-candidate views.
+    var displayChordName = payload.chord.name;
+    if (typeof padWebFormatChordDisplayName === 'function') {
+      displayChordName = padWebFormatChordDisplayName(displayChordName, payload.chord.name);
+    }
+    parts.push(label + ': ' + padWebEscapeHtml(displayChordName));
+  }
   if (payload.shell) parts.push(shellLabel + ': ' + (payload.shell.degrees || []).map(padWebEscapeHtml).join(','));
   if (payload.ust) parts.push(ustLabel + ': ' + padWebEscapeHtml(payload.ust.name) + ' [' + (payload.ust.degrees || []).map(padWebEscapeHtml).join(',') + ']');
   return parts.length ? '<div class="midi-observed-structure">' + parts.join(' · ') + '</div>' : '';

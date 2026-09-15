@@ -189,7 +189,7 @@ if (typeof window !== 'undefined') {
   if (typeof document !== 'undefined' && document.readyState === 'loading'
       && typeof window.padWebFormatObservedUstInlineHtml !== 'function') {
     document.write('<script src="pad-core/observed-structure.js?v=6.7.52"><\/script>');
-    document.write('<script src="observed-ust-consumer.js?v=6.7.52"><\/script>');
+    document.write('<script src="observed-ust-consumer.js?v=6.7.53"><\/script>');
   }
 }
 
