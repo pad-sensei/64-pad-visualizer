@@ -38,13 +38,39 @@ if (window.__IS_64PAD_DEV_DEPLOY && 'serviceWorker' in navigator) {
     document.documentElement.style.visibility = 'hidden';
     var _devSwReloadUrl = new URL(location.href);
     _devSwReloadUrl.searchParams.set('_swreset', String(_devSwResetCount + 1));
+    var _devSwEscapeFallback = setTimeout(function() {
+      location.replace(_devSwReloadUrl.href);
+    }, 4000);
     navigator.serviceWorker.getRegistrations().then(function(regs) {
       return Promise.all(regs.filter(window.__padIsDevServiceWorkerRegistration).map(function(reg) {
         return reg.unregister();
       }));
     }).catch(function() {}).then(function() {
+      clearTimeout(_devSwEscapeFallback);
       location.replace(_devSwReloadUrl.href);
     });
+  } else if (navigator.serviceWorker.controller && _devSwResetCount >= 2) {
+    window.__DEV_SW_ESCAPE_FAILED = true;
+    var _devSwControllerUrl = navigator.serviceWorker.controller.scriptURL || 'unknown';
+    console.error('[64Pad dev] Service Worker escape failed after bounded retries; Human Gate blocked.', _devSwControllerUrl);
+    document.documentElement.style.visibility = 'hidden';
+    document.addEventListener('DOMContentLoaded', function() {
+      document.body.innerHTML = '';
+      var panel = document.createElement('main');
+      panel.id = 'dev-sw-escape-failed';
+      panel.style.cssText = 'max-width:720px;margin:48px auto;padding:24px;font:16px/1.6 system-ui,sans-serif;color:#111;background:#fff;border:2px solid #b00020;border-radius:8px';
+      var title = document.createElement('h1');
+      title.textContent = '64 Pad Dev service worker still active';
+      var detail = document.createElement('p');
+      detail.textContent = 'Human Gate blocked after two reset attempts. Controller: ' + _devSwControllerUrl;
+      var action = document.createElement('p');
+      action.textContent = 'Do not continue this Human Gate until the controlling service worker is cleared.';
+      panel.appendChild(title);
+      panel.appendChild(detail);
+      panel.appendChild(action);
+      document.body.appendChild(panel);
+      document.documentElement.style.visibility = 'visible';
+    }, { once: true });
   } else if (!navigator.serviceWorker.controller && _qs.has('_swreset')) {
     var _cleanDevUrl = new URL(location.href);
     _cleanDevUrl.searchParams.delete('_swreset');

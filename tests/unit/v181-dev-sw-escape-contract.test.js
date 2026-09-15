@@ -21,4 +21,17 @@ describe('v1.8.1 dev service-worker escape contract', () => {
     expect(indexHtml).toContain('window.__padIsDevServiceWorkerRegistration');
     expect(indexHtml).toContain("scopePath.indexOf('/apps/64-pad-dev/')");
   });
+
+  it('fails closed and visibly blocks the Human Gate if a controller survives both reset attempts', () => {
+    expect(indexHtml).toContain('navigator.serviceWorker.controller && _devSwResetCount >= 2');
+    expect(indexHtml).toContain('window.__DEV_SW_ESCAPE_FAILED = true');
+    expect(indexHtml).toContain("panel.id = 'dev-sw-escape-failed'");
+    expect(indexHtml).toContain('Human Gate blocked after two reset attempts.');
+    expect(indexHtml).toContain('Do not continue this Human Gate until the controlling service worker is cleared.');
+  });
+
+  it('has a bounded fallback reload if service-worker cleanup promises stall', () => {
+    expect(indexHtml).toContain('var _devSwEscapeFallback = setTimeout(function()');
+    expect(indexHtml).toContain('clearTimeout(_devSwEscapeFallback)');
+  });
 });
