@@ -1,0 +1,50 @@
+name: Deploy 64-pad-dev reset bootstrap
+
+on:
+  push:
+    branches:
+      - deploy/v181-sw-human-gate-20260915
+    paths:
+      - .github/dev-reset/64-pad-dev-reset.html
+      - .github/workflows/deploy-dev-reset.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: deploy/v181-sw-human-gate-20260915
+      - name: Verify bounded reset contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          f=.github/dev-reset/64-pad-dev-reset.html
+          grep -F "var devPath = '/apps/64-pad-dev/';" "$f"
+          grep -F 'reg.unregister()' "$f"
+          grep -F '!isDevRegistration(reg) && canControlDev(reg)' "$f"
+          grep -F '安全のため自動解除せずHuman Gateを停止します' "$f"
+          grep -F "new URL('/apps/64-pad-dev/', location.origin)" "$f"
+      - name: Deploy reset page outside dev SW scope
+        uses: burnett01/rsync-deployments@6.0.0
+        with:
+          switches: -avz
+          path: .github/dev-reset/
+          remote_path: ~/murinaikurashi.com/public_html/apps/
+          remote_host: xs071284.xsrv.jp
+          remote_port: 10022
+          remote_user: xs071284
+          remote_key: ${{ secrets.XSERVER_SSH_KEY }}
+      - name: Verify served reset page
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://murinaikurashi.com/apps/64-pad-dev-reset.html?probe=${GITHUB_SHA}"
+          curl -fsSL --max-time 30 -H 'Cache-Control: no-cache, no-store, max-age=0' "$url" -o /tmp/reset.html
+          cmp .github/dev-reset/64-pad-dev-reset.html /tmp/reset.html
+          grep -F '64 Pad Dev session reset' /tmp/reset.html
