@@ -1,0 +1,85 @@
+name: Probe live 64-pad-dev browser runtime
+
+on:
+  push:
+    branches:
+      - deploy/v181-sw-human-gate-20260915
+    paths:
+      - .github/workflows/live-runtime-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: deploy/v181-sw-human-gate-20260915
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Probe live default and silent runtimes
+        run: |
+          cat > /tmp/live-runtime-probe.mjs <<'EOF'
+          import { chromium } from 'playwright';
+
+          const browser = await chromium.launch({ headless: true });
+          for (const suffix of [
+            '?runtime_probe=default-' + Date.now(),
+            '?silent=1&runtime_probe=silent-' + Date.now(),
+          ]) {
+            const context = await browser.newContext();
+            const page = await context.newPage();
+            const errors = [];
+            page.on('pageerror', e => errors.push(String(e && e.message || e)));
+            await page.goto('https://murinaikurashi.com/apps/64-pad-dev/' + suffix, { waitUntil: 'domcontentloaded', timeout: 60000 });
+            await page.waitForTimeout(1000);
+
+            const before = await page.evaluate(async () => ({
+              href: location.href,
+              controller: navigator.serviceWorker?.controller?.scriptURL || null,
+              registrations: navigator.serviceWorker ? (await navigator.serviceWorker.getRegistrations()).map(r => ({ scope: r.scope, active: r.active?.scriptURL || null })) : [],
+              formatterType: typeof window.padWebFormatChordDisplayName,
+              formatterSample: typeof window.padWebFormatChordDisplayName === 'function' ? window.padWebFormatChordDisplayName('Em7(b5)(11)(omit3)') : null,
+              wrapped: typeof window.updatePlainDisplay === 'function' && window.updatePlainDisplay.__padAliasEquationWrapped === true,
+              helperEntries: performance.getEntriesByType('resource').map(e => e.name).filter(x => x.includes('chord-resolution-ui.js')),
+              devEscapeFailed: !!window.__DEV_SW_ESCAPE_FAILED,
+            }));
+
+            const after = await page.evaluate(() => {
+              AppState.mode = 'input';
+              PlainState.activeNotes.clear();
+              PlainState.subMode = 'idle';
+              if (typeof clearInstrumentInput === 'function') clearInstrumentInput();
+              if (typeof releaseAllMidiHeldSources === 'function') releaseAllMidiHeldSources(true);
+              if (typeof window.applyVelocityCurve !== 'function') window.applyVelocityCurve = value => value;
+              [63, 67, 70, 72].forEach(note => onMidiNoteOn(note, 100));
+              const candidates = detectChord([63, 67, 70, 72]);
+              const root = document.getElementById('midi-detect');
+              const top = root?.querySelector('.detect-top-group');
+              return {
+                wrapped: typeof updatePlainDisplay === 'function' && updatePlainDisplay.__padAliasEquationWrapped === true,
+                topText: top ? top.textContent.replace(/\s+/g, ' ').trim() : '',
+                topIndexes: top ? Array.from(top.querySelectorAll('[data-candidate-idx]')).map(el => Number(el.dataset.candidateIdx)) : [],
+                rootText: root ? root.textContent.replace(/\s+/g, ' ').trim() : '',
+                candidateNames: candidates.slice(0, 8).map(c => ({ name: c.name, score: c.resolutionScore, top: c.isTopRanked, completeness: c.resolutionCompleteness })),
+                aliasIndex: candidates.findIndex(c => c.name === 'Cm7 / Eb'),
+                formattedStacked: typeof padWebFormatChordDisplayName === 'function' ? padWebFormatChordDisplayName('Em7(b5)(11)(omit3)') : null,
+              };
+            });
+
+            console.log('=== LIVE RUNTIME', suffix, '===');
+            console.log(JSON.stringify({ before, after, errors }, null, 2));
+            await context.close();
+          }
+          await browser.close();
+          EOF
+          node /tmp/live-runtime-probe.mjs
