@@ -1,0 +1,60 @@
+name: Apply and verify v1.8.1 dev SW audit follow-up v2
+
+on:
+  push:
+    branches:
+      - codex/v181-altered-dominant-ust
+    paths:
+      - .github/workflows/v181-dev-sw-confirm-apply-v2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/v181-altered-dominant-ust
+          submodules: recursive
+          fetch-depth: 100
+      - name: Apply audit CONFIRM repair
+        run: python3 -c "import base64;exec(base64.b64decode('CmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAoKcCA9IFBhdGgoImluZGV4Lmh0bWwiKQpzID0gcC5yZWFkX3RleHQoKQoKIyBBZGQgYm91bmRlZCB0aW1lb3V0IGZhbGxiYWNrIGJlZm9yZSBkZXYtb25seSB1bnJlZ2lzdGVyIGNoYWluLgpvbGRfdGltZW91dCA9ICIiIiAgICBuYXZpZ2F0b3Iuc2VydmljZVdvcmtlci5nZXRSZWdpc3RyYXRpb25zKCkudGhlbihmdW5jdGlvbihyZWdzKSB7IiIiCm5ld190aW1lb3V0ID0gIiIiICAgIHZhciBfZGV2U3dFc2NhcGVGYWxsYmFjayA9IHNldFRpbWVvdXQoZnVuY3Rpb24oKSB7CiAgICAgIGxvY2F0aW9uLnJlcGxhY2UoX2RldlN3UmVsb2FkVXJsLmhyZWYpOwogICAgfSwgNDAwMCk7CiAgICBuYXZpZ2F0b3Iuc2VydmljZVdvcmtlci5nZXRSZWdpc3RyYXRpb25zKCkudGhlbihmdW5jdGlvbihyZWdzKSB7IiIiCmlmIG5ld190aW1lb3V0IG5vdCBpbiBzOgogICAgaWYgb2xkX3RpbWVvdXQgbm90IGluIHM6CiAgICAgICAgcmFpc2UgU3lzdGVtRXhpdCgidGltZW91dCBhbmNob3IgbWlzc2luZyIpCiAgICBzID0gcy5yZXBsYWNlKG9sZF90aW1lb3V0LCBuZXdfdGltZW91dCwgMSkKCiMgQ2xlYXIgZmFsbGJhY2sgb24gbm9ybWFsIGNvbXBsZXRpb24sIHRoZW4gYWRkIGZhaWwtY2xvc2VkIGJyYW5jaCBpZiByZXNldCBidWRnZXQgaXMgZXhoYXVzdGVkLgpvbGRfYnJhbmNoID0gIiIiICAgIH0pLmNhdGNoKGZ1bmN0aW9uKCkge30pLnRoZW4oZnVuY3Rpb24oKSB7CiAgICAgIGxvY2F0aW9uLnJlcGxhY2UoX2RldlN3UmVsb2FkVXJsLmhyZWYpOwogICAgfSk7CiAgfSBlbHNlIGlmICghbmF2aWdhdG9yLnNlcnZpY2VXb3JrZXIuY29udHJvbGxlciAmJiBfcXMuaGFzKCdfc3dyZXNldCcpKSB7IiIiCm5ld19icmFuY2ggPSAiIiIgICAgfSkuY2F0Y2goZnVuY3Rpb24oKSB7fSkudGhlbihmdW5jdGlvbigpIHsKICAgICAgY2xlYXJUaW1lb3V0KF9kZXZTd0VzY2FwZUZhbGxiYWNrKTsKICAgICAgbG9jYXRpb24ucmVwbGFjZShfZGV2U3dSZWxvYWRVcmwuaHJlZik7CiAgICB9KTsKICB9IGVsc2UgaWYgKG5hdmlnYXRvci5zZXJ2aWNlV29ya2VyLmNvbnRyb2xsZXIgJiYgX2RldlN3UmVzZXRDb3VudCA+PSAyKSB7CiAgICB3aW5kb3cuX19ERVZfU1dfRVNDQVBFX0ZBSUxFRCA9IHRydWU7CiAgICB2YXIgX2RldlN3Q29udHJvbGxlclVybCA9IG5hdmlnYXRvci5zZXJ2aWNlV29ya2VyLmNvbnRyb2xsZXIuc2NyaXB0VVJMIHx8ICd1bmtub3duJzsKICAgIGNvbnNvbGUuZXJyb3IoJ1s2NFBhZCBkZXZdIFNlcnZpY2UgV29ya2VyIGVzY2FwZSBmYWlsZWQgYWZ0ZXIgYm91bmRlZCByZXRyaWVzOyBIdW1hbiBHYXRlIGJsb2NrZWQuJywgX2RldlN3Q29udHJvbGxlclVybCk7CiAgICBkb2N1bWVudC5kb2N1bWVudEVsZW1lbnQuc3R5bGUudmlzaWJpbGl0eSA9ICdoaWRkZW4nOwogICAgZG9jdW1lbnQuYWRkRXZlbnRMaXN0ZW5lcignRE9NQ29udGVudExvYWRlZCcsIGZ1bmN0aW9uKCkgewogICAgICBkb2N1bWVudC5ib2R5LmlubmVySFRNTCA9ICcnOwogICAgICB2YXIgcGFuZWwgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdtYWluJyk7CiAgICAgIHBhbmVsLmlkID0gJ2Rldi1zdy1lc2NhcGUtZmFpbGVkJzsKICAgICAgcGFuZWwuc3R5bGUuY3NzVGV4dCA9ICdtYXgtd2lkdGg6NzIwcHg7bWFyZ2luOjQ4cHggYXV0bztwYWRkaW5nOjI0cHg7Zm9udDoxNnB4LzEuNiBzeXN0ZW0tdWksc2Fucy1zZXJpZjtjb2xvcjojMTExO2JhY2tncm91bmQ6I2ZmZjtib3JkZXI6MnB4IHNvbGlkICNiMDAwMjA7Ym9yZGVyLXJhZGl1czo4cHgnOwogICAgICB2YXIgdGl0bGUgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdoMScpOwogICAgICB0aXRsZS50ZXh0Q29udGVudCA9ICc2NCBQYWQgRGV2IHNlcnZpY2Ugd29ya2VyIHN0aWxsIGFjdGl2ZSc7CiAgICAgIHZhciBkZXRhaWwgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdwJyk7CiAgICAgIGRldGFpbC50ZXh0Q29udGVudCA9ICdIdW1hbiBHYXRlIGJsb2NrZWQgYWZ0ZXIgdHdvIHJlc2V0IGF0dGVtcHRzLiBDb250cm9sbGVyOiAnICsgX2RldlN3Q29udHJvbGxlclVybDsKICAgICAgdmFyIGFjdGlvbiA9IGRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ3AnKTsKICAgICAgYWN0aW9uLnRleHRDb250ZW50ID0gJ0RvIG5vdCBjb250aW51ZSB0aGlzIEh1bWFuIEdhdGUgdW50aWwgdGhlIGNvbnRyb2xsaW5nIHNlcnZpY2Ugd29ya2VyIGlzIGNsZWFyZWQuJzsKICAgICAgcGFuZWwuYXBwZW5kQ2hpbGQodGl0bGUpOwogICAgICBwYW5lbC5hcHBlbmRDaGlsZChkZXRhaWwpOwogICAgICBwYW5lbC5hcHBlbmRDaGlsZChhY3Rpb24pOwogICAgICBkb2N1bWVudC5ib2R5LmFwcGVuZENoaWxkKHBhbmVsKTsKICAgICAgZG9jdW1lbnQuZG9jdW1lbnRFbGVtZW50LnN0eWxlLnZpc2liaWxpdHkgPSAndmlzaWJsZSc7CiAgICB9LCB7IG9uY2U6IHRydWUgfSk7CiAgfSBlbHNlIGlmICghbmF2aWdhdG9yLnNlcnZpY2VXb3JrZXIuY29udHJvbGxlciAmJiBfcXMuaGFzKCdfc3dyZXNldCcpKSB7IiIiCmlmIG5ld19icmFuY2ggbm90IGluIHM6CiAgICBpZiBvbGRfYnJhbmNoIG5vdCBpbiBzOgogICAgICAgIHJhaXNlIFN5c3RlbUV4aXQoImV4aGF1c3Rpb24gYnJhbmNoIGFuY2hvciBtaXNzaW5nIikKICAgIHMgPSBzLnJlcGxhY2Uob2xkX2JyYW5jaCwgbmV3X2JyYW5jaCwgMSkKCnAud3JpdGVfdGV4dChzKQoKdCA9IFBhdGgoInRlc3RzL3VuaXQvdjE4MS1kZXYtc3ctZXNjYXBlLWNvbnRyYWN0LnRlc3QuanMiKQp0cyA9IHQucmVhZF90ZXh0KCkKbmVlZGxlID0gIiIiICBpdCgnZG9lcyBub3Qgc3VwcHJlc3MgYSByZXF1aXJlZCBjb250cm9sbGVyIGVzY2FwZSB3aXRoIHN0YWxlIHNlc3Npb25TdG9yYWdlIHN0YXRlJywgKCkgPT4gewogICAgZXhwZWN0KGluZGV4SHRtbCkubm90LnRvQ29udGFpbignNjRwYWQtZGV2LXN3LWNsZWFyZWQnKTsKICAgIGV4cGVjdChpbmRleEh0bWwpLnRvQ29udGFpbignd2luZG93Ll9fcGFkSXNEZXZTZXJ2aWNlV29ya2VyUmVnaXN0cmF0aW9uJyk7CiAgICBleHBlY3QoaW5kZXhIdG1sKS50b0NvbnRhaW4oInNjb3BlUGF0aC5pbmRleE9mKCcvYXBwcy82NC1wYWQtZGV2LycpIik7CiAgfSk7Cn0pOwoiIiIKcmVwbGFjZW1lbnQgPSAiIiIgIGl0KCdkb2VzIG5vdCBzdXBwcmVzcyBhIHJlcXVpcmVkIGNvbnRyb2xsZXIgZXNjYXBlIHdpdGggc3RhbGUgc2Vzc2lvblN0b3JhZ2Ugc3RhdGUnLCAoKSA9PiB7CiAgICBleHBlY3QoaW5kZXhIdG1sKS5ub3QudG9Db250YWluKCc2NHBhZC1kZXYtc3ctY2xlYXJlZCcpOwogICAgZXhwZWN0KGluZGV4SHRtbCkudG9Db250YWluKCd3aW5kb3cuX19wYWRJc0RldlNlcnZpY2VXb3JrZXJSZWdpc3RyYXRpb24nKTsKICAgIGV4cGVjdChpbmRleEh0bWwpLnRvQ29udGFpbigic2NvcGVQYXRoLmluZGV4T2YoJy9hcHBzLzY0LXBhZC1kZXYvJykiKTsKICB9KTsKCiAgaXQoJ2ZhaWxzIGNsb3NlZCBhbmQgdmlzaWJseSBibG9ja3MgdGhlIEh1bWFuIEdhdGUgaWYgYSBjb250cm9sbGVyIHN1cnZpdmVzIGJvdGggcmVzZXQgYXR0ZW1wdHMnLCAoKSA9PiB7CiAgICBleHBlY3QoaW5kZXhIdG1sKS50b0NvbnRhaW4oJ25hdmlnYXRvci5zZXJ2aWNlV29ya2VyLmNvbnRyb2xsZXIgJiYgX2RldlN3UmVzZXRDb3VudCA+PSAyJyk7CiAgICBleHBlY3QoaW5kZXhIdG1sKS50b0NvbnRhaW4oJ3dpbmRvdy5fX0RFVl9TV19FU0NBUEVfRkFJTEVEID0gdHJ1ZScpOwogICAgZXhwZWN0KGluZGV4SHRtbCkudG9Db250YWluKCJwYW5lbC5pZCA9ICdkZXYtc3ctZXNjYXBlLWZhaWxlZCciKTsKICAgIGV4cGVjdChpbmRleEh0bWwpLnRvQ29udGFpbignSHVtYW4gR2F0ZSBibG9ja2VkIGFmdGVyIHR3byByZXNldCBhdHRlbXB0cy4nKTsKICAgIGV4cGVjdChpbmRleEh0bWwpLnRvQ29udGFpbignRG8gbm90IGNvbnRpbnVlIHRoaXMgSHVtYW4gR2F0ZSB1bnRpbCB0aGUgY29udHJvbGxpbmcgc2VydmljZSB3b3JrZXIgaXMgY2xlYXJlZC4nKTsKICB9KTsKCiAgaXQoJ2hhcyBhIGJvdW5kZWQgZmFsbGJhY2sgcmVsb2FkIGlmIHNlcnZpY2Utd29ya2VyIGNsZWFudXAgcHJvbWlzZXMgc3RhbGwnLCAoKSA9PiB7CiAgICBleHBlY3QoaW5kZXhIdG1sKS50b0NvbnRhaW4oJ3ZhciBfZGV2U3dFc2NhcGVGYWxsYmFjayA9IHNldFRpbWVvdXQoZnVuY3Rpb24oKScpOwogICAgZXhwZWN0KGluZGV4SHRtbCkudG9Db250YWluKCdjbGVhclRpbWVvdXQoX2RldlN3RXNjYXBlRmFsbGJhY2spJyk7CiAgfSk7Cn0pOwoiIiIKaWYgcmVwbGFjZW1lbnQgbm90IGluIHRzOgogICAgaWYgbmVlZGxlIG5vdCBpbiB0czoKICAgICAgICByYWlzZSBTeXN0ZW1FeGl0KCJ0ZXN0IGFuY2hvciBtaXNzaW5nIikKICAgIHRzID0gdHMucmVwbGFjZShuZWVkbGUsIHJlcGxhY2VtZW50LCAxKQp0LndyaXRlX3RleHQodHMpCgp2MTgwID0gUGF0aCgidGVzdHMvdW5pdC92MTgwLXdlYi1jb250cmFjdC50ZXN0LmpzIikKdjE4MC53cml0ZV90ZXh0KHYxODAucmVhZF90ZXh0KCkucnN0cmlwKCJcbiIpICsgIlxuIikK'))"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Verify
+        run: |
+          set -euo pipefail
+          npm test
+          ./tools/sw-assets-check.sh
+          npm audit --omit=dev
+          git diff --check
+          npx playwright install --with-deps chromium
+          python3 -m http.server 8080 >/tmp/64pe-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/ >/dev/null && break
+            sleep 1
+          done
+          npx playwright test tests/e2e/v181-alias-runtime.spec.js tests/e2e/v181-altered-dominant-ust.spec.js --reporter=line
+          git checkout -- test-results
+          git diff --check
+      - name: Commit verified product changes
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html tests/unit/v181-dev-sw-escape-contract.test.js tests/unit/v180-web-contract.test.js
+          if git diff --cached --quiet; then
+            echo "No product changes to commit"
+            exit 0
+          fi
+          git commit -m "fix(v1.8.1): fail closed when dev SW escape is exhausted"
+          git push origin HEAD:codex/v181-altered-dominant-ust
