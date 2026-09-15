@@ -27,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --depth=1 origin 191231d4b0e4f5136853c2b2ffefdf9de20b7e09
-          bad="$(git diff --name-only 191231d4b0e4f5136853c2b2ffefdf9de20b7e09...HEAD | grep -v '^\.github/' || true)"
+          bad="$(git diff --name-only 191231d4b0e4f5136853c2b2ffefdf9de20b7e09 HEAD | grep -v '^\.github/' || true)"
           if [ -n "$bad" ]; then
             echo "Non-operational carrier delta detected:"
             echo "$bad"
@@ -40,7 +40,7 @@ jobs:
         with:
           switches: -avz --delete --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md'
           path: ./
-          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-181-isolated/64-pad-dev/
+          remote_path: ~/murinaikurashi.com/public_html/apps/64-pad-dev-isolated/
           remote_host: xs071284.xsrv.jp
           remote_port: 10022
           remote_user: xs071284
@@ -50,11 +50,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base='https://murinaikurashi.com/apps/64-pad-181-isolated/64-pad-dev'
+          base='https://murinaikurashi.com/apps/64-pad-dev-isolated'
           nonce="${GITHUB_SHA}-$(date +%s)"
           curl -fsSL --max-time 30 -H 'Cache-Control: no-cache, no-store, max-age=0' "${base}/?probe=${nonce}" -o /tmp/index.html
           curl -fsSL --max-time 30 -H 'Cache-Control: no-cache, no-store, max-age=0' "${base}/chord-resolution-ui.js?v=1.8.1-alias-equation8&probe=${nonce}" -o /tmp/helper.js
           cmp index.html /tmp/index.html
           cmp chord-resolution-ui.js /tmp/helper.js
-          grep -F "window.__IS_64PAD_DEV_DEPLOY = location.pathname.indexOf('/64-pad-dev/') !== -1;" /tmp/index.html
+          grep -F "chord-resolution-ui.js?v=1.8.1-alias-equation8" /tmp/index.html
           grep -F 'padWebGetPrimaryExactAliasEntries' /tmp/helper.js
