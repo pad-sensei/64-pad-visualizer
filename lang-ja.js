@@ -1,6 +1,7 @@
 // 日本語
 I18N.addLang('ja', {
   help: {
+    launchpad_programmer: "<strong>Launchpad Pro MK3（Web）</strong> — MIDI SysEx を許可し、1台だけ接続して MIDI ポートを選択。Programmer モードで画面のパッド位置を点灯し、↑/↓でオクターブ移動します。同じ機器を DOJO・DAW と同時使用しないでください。他の Launchpad 機種は対象外です。",
     title: '64 Pad Explorer',
     description: '64パッド上のスケール・コード・ボイシングを探索するツール。',
     manual_link: 'マニュアル →',
@@ -555,7 +556,7 @@ I18N.addLang('ja', {
       sound_msg_desktop: 'SoundパネルにはMIDI出力の設定があります。\n音はDAWや外部 VST/AU プラグイン側で鳴ります。ベロシティ感度もここで調整できます。',
       sound_done: 'いい音ですね！次へ進みましょう。',
       midi_title: 'MIDIコントローラー',
-      midi_msg: 'MIDIコントローラーが検出されました。Push 3やLaunchpadは設定不要でそのまま使えます。\nベロシティ感度はSoundパネルで調整できます。',
+      midi_msg: "MIDI コントローラーを検出しました。入力ポートを選択してください。\nLaunchpad Pro MK3 の点灯には MIDI SysEx の許可と、1組の MIDI 入出力が必要です。同時に使うアプリは1つにしてください。\nベロシティ感度はサウンドパネルで調整できます。",
       midi_no_device: 'MIDIコントローラーがなくても大丈夫。\nパッドクリック、ギター・ベース・ピアノ入力、テキスト入力で使えます。',
       input_title: '3つのモード',
       input_msg: 'Scale — 64パッド上にスケール音を表示\nChord — ボイシング・転回形・テンション付きでコードを構築\nInput — パッドを自由にタップしてコード名を判定\n\nTabキーまたはモードボタンで切り替え。',

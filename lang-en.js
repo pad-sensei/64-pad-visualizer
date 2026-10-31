@@ -1,6 +1,7 @@
 // English (fallback)
 I18N.addLang('en', {
   help: {
+    launchpad_programmer: "<strong>Launchpad Pro MK3 (Web)</strong> — Allow MIDI SysEx and select its MIDI port (one controller only). Programmer mode mirrors the displayed pad positions; ↑/↓ shift octaves. Do not use the same controller in DOJO or a DAW at the same time. Other Launchpad models are not included.",
     title: '64 Pad Explorer',
     description: 'A tool for exploring scales, chords, and voicings on a 64-pad grid.',
     manual_link: 'Manual →',
@@ -555,7 +556,7 @@ I18N.addLang('en', {
       sound_msg_desktop: 'The Sound panel contains MIDI output settings.\nAudio is produced by your DAW or an external VST/AU plug-in. Velocity sensitivity can be adjusted here.',
       sound_done: 'Sounds good! Press Next to continue.',
       midi_title: 'MIDI Controller',
-      midi_msg: 'A MIDI controller has been detected. Push 3 and Launchpad work out of the box — no setup needed.\nVelocity sensitivity can be adjusted in the Sound panel.',
+      midi_msg: "A MIDI controller has been detected. Select its input port.\nLaunchpad Pro MK3 LED control needs MIDI SysEx permission and a single MIDI input/output pair. Use one app at a time.\nVelocity sensitivity can be adjusted in the Sound panel.",
       midi_no_device: 'No MIDI controller detected — that\'s OK.\nYou can use pad clicks, guitar/bass/piano input, or text chord input.',
       input_title: 'Three Modes',
       input_msg: 'Scale — view scale notes on the 64-pad grid\nChord — build chords with voicings, inversions, and tensions\nInput — tap pads freely to detect chord names\n\nSwitch with Tab or the mode buttons above.',

@@ -143,6 +143,7 @@ function computeRenderState() {
 }
 
 function renderPads(svg, state, grid) {
+  if (!grid && typeof padLaunchpadProgrammer !== 'undefined') state.launchpadPadColors = new Array(64).fill(0);
   var rows = grid ? grid.ROWS : ROWS;
   var cols = grid ? grid.COLS : COLS;
   var padSize = grid ? grid.PAD_SIZE : PAD_SIZE;
@@ -444,6 +445,14 @@ function renderPads(svg, state, grid) {
       if (isTastyHit) {
         rect.setAttribute('stroke', '#fff');
         rect.setAttribute('stroke-width', isTastyTop ? 3 : 1.5);
+      }
+      // Reuse the final screen-resolved fill and position; no second voicing engine.
+      if (!grid && state.launchpadPadColors) {
+        var lpBackground = !_doubleStopPad && (AppState.mode === 'scale' || isEngineScaleBg
+          || ((basicPadSet || allPosScaleBg) && _isScaleBgSlot)
+          || (_directEduView && !_directEduActive) || isOverlay || isOverlayPad);
+        state.launchpadPadColors[row * cols + col] = padLaunchpadProgrammer.paletteForRenderedPad(
+          rect.getAttribute('fill'), rect.getAttribute('opacity') !== '0', midi, !!lpBackground);
       }
       svg.appendChild(rect);
 

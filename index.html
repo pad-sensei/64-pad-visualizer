@@ -251,6 +251,7 @@ document.addEventListener('click', function(e) {
 
     <h2>MIDI</h2>
     <ul>
+      <li data-i18n="help.launchpad_programmer"><strong>Launchpad Pro MK3（Web）</strong> — MIDI SysEx を許可し、1台だけ接続して MIDI ポートを選択。Programmer モードで画面のパッド位置を点灯し、↑/↓でオクターブ移動します。同じ機器を DOJO・DAW と同時使用しないでください。他の Launchpad 機種は対象外です。</li>
       <li data-i18n="help.midi_chord">入力した音からコードを自動判定</li>
       <li data-i18n="help.midi_sustain"><strong>サステインペダル</strong> — MIDI CC64（Hold Pedal）対応</li>
     </ul>
@@ -910,15 +911,15 @@ if (window.IS_DESKTOP_MODE || _affiliateParams.has('hps')) {
 
 <!-- i18n (engine → language files) -->
 <script src="i18n.js?v=6.7.52"></script>
-<script src="lang-en.js?v=6.7.52"></script>
-<script src="lang-ja.js?v=6.7.52"></script>
-<script src="lang-zh.js?v=6.7.52"></script>
-<script src="lang-es.js?v=6.7.52"></script>
-<script src="lang-fr.js?v=6.7.52"></script>
-<script src="lang-pt.js?v=6.7.52"></script>
-<script src="lang-de.js?v=6.7.52"></script>
-<script src="lang-ko.js?v=6.7.52"></script>
-<script src="lang-it.js?v=6.7.52"></script>
+<script src="lang-en.js?v=1.9.0-launchpad1"></script>
+<script src="lang-ja.js?v=1.9.0-launchpad1"></script>
+<script src="lang-zh.js?v=1.9.0-launchpad1"></script>
+<script src="lang-es.js?v=1.9.0-launchpad1"></script>
+<script src="lang-fr.js?v=1.9.0-launchpad1"></script>
+<script src="lang-pt.js?v=1.9.0-launchpad1"></script>
+<script src="lang-de.js?v=1.9.0-launchpad1"></script>
+<script src="lang-ko.js?v=1.9.0-launchpad1"></script>
+<script src="lang-it.js?v=1.9.0-launchpad1"></script>
 <!-- pad-core (SSOT: theory calculations, data constants, render) -->
 <script src="pad-core/data.js?v=6.7.54"></script>
 <script src="pad-core/theory.js?v=1.8.1-altered-dominant1"></script>
@@ -994,7 +995,7 @@ if (window.AUDIO_ENABLED) {
 <script src="parent-scales-ui.js?v=6.7.52"></script>
 <script src="play-controls.js?v=6.7.52"></script>
 <script src="double-stop.js?v=6.7.52"></script>
-<script src="render.js?v=1.8.0-chord-pad-led"></script>
+<script src="render.js?v=1.9.0-launchpad1"></script>
 <script src="plain.js?v=1.8.1-resolution2"></script>
 <script src="perform.js?v=6.7.52"></script>
 <script src="builder.js?v=1.8.0-parity2"></script>
@@ -1002,7 +1003,8 @@ if (window.AUDIO_ENABLED) {
 <script src="push-midi-port-contract.js?v=1.8.0-liveport3"></script>
 <script src="push-midi-cc-map.js?v=1.8.0"></script>
 <script src="push-web-control.js?v=1.8.0-active-color"></script>
-<script src="midi.js?v=1.8.1-midi-alias-equation1"></script>
+<script src="launchpad-programmer.js?v=1.9.0"></script>
+<script src="midi.js?v=1.9.0-launchpad1"></script>
 <script src="main.js?v=6.7.55"></script>
 <script type="module" src="push-display-webusb-app.js?v=webusb-20260915-headline-layout1"></script>
 <script src="tutorial-data.js?v=6.7.52"></script>

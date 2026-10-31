@@ -13,6 +13,13 @@ const midiActiveNotes = new Set(); // currently held mapped MIDI notes (compatib
 let midiAccess = null;
 const midiHeldState = (typeof createMidiHeldState === 'function') ? createMidiHeldState() : null;
 const midiPortBindings = (typeof createMidiPortBindingRegistry === 'function') ? createMidiPortBindingRegistry() : null;
+// Separate ownership: Push's legacy _lp* state is not Launchpad authorization.
+const launchpadLink = typeof padLaunchpadProgrammer !== 'undefined'
+  ? padLaunchpadProgrammer.create(function(input) {
+    if (!midiHeldState) return;
+    midiHeldState.clearDevice(input.id).forEach(function(note) { try { noteOff(note); } catch (_) {} });
+    syncMidiActiveNotesFromOwnership();
+  }) : null;
 
 function syncMidiActiveNotesFromOwnership() {
   if (!midiHeldState) return;
@@ -46,7 +53,7 @@ function midiSourceMetadataForInput(input, status, rawNote, mappedMidi, isPush) 
     col = pushIdx % 8;
     physicalPadId = 'r' + row + 'c' + col;
     positionConfidence = 'exact';
-  } else if (!isPush && _lpProgrammerMode && rawNote >= 11 && rawNote <= 88) {
+  } else if (launchpadLink && launchpadLink.isActiveFor(input) && rawNote >= 11 && rawNote <= 88) {
     var lpRow = Math.floor(rawNote / 10) - 1;
     var lpCol = (rawNote % 10) - 1;
     if (lpRow >= 0 && lpRow < 8 && lpCol >= 0 && lpCol < 8) {
@@ -744,6 +751,7 @@ function initWebMIDI() {
     }
 
     function connectInputs() {
+      if (launchpadLink) launchpadLink.disconnect();
       // Invalidate every previously-owned listener before rebinding current ports.
       if (midiPortBindings) midiPortBindings.clear();
       for (const input of access.inputs.values()) input.onmidimessage = null;
@@ -782,6 +790,25 @@ function initWebMIDI() {
           if (e.data.length < 3) return;
           const [status, rawNote, velocity] = e.data;
           const cmd = status & 0xf0;
+          if (launchpadLink && launchpadLink.isActiveFor(input)) {
+            // Programmer CC80/70 are up/down; CC91/92 are left/right, not octave.
+            if (cmd === 0xb0) {
+              if (velocity === 127 && (rawNote === 80 || rawNote === 70)) shiftOctave(rawNote === 80 ? 1 : -1);
+              return;
+            }
+            if (cmd !== 0x90 && cmd !== 0x80) return;
+            var lpPosition = padLaunchpadProgrammer.position(rawNote);
+            if (!lpPosition) return;
+            var lpPitch = baseMidi() + lpPosition.row * ROW_INTERVAL + lpPosition.col;
+            var lpSource = midiSourceMetadataForInput(input, status, rawNote, lpPitch, false);
+            if (cmd === 0x90 && velocity > 0) onMidiNoteOn(lpPitch, velocity, lpSource);
+            else {
+              // Release the pitch captured on press, even after the display octave moved.
+              var held = midiHeldState && midiHeldState.heldSources().find(function(s) { return s.sourceId === lpSource.sourceId; });
+              onMidiNoteOff(held ? held.mappedMidi : lpPitch, lpSource);
+            }
+            return;
+          }
           // Launchpad octave buttons: CC#91=▲, CC#92=▼ (X/Mini MK3/Pro MK3)
           //                           CC#104=▲, CC#105=▼ (MK1/Mini MK2)
           if (!isPush && cmd === 0xb0 && velocity === 127 &&
@@ -856,7 +883,7 @@ function initWebMIDI() {
           }
           // Non-Push fourths-layout controller perform mode (Linnstrument, Launchpad, etc.)
           if (!isPush && memoryViewMode === 'perform' && cmd === 0x90 && velocity > 0) {
-            var perfNote = (_lpProgrammerMode && rawNote >= 11 && rawNote <= 88) ? _lpProgrammerToFourths(rawNote) : rawNote;
+            var perfNote = rawNote; // Programmer input is handled only by its owned adapter above.
             if (perfNote >= 0 && handlePerformMidi(perfNote)) {
               ensureAudioResumed();
               return;
@@ -868,9 +895,6 @@ function initWebMIDI() {
           var note;
           if (isPush) {
             note = pushSerialToFourths(rawNote);
-          } else if (_lpProgrammerMode && rawNote >= 11 && rawNote <= 88) {
-            note = _lpProgrammerToFourths(rawNote);
-            if (note < 0) return; // Invalid pad position (e.g., note 19 = side button)
           } else {
             note = rawNote;
           }
@@ -932,23 +956,10 @@ function initWebMIDI() {
             console.log('[64PE LED] Push operational output:', midiOutput.name,
                         'setup-only:', _pushSetupOutputs.filter(function(output) { return output !== midiOutput; }).map(function(output) { return output.name; }));
           }
-        } else if (false && isLaunchpad) {
-          // Launchpad: disabled until physical device testing
-          _lpDeviceByte = /mini/i.test(connectedName) ? 0x0D : 0x0C;
-          var matchedOutputs = [];
-          for (const output of access.outputs.values()) {
-            if (/launchpad/i.test(output.name)) matchedOutputs.push(output);
-          }
-          if (matchedOutputs.length > 0) {
-            midiOutput = matchedOutputs[0];
-            midiOutputDAW = matchedOutputs.length > 1 ? matchedOutputs[1] : matchedOutputs[0];
-            _lpOutputActive = true;
-            _enterLaunchpadProgrammerMode();
-          }
         } else {
           // Non-Launchpad: try direct name match for basic LED
           for (const output of access.outputs.values()) {
-            if (output.name === connectedName || output.name.includes(connectedName) || connectedName.includes(output.name)) {
+            if (!/launchpad|lppro/i.test(output.name || '') && (output.name === connectedName || output.name.includes(connectedName) || connectedName.includes(output.name))) {
               midiOutput = output;
               _lpOutputActive = true;
               break;
@@ -976,6 +987,21 @@ function initWebMIDI() {
         }
       }
 
+      if (launchpadLink && !window.IS_DESKTOP_MODE) {
+        launchpadLink.connect(access, inputCluster).then(function(ready) {
+          if (ready) {
+            if (ledSel) ledSel.style.display = '';
+            try {
+              var saved = localStorage.getItem('64pad-led-mode');
+              if (saved === 'full' || saved === 'root' || saved === 'off') {
+                _lpLEDMode = saved;
+                if (ledSel) ledSel.value = saved;
+              }
+            } catch (_) {}
+            render();
+          }
+        });
+      }
       indicator.style.background = connected ? '#4caf50' : '#ff9800';
     }
 
@@ -989,6 +1015,12 @@ function initWebMIDI() {
 
     refreshDeviceList();
     connectInputs();
+    window.addEventListener('pageshow', function(event) {
+      if (!event.persisted) return;
+      padWebResumePushSurface();
+      refreshDeviceList();
+      connectInputs();
+    });
     let _midiTopologySignature = padWebPushPortContract.topologySignature(access);
     access.onstatechange = () => {
       const nextSignature = padWebPushPortContract.topologySignature(access);
@@ -1594,6 +1626,20 @@ function _exitLaunchpadProgrammerMode() {
 function updateLaunchpadLEDs(state) {
   if (_pushWebShuttingDown) return;
   _lastLEDState = state;
+  if (launchpadLink && state.launchpadPadColors) {
+    var lpPressed = new Set();
+    if (midiHeldState && midiAccess) midiHeldState.heldSources().forEach(function(source) {
+      if (launchpadLink.isActiveFor(midiAccess.inputs.get(source.deviceId)) && source.row !== null && source.col !== null)
+        lpPressed.add(source.row * COLS + source.col);
+    });
+    var lpColors = state.launchpadPadColors.map(function(color, idx) {
+      if (_lpLEDMode === 'off') return 0;
+      var pitch = baseMidi() + Math.floor(idx / COLS) * ROW_INTERVAL + idx % COLS;
+      if (_lpLEDMode === 'root') return pitch % 12 === state.rootPC ? (pitch % 12 === 0 ? 45 : 9) : 0;
+      return lpPressed.has(idx) ? 21 : color;
+    });
+    launchpadLink.paint(lpColors);
+  }
   if (_isPush && _pushIsColorPickActive()) return;
   if (!midiOutput || !_lpOutputActive || !_lpProgrammerMode) return;
   // Push pad LEDs follow the rendered controller state. _padColorToLP applies
@@ -1631,6 +1677,7 @@ function refreshLaunchpadLEDs() {
 }
 
 function clearLaunchpadLEDs() {
+  if (launchpadLink) launchpadLink.paint(new Array(64).fill(0));
   if (!midiOutput) return;
   for (var i = 0; i < 64; i++) {
     if (_prevLEDState[i] > 0) {
@@ -1660,3 +1707,9 @@ if (typeof module !== 'undefined') module.exports = {
   onMidiNoteOn, onMidiNoteOff, onNativeMidiIn, onNativeMidiOff,
   releaseAllMidiHeldSources,
 };
+
+// Actual page teardown only; hiding a tab must not interrupt a performance.
+if (launchpadLink && typeof window.addEventListener === 'function') {
+  window.addEventListener('pagehide', function() { launchpadLink.disconnect(); }, { capture: true });
+  window.addEventListener('beforeunload', function() { launchpadLink.disconnect(); }, { capture: true });
+}

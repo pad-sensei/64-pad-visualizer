@@ -1,6 +1,7 @@
 // Português
 I18N.addLang('pt', {
   help: {
+    launchpad_programmer: "<strong>Launchpad Pro MK3 (Web)</strong> — Permita MIDI SysEx e selecione a porta MIDI, com apenas um controlador conectado. O modo Programmer ilumina as posições exibidas; ↑/↓ mudam a oitava. Não use o mesmo controlador no DOJO ou em uma DAW ao mesmo tempo. Outros modelos Launchpad não estão incluídos.",
     title: '64 Pad Explorer',
     description: 'Uma ferramenta para explorar escalas, acordes e voicings numa grelha de 64 pads.',
     manual_link: 'Manual →',
@@ -667,7 +668,7 @@ I18N.addLang('pt', {
       sound_msg_desktop: 'O painel Sound cont\u00E9m defini\u00E7\u00F5es de sa\u00EDda MIDI.\nO \u00E1udio \u00E9 produzido pela sua DAW ou por um plugin VST/AU externo. A sensibilidade de velocidade pode ser ajustada aqui.',
       sound_done: 'Soa bem! Prima Seguinte para continuar.',
       midi_title: 'Controlador MIDI',
-      midi_msg: 'Foi detetado um controlador MIDI. Push 3 e Launchpad funcionam imediatamente — sem configuração necessária.\nA sensibilidade de velocidade pode ser ajustada no painel Sound.',
+      midi_msg: "Um controlador MIDI foi detectado. Selecione sua porta de entrada.\nOs LEDs do Launchpad Pro MK3 exigem permissão MIDI SysEx e um único par de entrada/saída MIDI. Use um aplicativo por vez.\nA sensibilidade à velocidade pode ser ajustada no painel de som.",
       midi_no_device: 'Nenhum controlador MIDI detetado \u2014 sem problema.\nPode usar cliques nos pads, entrada de guitarra/baixo/piano ou entrada de texto de acordes.',
       input_title: 'Tr\u00EAs modos',
       input_msg: 'Scale \u2014 ver notas da escala na grelha de 64 pads\nChord \u2014 construir acordes com voicings, invers\u00F5es e tens\u00F5es\nInput \u2014 clicar livremente nos pads para detetar nomes de acordes\n\nMude com Tab ou os bot\u00F5es de modo acima.',
