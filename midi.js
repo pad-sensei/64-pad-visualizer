@@ -303,14 +303,19 @@ function onMidiNoteOff(note, source) {
 function nativeMidiSourceMetadata(note, metadata) {
   metadata = metadata || {};
   var rawPad = Number(metadata.rawPad);
+  // Native Push serial and Pro MK3 decimal-grid notes are separate protocols.
+  // Never interpret a generic keyboard/unknown protocol as a physical grid.
+  var protocol = metadata.protocol == null ? 'push-serial' : String(metadata.protocol);
+  var matchesGrid = protocol === 'launchpad-pro-mk3'
+    ? rawPad === (metadata.row + 1) * 10 + metadata.col + 1
+    : protocol === 'push-serial' && rawPad === 36 + metadata.row * 8 + metadata.col;
   var exactPosition = metadata.positionConfidence === 'exact'
     && Number.isInteger(rawPad)
     && Number.isInteger(metadata.row)
     && Number.isInteger(metadata.col)
-    && rawPad >= 36 && rawPad <= 99
     && metadata.row >= 0 && metadata.row < 8
     && metadata.col >= 0 && metadata.col < 8
-    && rawPad === 36 + metadata.row * 8 + metadata.col;
+    && matchesGrid;
   var deviceId = metadata.deviceId != null ? String(metadata.deviceId) : 'native';
   var channel = Number.isInteger(metadata.channel) && metadata.channel >= 0 && metadata.channel <= 15
     ? metadata.channel : 0;
@@ -1623,6 +1628,18 @@ function _exitLaunchpadProgrammerMode() {
   _lpProgrammerMode = false;
 }
 
+// Shared frame policy for Web MIDI and the Desktop native adapter. The renderer
+// supplies the 64 base colors; this only applies the existing off/root setting.
+function launchpadRenderedColors(state, pressed) {
+  if (!state || !Array.isArray(state.launchpadPadColors) || state.launchpadPadColors.length !== 64) return null;
+  return state.launchpadPadColors.map(function(color, idx) {
+    if (_lpLEDMode === 'off') return 0;
+    var pitch = baseMidi() + Math.floor(idx / COLS) * ROW_INTERVAL + idx % COLS;
+    if (_lpLEDMode === 'root') return pitch % 12 === state.rootPC ? (pitch % 12 === 0 ? padLaunchpadProgrammer.colorForRole('c') : 9) : 0;
+    return pressed && pressed.has(idx) ? padLaunchpadProgrammer.colorForRole('pressed') : color;
+  });
+}
+
 function updateLaunchpadLEDs(state) {
   if (_pushWebShuttingDown) return;
   _lastLEDState = state;
@@ -1632,12 +1649,7 @@ function updateLaunchpadLEDs(state) {
       if (launchpadLink.isActiveFor(midiAccess.inputs.get(source.deviceId)) && source.row !== null && source.col !== null)
         lpPressed.add(source.row * COLS + source.col);
     });
-    var lpColors = state.launchpadPadColors.map(function(color, idx) {
-      if (_lpLEDMode === 'off') return 0;
-      var pitch = baseMidi() + Math.floor(idx / COLS) * ROW_INTERVAL + idx % COLS;
-      if (_lpLEDMode === 'root') return pitch % 12 === state.rootPC ? (pitch % 12 === 0 ? 45 : 9) : 0;
-      return lpPressed.has(idx) ? 21 : color;
-    });
+    var lpColors = launchpadRenderedColors(state, lpPressed);
     launchpadLink.paint(lpColors);
   }
   if (_isPush && _pushIsColorPickActive()) return;

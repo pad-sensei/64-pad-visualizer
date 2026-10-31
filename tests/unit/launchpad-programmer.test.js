@@ -47,7 +47,7 @@ describe('Pro MK3 Programmer transport', () => {
     expect(await pending).toBe(false);expect(w.output.send).not.toHaveBeenCalled();
   });
   it('uses native Launchpad palette, never custom Push palette numbers', () => {
-    expect(lp.paletteForRenderedPad('var(--pad-basic-chord)',true,60,false)).toBe(45);
+    expect(lp.paletteForRenderedPad('var(--pad-basic-chord)',true,60,false)).toBe(13); // DOJO guide-C default, independently configurable.
     expect(lp.paletteForRenderedPad('var(--pad-basic-chord)',true,64,false)).toBe(13);
     expect(lp.paletteForRenderedPad('var(--pad-basic-scale)',true,62,true)).toBe(2);
     expect(lp.paletteForRenderedPad('var(--pad-chord)',false,64,false)).toBe(0);
@@ -142,6 +142,16 @@ describe('Programmer input through the production MIDI runtime',()=>{
     for(const fn of r.handlers.pageshow)fn({persisted:true});
     await new Promise(resolve=>setImmediate(resolve));
     r.send(r.input,[144,11,100]);expect(r.events.at(-1)).toEqual(['on',36]);
+  });
+  it('shares off/root frame policy with Desktop without changing base rendered positions',async()=>{
+    const r=await runtime(), colors=Array(64).fill(13);
+    expect(r.c.launchpadRenderedColors({launchpadPadColors:colors,rootPC:2},new Set([0]))[0]).toBe(21);
+    vm.runInContext("_lpLEDMode = 'off'",r.c);
+    expect(r.c.launchpadRenderedColors({launchpadPadColors:colors,rootPC:2},new Set([0])).every(c=>c===0)).toBe(true);
+    vm.runInContext("_lpLEDMode = 'root'",r.c);
+    const root=r.c.launchpadRenderedColors({launchpadPadColors:colors,rootPC:2},new Set([0]));
+    expect(root[0]).toBe(0);expect(root[2]).toBe(9);
+    expect(r.c.launchpadRenderedColors({})).toBe(null);
   });
   it('releases held notes on output-only disconnect and ignores stale input callback',async()=>{
     const r=await runtime();const stale=r.input.onmidimessage;

@@ -22,18 +22,39 @@
   var enter = [0xf0, 0, 32, 41, 2, 14, 14, 1, 0xf7];
   var live = [0xf0, 0, 32, 41, 2, 14, 14, 0, 0xf7];
   var noteLayout = [0xf0, 0, 32, 41, 2, 14, 0, 4, 0, 0, 0xf7];
+  var defaultColors = { scale: 'p:2', c: 'p:45', guide: 'p:13', guideC: 'p:13', pressed: 'p:21' };
+  function validColor(value) {
+    return typeof value === 'string' && (/^#[0-9a-f]{6}$/i.test(value) || /^p:(0|[1-9][0-9]?|1[01][0-9]|12[0-7])$/.test(value));
+  }
+  function sanitizeColors(values) {
+    var result = {};
+    Object.keys(defaultColors).forEach(function(role) { result[role] = values && validColor(values[role]) ? values[role] : defaultColors[role]; });
+    return result;
+  }
+  function colorForRole(role, values) {
+    if (!Object.prototype.hasOwnProperty.call(defaultColors, role)) return 0;
+    if (values === undefined && typeof AppState !== 'undefined') values = AppState.launchpadColors;
+    var value = sanitizeColors(values)[role];
+    return value[0] === '#' ? value.toLowerCase() : Number(value.slice(2));
+  }
+  function validDescriptor(value) { return Number.isInteger(value) && value >= 0 && value <= 127 || typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value); }
   function ledMessage(entries) {
     var bytes = [0xf0, 0, 32, 41, 2, 14, 3];
-    entries.forEach(function(e) { bytes.push(0, padNote(e[0]), e[1]); });
+    entries.forEach(function(e) {
+      if (typeof e[1] === 'string') {
+        var rgb = parseInt(e[1].slice(1), 16);
+        var seven = function(v) { return Math.floor((v * 127 + 127) / 255); };
+        bytes.push(3, padNote(e[0]), seven((rgb >> 16) & 255), seven((rgb >> 8) & 255), seven(rgb & 255));
+      } else bytes.push(0, padNote(e[0]), e[1]);
+    });
     bytes.push(0xf7);
     return bytes;
   }
   // Use the actual rendered pad, not a second voicing calculation or Push palette.
   function paletteForRenderedPad(fill, visible, midi, background) {
     if (!visible || /--pad-off|--pad-omitted|--bg\)/.test(fill)) return 0;
-    if (midi % 12 === 0) return 45; // C stays identifiable underneath the shape.
-    if (background) return /--pad-root/.test(fill) ? 9 : 2;
-    return 13;
+    if (background) return midi % 12 === 0 ? colorForRole('c') : /--pad-root/.test(fill) ? 9 : colorForRole('scale');
+    return colorForRole(midi % 12 === 0 ? 'guideC' : 'guide');
   }
   function create(onRelease) {
     var generation = 0, ownedInput = null, output = null, active = false;
@@ -74,7 +95,7 @@
       if (!active || !output || output.state === 'disconnected' || !colors || colors.length !== 64) return false;
       var changed = [];
       for (var i = 0; i < 64; i++) {
-        if (!Number.isInteger(colors[i]) || colors[i] < 0 || colors[i] > 127) return false;
+        if (!validDescriptor(colors[i])) return false;
         if (previous[i] !== colors[i]) changed.push([i, colors[i]]);
       }
       if (!changed.length) return true;
@@ -89,7 +110,8 @@
     };
   }
   var api = { isMidiPort: isMidiPort, position: position, padNote: padNote, create: create,
-    paletteForRenderedPad: paletteForRenderedPad };
+    paletteForRenderedPad: paletteForRenderedPad, defaultColors: defaultColors, validColor: validColor,
+    sanitizeColors: sanitizeColors, colorForRole: colorForRole, validDescriptor: validDescriptor };
   global.padLaunchpadProgrammer = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

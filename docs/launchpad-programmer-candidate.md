@@ -14,7 +14,7 @@ Allow Web MIDI SysEx in a supporting browser, connect one Pro MK3 and select its
 
 Use the controller with one app at a time. Do not share it concurrently with DOJO, a DAW, another Explorer tab, or another MIDI owner. A Web MIDI send returning successfully is not a device acknowledgement.
 
-The pad LEDs follow the screen's final resolved positions rather than recalculating voicings. C uses palette 45, shape notes 13, scale background 2 (tonic 9), and the physically pressed pad 21. Full / root / off remain available. Palette appearance and usability still require real-device review.
+The pad LEDs follow the screen's final resolved positions rather than recalculating voicings. Default background C uses palette 45, shape notes (including C) 13, scale background 2 (tonic 9), and the physically pressed pad 21. Display settings provide five independent Launchpad roles (background, C, guide, guide C, pressed), each accepting palette 0–127 or custom RGB, with reset and persisted settings. These settings do not change Push colours or screen handshape positions; the selected scale tonic remains palette 9. Screen RGB previews are references, not calibrated hardware colours. Full / root / off remain available. Palette appearance and usability still require real-device review.
 
 Programmer notes 11–88 map to the same fourths-grid positions and pitches as the screen. Up/down are CC80/70; left/right CC91/92 do not change octaves. Each press retains its physical identity so release uses the original pitch after an octave change. Non-grid events are not treated as notes. Existing Memory/Perform behavior is retained.
 

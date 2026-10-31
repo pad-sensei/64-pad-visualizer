@@ -103,3 +103,19 @@ describe('actual renderPads → Launchpad screen-position projection', () => {
     expect(colors[20]).toBe(background ? 9 : 0);
   });
 });
+
+
+describe('custom Launchpad colours keep the resolved handshape positions', () => {
+  it('changes role colours without lighting same-pitch duplicates or changing the screen shape', () => {
+    const f = fixture(); f.state.activePCS.add(0); f.state.basicFormPadSet = new Set([0, 2, 6, 12]); f.state.scaleBgPCS = new Set([0, ...dMajor()]); f.state.scaleBgRootPC = 2;
+    const before = f.render();
+    f.context.AppState.launchpadColors = { scale: 'p:7', c: 'p:45', guide: '#00aaff', guideC: 'p:0', pressed: 'p:21' };
+    const after = f.render();
+    expect(after.colors[0]).toBe(0); // guide C can intentionally be dark
+    expect(after.colors[6]).toBe('#00aaff'); // physical shape pad
+    expect(after.colors[9]).toBe(7); // same MIDI pitch, different physical background pad
+    expect(after.colors[20]).toBe(9); // selected scale tonic remains a separate Explorer role
+    expect(after.pads.map(p=>p.getAttribute('fill'))).toEqual(before.pads.map(p=>p.getAttribute('fill')));
+    expect(after.pads.map(p=>p.getAttribute('opacity'))).toEqual(before.pads.map(p=>p.getAttribute('opacity')));
+  });
+});

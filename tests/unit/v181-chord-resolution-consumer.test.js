@@ -209,7 +209,7 @@ describe('v1.8.1 chord-resolution consumer', () => {
       'pad-core/chord-resolver.js?v=1.8.1-resolution2',
       'chord-resolution-ui.js?v=1.8.1-alias-equation9',
       'plain.js?v=1.8.1-resolution2',
-      'midi.js?v=1.9.0-launchpad1',
+      'midi.js?v=1.9.0-launchpad2',
     ]) {
       expect(index).toContain(asset);
       expect(sw).toContain(asset);

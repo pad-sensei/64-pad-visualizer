@@ -1,6 +1,18 @@
 // Français
 I18N.addLang('fr', {
   help: {
+    launchpad_colors_title: "Couleurs LED Launchpad Pro MK3",
+    launchpad_colors_hint: "Les couleurs à l’écran sont indicatives ; la couleur et la luminosité des LED peuvent différer.",
+    launchpad_color_scale: "Pads de fond",
+    launchpad_color_c: "Do de référence",
+    launchpad_color_guide: "Guide",
+    launchpad_color_guideC: "Do du guide",
+    launchpad_color_pressed: "Pads pressés",
+    launchpad_color_custom: "RVB personnalisé",
+    launchpad_color_reset: "Réinitialiser les couleurs Launchpad",
+    launchpad_color_palette: "Palette",
+    launchpad_color_off: "Éteint",
+
     launchpad_programmer: "<strong>Launchpad Pro MK3 (Web)</strong> — Autorisez MIDI SysEx et sélectionnez son port MIDI, avec un seul contrôleur connecté. Le mode Programmer éclaire les positions affichées ; ↑/↓ changent l’octave. N’utilisez pas ce contrôleur simultanément dans DOJO ou un DAW. Les autres modèles Launchpad ne sont pas inclus.",
     title: '64 Pad Explorer',
     description: 'Un outil pour explorer les gammes, accords et voicings sur une grille de 64 pads.',

@@ -57,6 +57,7 @@ const AppState = {
   pushPressedColor: 25, // Push 3 palette index: held/same-note highlight
   pushMemorySlotColor: 45, // Push 3 palette index: saved Memory slot
   pushPerformActiveColor: 9, // Push 3 palette index: active Perform slot
+  launchpadColors: { scale: 'p:2', c: 'p:45', guide: 'p:13', guideC: 'p:13', pressed: 'p:21' },
   pushLedColorSettingsVersion: 2,
 };
 
@@ -257,6 +258,7 @@ function saveAppSettings() {
       pushPressedColor: AppState.pushPressedColor,
       pushMemorySlotColor: AppState.pushMemorySlotColor,
       pushPerformActiveColor: AppState.pushPerformActiveColor,
+      launchpadColors: AppState.launchpadColors,
       pushLedColorSettingsVersion: AppState.pushLedColorSettingsVersion,
       doubleStopScaleSetIndex: DoubleStopState.scaleSetIndex,
       doubleStopIntervalIndex: DoubleStopState.intervalIndex,
@@ -308,6 +310,7 @@ function loadAppSettings() {
     DoubleStopState.enabled = false;
     if (s.doubleStopScaleSetIndex !== undefined && s.doubleStopScaleSetIndex >= 0) DoubleStopState.scaleSetIndex = s.doubleStopScaleSetIndex;
     if (s.doubleStopIntervalIndex !== undefined && s.doubleStopIntervalIndex >= 0) DoubleStopState.intervalIndex = s.doubleStopIntervalIndex;
+    if (typeof padLaunchpadProgrammer !== 'undefined') AppState.launchpadColors = padLaunchpadProgrammer.sanitizeColors(s.launchpadColors);
     if (s.pushLedColorSettingsVersion === AppState.pushLedColorSettingsVersion) {
       if (s.pushScaleRootColor !== undefined && s.pushScaleRootColor >= 0 && s.pushScaleRootColor <= 127) AppState.pushScaleRootColor = s.pushScaleRootColor;
       if (s.pushScaleToneColor !== undefined && s.pushScaleToneColor >= 0 && s.pushScaleToneColor <= 127) AppState.pushScaleToneColor = s.pushScaleToneColor;

@@ -1,6 +1,18 @@
 // 日本語
 I18N.addLang('ja', {
   help: {
+    launchpad_colors_title: "Launchpad Pro MK3 LED色",
+    launchpad_colors_hint: "画面の色見本は参考です。実機LEDの色・明るさとは異なります。",
+    launchpad_color_scale: "待機パッド",
+    launchpad_color_c: "ルートC",
+    launchpad_color_guide: "見本",
+    launchpad_color_guideC: "見本のC",
+    launchpad_color_pressed: "自分の打鍵",
+    launchpad_color_custom: "カスタムRGB",
+    launchpad_color_reset: "Launchpadを標準に戻す",
+    launchpad_color_palette: "パレット",
+    launchpad_color_off: "消灯",
+
     launchpad_programmer: "<strong>Launchpad Pro MK3（Web）</strong> — MIDI SysEx を許可し、1台だけ接続して MIDI ポートを選択。Programmer モードで画面のパッド位置を点灯し、↑/↓でオクターブ移動します。同じ機器を DOJO・DAW と同時使用しないでください。他の Launchpad 機種は対象外です。",
     title: '64 Pad Explorer',
     description: '64パッド上のスケール・コード・ボイシングを探索するツール。',

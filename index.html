@@ -115,7 +115,7 @@ if (window.__IS_64PAD_DEV_DEPLOY && 'serviceWorker' in navigator) {
 <meta name="twitter:description" content="コードがわからなくても大丈夫。64パッドでスケール・コード・ボイシングを可視化。ブラウザだけで動く無料音楽理論ツール。">
 <meta name="twitter:image" content="https://murinaikurashi.com/apps/64-pad/img/screenshot-chord.png">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"64 Pad Explorer","description":"Visualize scales, chords, and voicings on a 64-pad chromatic grid. Supports Ableton Push and Maschine layouts. MIDI I/O, chord detection, multiple instrument views.","url":"https://murinaikurashi.com/apps/64-pad/","applicationCategory":"MusicApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Organization","name":"HPS (Hardcore Pad Style)","url":"https://murinaikurashi.com"},"screenshot":"https://murinaikurashi.com/apps/64-pad/img/screenshot-scale.png","softwareVersion":"1.8.1","inLanguage":["en","ja","ko","zh","es","pt","fr","de","it"]}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"64 Pad Explorer","description":"Visualize scales, chords, and voicings on a 64-pad chromatic grid. Supports Ableton Push and Maschine layouts. MIDI I/O, chord detection, multiple instrument views.","url":"https://murinaikurashi.com/apps/64-pad/","applicationCategory":"MusicApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Organization","name":"HPS (Hardcore Pad Style)","url":"https://murinaikurashi.com"},"screenshot":"https://murinaikurashi.com/apps/64-pad/img/screenshot-scale.png","softwareVersion":"1.9.0","inLanguage":["en","ja","ko","zh","es","pt","fr","de","it"]}
 </script>
 <script src="error-logger.js"></script>
 <!-- Google Analytics -->
@@ -164,7 +164,7 @@ document.addEventListener('click', function(e) {
 <div class="header-block">
 <div class="header-bar">
   <h1>64 Pad Explorer</h1>
-  <span class="version-tag">v1.8.1</span>
+  <span class="version-tag">v1.9.0</span>
   <select id="lang-select" onchange="I18N.setLang(this.value)" style="font-size:0.6rem;padding:1px 2px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:3px;cursor:pointer;margin-left:4px;" data-info="info.lang">
     <option value="en">EN</option>
     <option value="ja">JA</option>
@@ -420,6 +420,9 @@ document.addEventListener('click', function(e) {
       <label>Perform active 色</label>
       <button type="button" onclick="startViewSetupPushColorPick('performActive')">選ぶ <span data-push-color-label="performActive">9</span></button>
     </div>
+    <details id="launchpad-color-settings"><summary data-i18n="help.launchpad_colors_title">Launchpad Pro MK3 LED colours</summary>
+      <p data-i18n="help.launchpad_colors_hint">Screen colour samples are references; hardware LED colour and brightness may differ.</p>
+    </details>
     <div class="view-setup-row" data-view-setup-field="tips">
       <label for="view-tips-toggle" data-i18n="help.tips_toggle">起動時にヒントを表示</label>
       <input type="checkbox" id="view-tips-toggle" data-view-setup-tips onchange="toggleStartupTips(this.checked)">
@@ -911,17 +914,17 @@ if (window.IS_DESKTOP_MODE || _affiliateParams.has('hps')) {
 
 <!-- i18n (engine → language files) -->
 <script src="i18n.js?v=6.7.52"></script>
-<script src="lang-en.js?v=1.9.0-launchpad1"></script>
-<script src="lang-ja.js?v=1.9.0-launchpad1"></script>
-<script src="lang-zh.js?v=1.9.0-launchpad1"></script>
-<script src="lang-es.js?v=1.9.0-launchpad1"></script>
-<script src="lang-fr.js?v=1.9.0-launchpad1"></script>
-<script src="lang-pt.js?v=1.9.0-launchpad1"></script>
-<script src="lang-de.js?v=1.9.0-launchpad1"></script>
-<script src="lang-ko.js?v=1.9.0-launchpad1"></script>
-<script src="lang-it.js?v=1.9.0-launchpad1"></script>
+<script src="lang-en.js?v=1.9.0-colors1"></script>
+<script src="lang-ja.js?v=1.9.0-colors1"></script>
+<script src="lang-zh.js?v=1.9.0-colors1"></script>
+<script src="lang-es.js?v=1.9.0-colors1"></script>
+<script src="lang-fr.js?v=1.9.0-colors1"></script>
+<script src="lang-pt.js?v=1.9.0-colors1"></script>
+<script src="lang-de.js?v=1.9.0-colors1"></script>
+<script src="lang-ko.js?v=1.9.0-colors1"></script>
+<script src="lang-it.js?v=1.9.0-colors1"></script>
 <!-- pad-core (SSOT: theory calculations, data constants, render) -->
-<script src="pad-core/data.js?v=6.7.54"></script>
+<script src="pad-core/data.js?v=1.9.0-colors1"></script>
 <script src="pad-core/theory.js?v=1.8.1-altered-dominant1"></script>
 <script src="pad-core/chord-resolver.js?v=1.8.1-resolution2"></script>
 <script src="pad-core/render.js?v=6.7.52"></script>
@@ -929,7 +932,7 @@ if (window.IS_DESKTOP_MODE || _affiliateParams.has('hps')) {
 <script src="pad-core/builder-ui.js?v=6.7.52"></script>
 <script src="pad-core/incremental.js?v=6.7.52"></script>
 <!-- App JS -->
-<script src="data.js?v=6.7.52"></script>
+<script src="data.js?v=1.9.0-colors1"></script>
 <!-- Phase 3.1-A.c: audio-core + host-adapter + audio-ui-binding are loaded
      ONLY when AUDIO_ENABLED. In silent mode these are skipped entirely —
      pad-core / theory / MIDI / render still run, only sound is absent.
@@ -1003,11 +1006,11 @@ if (window.AUDIO_ENABLED) {
 <script src="push-midi-port-contract.js?v=1.8.0-liveport3"></script>
 <script src="push-midi-cc-map.js?v=1.8.0"></script>
 <script src="push-web-control.js?v=1.8.0-active-color"></script>
-<script src="launchpad-programmer.js?v=1.9.0"></script>
-<script src="midi.js?v=1.9.0-launchpad1"></script>
-<script src="main.js?v=6.7.55"></script>
+<script src="launchpad-programmer.js?v=1.9.0-colors1"></script>
+<script src="midi.js?v=1.9.0-launchpad2"></script>
+<script src="main.js?v=1.9.0-colors1"></script>
 <script type="module" src="push-display-webusb-app.js?v=webusb-20260915-headline-layout1"></script>
-<script src="tutorial-data.js?v=6.7.52"></script>
+<script src="tutorial-data.js?v=1.9.0-colors1"></script>
 <script src="tutorial.js?v=6.7.52"></script>
 <script>
 // 2026-04-28: Desktop モード (?desktop=1) 後段 override。

@@ -1,6 +1,18 @@
 // 中文
 I18N.addLang('zh', {
   help: {
+    launchpad_colors_title: "Launchpad Pro MK3 LED颜色",
+    launchpad_colors_hint: "屏幕颜色仅供参考，实际LED的颜色和亮度可能不同。",
+    launchpad_color_scale: "背景音垫",
+    launchpad_color_c: "参考C",
+    launchpad_color_guide: "示范",
+    launchpad_color_guideC: "示范中的C",
+    launchpad_color_pressed: "按下的音垫",
+    launchpad_color_custom: "自定义RGB",
+    launchpad_color_reset: "重置Launchpad颜色",
+    launchpad_color_palette: "调色板",
+    launchpad_color_off: "熄灭",
+
     launchpad_programmer: "<strong>Launchpad Pro MK3（Web）</strong> — 允许 MIDI SysEx，仅连接一台控制器并选择其 MIDI 端口。Programmer 模式显示屏幕上的打击垫位置，↑/↓切换八度。请勿同时在 DOJO 或 DAW 中使用同一控制器。暂不包含其他 Launchpad 型号。",
     title: '64 Pad Explorer',
     description: '在64键打击垫上探索音阶、和弦与声位的工具。',

@@ -1,6 +1,18 @@
 // 한국어
 I18N.addLang('ko', {
   help: {
+    launchpad_colors_title: "Launchpad Pro MK3 LED 색상",
+    launchpad_colors_hint: "화면의 색상은 참고용이며 실제 LED의 색상과 밝기는 다를 수 있습니다.",
+    launchpad_color_scale: "배경 패드",
+    launchpad_color_c: "기준 C",
+    launchpad_color_guide: "가이드",
+    launchpad_color_guideC: "가이드의 C",
+    launchpad_color_pressed: "누른 패드",
+    launchpad_color_custom: "사용자 RGB",
+    launchpad_color_reset: "Launchpad 색상 초기화",
+    launchpad_color_palette: "팔레트",
+    launchpad_color_off: "꺼짐",
+
     launchpad_programmer: "<strong>Launchpad Pro MK3(Web)</strong> — MIDI SysEx를 허용하고 컨트롤러 한 대만 연결한 뒤 MIDI 포트를 선택하세요. Programmer 모드에서 화면의 패드 위치가 켜지며 ↑/↓로 옥타브를 이동합니다. 같은 기기를 DOJO 또는 DAW와 동시에 사용하지 마세요. 다른 Launchpad 모델은 포함되지 않습니다.",
     title: '64 Pad Explorer',
     description: '64패드 그리드에서 스케일, 코드, 보이싱을 탐색하는 도구입니다.',

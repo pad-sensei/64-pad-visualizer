@@ -92,6 +92,7 @@ function setPaneView(view) {
 }
 
 function syncViewSetupControls() {
+  syncLaunchpadColorSettings();
   var order = localStorage.getItem('64pad-pane-order') || 'ABC';
   var view = (document.body && document.body.dataset ? document.body.dataset.paneView : '') || localStorage.getItem('64pad-pane-view') || 'all';
   var orderSelects = document.querySelectorAll('[data-view-setup-order]');
@@ -1381,3 +1382,42 @@ function toggleHeader() {
     if (el) setInfo(defaultKey);
   }, true);
 })();
+
+
+// Launchpad uses its own firmware palette/RGB, never the Push colour settings.
+function syncLaunchpadColorSettings() {
+  var root = document.getElementById('launchpad-color-settings');
+  if (!root || typeof padLaunchpadProgrammer === 'undefined') return;
+  if (!root.dataset.initialized) {
+    root.dataset.initialized = 'true';
+    var roles = { scale: '待機パッド / Scale', c: 'ルートC / C', guide: '見本 / Guide', guideC: '見本のC / Guide C', pressed: '自分の打鍵 / Pressed' };
+    Object.keys(roles).forEach(function(role) {
+      var row = document.createElement('label'); row.style.display = 'block'; var label = document.createElement('span'); label.setAttribute('data-i18n', 'help.launchpad_color_' + role); label.textContent = typeof t === 'function' ? t('help.launchpad_color_' + role) : roles[role]; row.appendChild(label);
+      var select = document.createElement('select'); select.dataset.launchpadRole = role; select.setAttribute('aria-label', 'Launchpad ' + roles[role]);
+      for (var i = 0; i < 128; i++) { var option = document.createElement('option'); option.value = 'p:' + i; option.textContent = i === 0 ? '0 ' + t('help.launchpad_color_off') : t('help.launchpad_color_palette') + ' ' + i; select.appendChild(option); }
+      var custom = document.createElement('option'); custom.value = 'rgb'; custom.setAttribute('data-i18n', 'help.launchpad_color_custom'); custom.textContent = t('help.launchpad_color_custom'); select.appendChild(custom);
+      var rgb = document.createElement('input'); rgb.type = 'color'; rgb.value = '#0000ff'; rgb.dataset.launchpadRgb = role; rgb.setAttribute('aria-label', 'Launchpad ' + roles[role] + ' RGB');
+      select.onchange = function() { setLaunchpadColor(role, select.value === 'rgb' ? rgb.value : select.value); };
+      rgb.onchange = function() { setLaunchpadColor(role, rgb.value); };
+      row.appendChild(select); row.appendChild(rgb); root.appendChild(row);
+    });
+    var reset = document.createElement('button'); reset.type = 'button'; reset.setAttribute('data-i18n', 'help.launchpad_color_reset'); reset.textContent = t('help.launchpad_color_reset'); reset.onclick = resetLaunchpadColors; root.appendChild(reset);
+  }
+  var values = padLaunchpadProgrammer.sanitizeColors(AppState.launchpadColors);
+  root.querySelectorAll('[data-launchpad-role]').forEach(function(select) {
+    var role = select.dataset.launchpadRole, value = values[role], rgb = root.querySelector('[data-launchpad-rgb="' + role + '"]');
+    select.value = value[0] === '#' ? 'rgb' : value;
+    rgb.hidden = value[0] !== '#'; if (!rgb.hidden) rgb.value = value;
+  });
+}
+function setLaunchpadColor(role, value) {
+  if (!Object.prototype.hasOwnProperty.call(padLaunchpadProgrammer.defaultColors, role) || !padLaunchpadProgrammer.validColor(value)) return false;
+  AppState.launchpadColors = padLaunchpadProgrammer.sanitizeColors(AppState.launchpadColors);
+  AppState.launchpadColors[role] = value;
+  saveAppSettings(); syncLaunchpadColorSettings(); render();
+  return true;
+}
+function resetLaunchpadColors() {
+  AppState.launchpadColors = padLaunchpadProgrammer.sanitizeColors(null);
+  saveAppSettings(); syncLaunchpadColorSettings(); render();
+}
