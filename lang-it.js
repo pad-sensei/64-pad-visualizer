@@ -1,6 +1,19 @@
 // Italiano
 I18N.addLang('it', {
   help: {
+    launchpad_colors_title: "Colori LED Launchpad Pro MK3",
+    launchpad_colors_hint: "I colori a schermo sono indicativi; colore e luminosità dei LED possono differire.",
+    launchpad_color_scale: "Pad di sfondo",
+    launchpad_color_c: "Do di riferimento",
+    launchpad_color_guide: "Guida",
+    launchpad_color_guideC: "Do della guida",
+    launchpad_color_pressed: "Pad premuti",
+    launchpad_color_custom: "RGB personalizzato",
+    launchpad_color_reset: "Ripristina colori Launchpad",
+    launchpad_color_palette: "Tavolozza",
+    launchpad_color_off: "Spento",
+
+    launchpad_programmer: "<strong>Launchpad Pro MK3 (Web)</strong> — Consenti MIDI SysEx e seleziona la porta MIDI, collegando un solo controller. La modalità Programmer illumina le posizioni visualizzate; ↑/↓ cambiano ottava. Non usare lo stesso controller contemporaneamente in DOJO o in una DAW. Gli altri modelli Launchpad non sono inclusi.",
     title: '64 Pad Explorer',
     description: 'Uno strumento per esplorare scale, accordi e voicings su una griglia di 64 pad.',
     manual_link: 'Manual →',
@@ -667,7 +680,7 @@ I18N.addLang('it', {
       sound_msg_desktop: 'Il pannello Sound contiene impostazioni di uscita MIDI.\nL\'audio \u00E8 prodotto dalla tua DAW o da un plugin VST/AU esterno. La sensibilit\u00E0 di velocit\u00E0 pu\u00F2 essere regolata qui.',
       sound_done: 'Suona bene! Premi Avanti per continuare.',
       midi_title: 'Controller MIDI',
-      midi_msg: 'È stato rilevato un controller MIDI. Push 3 e Launchpad funzionano subito — nessuna configurazione necessaria.\nLa sensibilità della velocità può essere regolata nel pannello Sound.',
+      midi_msg: "È stato rilevato un controller MIDI. Seleziona la porta di ingresso.\nI LED di Launchpad Pro MK3 richiedono il permesso MIDI SysEx e una sola coppia di ingresso/uscita MIDI. Usa una sola app alla volta.\nLa sensibilità alla velocity può essere regolata nel pannello audio.",
       midi_no_device: 'Nessun controller MIDI rilevato — nessun problema.\nPuoi usare i clic sui pad, l\'input chitarra/basso/piano o l\'input testuale di accordi.',
       input_title: 'Tre modalità',
       input_msg: 'Scale — visualizza le note della scala sulla griglia di 64 pad\nChord — costruisci accordi con voicing, rivolti e tensioni\nInput — tocca i pad liberamente per rilevare i nomi degli accordi\n\nCambia con Tab o i pulsanti di modalità sopra.',

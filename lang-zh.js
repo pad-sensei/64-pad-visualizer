@@ -1,6 +1,19 @@
 // 中文
 I18N.addLang('zh', {
   help: {
+    launchpad_colors_title: "Launchpad Pro MK3 LED颜色",
+    launchpad_colors_hint: "屏幕颜色仅供参考，实际LED的颜色和亮度可能不同。",
+    launchpad_color_scale: "背景音垫",
+    launchpad_color_c: "参考C",
+    launchpad_color_guide: "示范",
+    launchpad_color_guideC: "示范中的C",
+    launchpad_color_pressed: "按下的音垫",
+    launchpad_color_custom: "自定义RGB",
+    launchpad_color_reset: "重置Launchpad颜色",
+    launchpad_color_palette: "调色板",
+    launchpad_color_off: "熄灭",
+
+    launchpad_programmer: "<strong>Launchpad Pro MK3（Web）</strong> — 允许 MIDI SysEx，仅连接一台控制器并选择其 MIDI 端口。Programmer 模式显示屏幕上的打击垫位置，↑/↓切换八度。请勿同时在 DOJO 或 DAW 中使用同一控制器。暂不包含其他 Launchpad 型号。",
     title: '64 Pad Explorer',
     description: '在64键打击垫上探索音阶、和弦与声位的工具。',
     manual_link: 'Manual →',
@@ -669,7 +682,7 @@ I18N.addLang('zh', {
       sound_msg_desktop: 'Sound 面板包含 MIDI 输出设置。\n音频由 DAW 或外部 VST/AU 插件产生。力度灵敏度可在此调整。',
       sound_done: '听起来不错！按下一步继续。',
       midi_title: 'MIDI 控制器',
-      midi_msg: '已检测到 MIDI 控制器。Push 3 和 Launchpad 开箱即用，无需设置。\n力度灵敏度可在 Sound 面板中调节。',
+      midi_msg: "已检测到 MIDI 控制器。请选择输入端口。\nLaunchpad Pro MK3 灯光控制需要 MIDI SysEx 权限及唯一的一组 MIDI 输入和输出。一次只使用一个应用。\n可在声音面板中调整力度灵敏度。",
       midi_no_device: '未检测到 MIDI 控制器 — 没关系。\n你可以使用打击垫点击、吉他/贝斯/钢琴输入或文本和弦输入。',
       input_title: '三种模式',
       input_msg: 'Scale — 在64键打击垫网格上查看音阶音\nChord — 使用声位、转位和延伸音构建和弦\nInput — 自由点击打击垫识别和弦名称\n\n使用 Tab 键或上方的模式按钮切换。',

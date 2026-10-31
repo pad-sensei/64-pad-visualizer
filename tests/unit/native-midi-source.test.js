@@ -31,6 +31,30 @@ describe('native MIDI source-aware adapter', () => {
     vi.useRealTimers();
   });
 
+  it('accepts exactly the 64 Pro MK3 positions only with explicit protocol metadata', () => {
+    for (let row = 0; row < 8; row++) for (let col = 0; col < 8; col++) {
+      const rawPad = (row + 1) * 10 + col + 1;
+      expect(nativeMidiSourceMetadata(36 + row * 5 + col, {
+        protocol: 'launchpad-pro-mk3', deviceId: 'native-launchpad', channel: 2,
+        rawPad, row, col, positionConfidence: 'exact',
+      })).toEqual(expect.objectContaining({ rawNote: rawPad, row, col,
+        physicalPadId: `r${row}c${col}`, sourceId: `native-launchpad:2:r${row}c${col}`,
+        positionConfidence: 'exact' }));
+    }
+    for (const metadata of [
+      { protocol: 'launchpad-pro-mk3', rawPad: 19, row: 0, col: 8 },
+      { protocol: 'launchpad-pro-mk3', rawPad: 90, row: 8, col: -1 },
+      { protocol: 'launchpad-pro-mk3', rawPad: 11, row: 7, col: 0 },
+      { protocol: 'unknown', rawPad: 36, row: 0, col: 0 },
+      { rawPad: 11, row: 0, col: 0 },
+    ]) expect(nativeMidiSourceMetadata(60, { ...metadata, positionConfidence: 'exact' }))
+      .toEqual(expect.objectContaining({ physicalPadId: null, positionConfidence: 'none' }));
+    for (const [rawPad, row, col] of [[36, 0, 0], [99, 7, 7]]) {
+      expect(nativeMidiSourceMetadata(60, { rawPad, row, col, positionConfidence: 'exact' }))
+        .toEqual(expect.objectContaining({ rawNote: rawPad, row, col, positionConfidence: 'exact' }));
+    }
+  });
+
   it('keeps generic native input explicitly positionless', () => {
     expect(nativeMidiSourceMetadata(60, { deviceId: 'native-keyboard' })).toEqual(expect.objectContaining({
       deviceId: 'native-keyboard', sourceId: 'native-keyboard:0:60', channel: 0,

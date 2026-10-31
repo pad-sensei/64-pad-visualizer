@@ -1,6 +1,19 @@
 // Español
 I18N.addLang('es', {
   help: {
+    launchpad_colors_title: "Colores LED de Launchpad Pro MK3",
+    launchpad_colors_hint: "Los colores de pantalla son orientativos; el color y brillo de los LED pueden variar.",
+    launchpad_color_scale: "Pads de fondo",
+    launchpad_color_c: "Do de referencia",
+    launchpad_color_guide: "Guía",
+    launchpad_color_guideC: "Do de la guía",
+    launchpad_color_pressed: "Pads pulsados",
+    launchpad_color_custom: "RGB personalizado",
+    launchpad_color_reset: "Restablecer colores de Launchpad",
+    launchpad_color_palette: "Paleta",
+    launchpad_color_off: "Apagado",
+
+    launchpad_programmer: "<strong>Launchpad Pro MK3 (Web)</strong> — Permite MIDI SysEx y selecciona su puerto MIDI, con un solo controlador conectado. El modo Programmer ilumina las posiciones mostradas; ↑/↓ cambian de octava. No uses el mismo controlador en DOJO o un DAW a la vez. No incluye otros modelos Launchpad.",
     title: '64 Pad Explorer',
     description: 'Herramienta para explorar escalas, acordes y voicings en una cuadrícula de 64 pads.',
     manual_link: 'Manual →',
@@ -666,7 +679,7 @@ I18N.addLang('es', {
       sound_msg_desktop: 'El panel de sonido contiene configuraci\u00F3n de salida MIDI.\nEl audio lo produce tu DAW o un plugin VST/AU externo. La sensibilidad de velocidad se puede ajustar aqu\u00ED.',
       sound_done: '\u00A1Suena bien! Pulsa Siguiente para continuar.',
       midi_title: 'Controlador MIDI',
-      midi_msg: 'Se ha detectado un controlador MIDI. Push 3 y Launchpad funcionan de inmediato \u2014 sin configuraci\u00F3n necesaria.\nLa sensibilidad de velocidad se puede ajustar en el panel Sound.',
+      midi_msg: "Se ha detectado un controlador MIDI. Selecciona su puerto de entrada.\nLos LED de Launchpad Pro MK3 requieren permiso MIDI SysEx y un único par de entrada/salida MIDI. Usa una aplicación a la vez.\nPuedes ajustar la sensibilidad de velocidad en el panel de sonido.",
       midi_no_device: 'No se detect\u00F3 controlador MIDI \u2014 no hay problema.\nPuedes usar clics en pads, entrada de guitarra/bajo/piano o entrada de texto de acordes.',
       input_title: 'Tres modos',
       input_msg: 'Scale \u2014 ver notas de escala en la cuadr\u00EDcula de 64 pads\nChord \u2014 construir acordes con voicings, inversiones y tensiones\nInput \u2014 toca los pads libremente para detectar nombres de acordes\n\nCambia con Tab o los botones de modo de arriba.',

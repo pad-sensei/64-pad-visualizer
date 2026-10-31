@@ -1,6 +1,19 @@
 // Deutsch
 I18N.addLang('de', {
   help: {
+    launchpad_colors_title: "Launchpad Pro MK3 LED-Farben",
+    launchpad_colors_hint: "Bildschirmfarben dienen als Referenz; LED-Farbe und Helligkeit können abweichen.",
+    launchpad_color_scale: "Hintergrund-Pads",
+    launchpad_color_c: "Referenz-C",
+    launchpad_color_guide: "Vorlage",
+    launchpad_color_guideC: "C in der Vorlage",
+    launchpad_color_pressed: "Gedrückte Pads",
+    launchpad_color_custom: "Eigene RGB-Farbe",
+    launchpad_color_reset: "Launchpad-Farben zurücksetzen",
+    launchpad_color_palette: "Palette",
+    launchpad_color_off: "Aus",
+
+    launchpad_programmer: "<strong>Launchpad Pro MK3 (Web)</strong> — MIDI SysEx erlauben und den MIDI-Port wählen; nur einen Controller anschließen. Der Programmer-Modus beleuchtet die angezeigten Pad-Positionen; ↑/↓ wechseln die Oktave. Nicht gleichzeitig mit DOJO oder einer DAW verwenden. Andere Launchpad-Modelle sind nicht enthalten.",
     title: '64 Pad Explorer',
     description: 'Ein Werkzeug zum Erkunden von Skalen, Akkorden und Voicings auf einem 64-Pad-Raster.',
     manual_link: 'Manual →',
@@ -666,7 +679,7 @@ I18N.addLang('de', {
       sound_msg_desktop: 'Das Sound-Panel enth\u00E4lt MIDI-Ausgabe-Einstellungen.\nAudio wird von deiner DAW oder einem externen VST/AU-Plugin erzeugt. Anschlagdynamik kann hier angepasst werden.',
       sound_done: 'Klingt gut! Dr\u00FCcke Weiter um fortzufahren.',
       midi_title: 'MIDI-Controller',
-      midi_msg: 'Ein MIDI-Controller wurde erkannt. Push 3 und Launchpad funktionieren sofort — keine Einrichtung nötig.\nDie Anschlagdynamik kann im Sound-Panel angepasst werden.',
+      midi_msg: "Ein MIDI-Controller wurde erkannt. Wähle seinen Eingangsport.\nDie LEDs des Launchpad Pro MK3 benötigen MIDI-SysEx-Berechtigung und genau ein MIDI-Ein-/Ausgangspaar. Verwende jeweils nur eine App.\nDie Anschlagempfindlichkeit lässt sich im Sound-Panel einstellen.",
       midi_no_device: 'Kein MIDI-Controller erkannt \u2014 kein Problem.\nDu kannst Pad-Klicks, Gitarren-/Bass-/Klaviereingabe oder Text-Akkordeingabe nutzen.',
       input_title: 'Drei Modi',
       input_msg: 'Scale \u2014 Skalent\u00F6ne auf dem 64-Pad-Raster anzeigen\nChord \u2014 Akkorde mit Voicings, Umkehrungen und Tensions bauen\nInput \u2014 Pads frei antippen um Akkordnamen zu erkennen\n\nWechsle mit Tab oder den Modus-Buttons oben.',

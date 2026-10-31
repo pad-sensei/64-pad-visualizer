@@ -1,6 +1,19 @@
 // Français
 I18N.addLang('fr', {
   help: {
+    launchpad_colors_title: "Couleurs LED Launchpad Pro MK3",
+    launchpad_colors_hint: "Les couleurs à l’écran sont indicatives ; la couleur et la luminosité des LED peuvent différer.",
+    launchpad_color_scale: "Pads de fond",
+    launchpad_color_c: "Do de référence",
+    launchpad_color_guide: "Guide",
+    launchpad_color_guideC: "Do du guide",
+    launchpad_color_pressed: "Pads pressés",
+    launchpad_color_custom: "RVB personnalisé",
+    launchpad_color_reset: "Réinitialiser les couleurs Launchpad",
+    launchpad_color_palette: "Palette",
+    launchpad_color_off: "Éteint",
+
+    launchpad_programmer: "<strong>Launchpad Pro MK3 (Web)</strong> — Autorisez MIDI SysEx et sélectionnez son port MIDI, avec un seul contrôleur connecté. Le mode Programmer éclaire les positions affichées ; ↑/↓ changent l’octave. N’utilisez pas ce contrôleur simultanément dans DOJO ou un DAW. Les autres modèles Launchpad ne sont pas inclus.",
     title: '64 Pad Explorer',
     description: 'Un outil pour explorer les gammes, accords et voicings sur une grille de 64 pads.',
     manual_link: 'Manual →',
@@ -666,7 +679,7 @@ I18N.addLang('fr', {
       sound_msg_desktop: 'Le panneau Sound contient les param\u00E8tres de sortie MIDI.\nL\'audio est produit par votre DAW ou un plugin VST/AU externe. La sensibilit\u00E9 de v\u00E9locit\u00E9 peut \u00EAtre ajust\u00E9e ici.',
       sound_done: 'Ça sonne bien ! Appuyez sur Suivant pour continuer.',
       midi_title: 'Contrôleur MIDI',
-      midi_msg: 'Un contrôleur MIDI a été détecté. Push 3 et Launchpad fonctionnent immédiatement \u2014 aucune configuration requise.\nLa sensibilité de vélocité peut être ajustée dans le panneau Sound.',
+      midi_msg: "Un contrôleur MIDI a été détecté. Sélectionnez son port d’entrée.\nLes LED du Launchpad Pro MK3 nécessitent l’autorisation MIDI SysEx et une seule paire d’entrée/sortie MIDI. Utilisez une application à la fois.\nLa sensibilité à la vélocité se règle dans le panneau de son.",
       midi_no_device: 'Aucun contrôleur MIDI détecté \u2014 pas de souci.\nVous pouvez utiliser les clics sur les pads, l\u0027entrée guitare/basse/piano ou la saisie texte d\u0027accords.',
       input_title: 'Trois modes',
       input_msg: 'Scale \u2014 voir les notes de gamme sur la grille de 64 pads\nChord \u2014 construire des accords avec voicings, renversements et tensions\nInput \u2014 cliquer librement sur les pads pour détecter les noms d\u0027accords\n\nChangez avec Tab ou les boutons de mode ci-dessus.',

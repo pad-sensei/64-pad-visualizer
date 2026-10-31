@@ -1,6 +1,19 @@
 // 한국어
 I18N.addLang('ko', {
   help: {
+    launchpad_colors_title: "Launchpad Pro MK3 LED 색상",
+    launchpad_colors_hint: "화면의 색상은 참고용이며 실제 LED의 색상과 밝기는 다를 수 있습니다.",
+    launchpad_color_scale: "배경 패드",
+    launchpad_color_c: "기준 C",
+    launchpad_color_guide: "가이드",
+    launchpad_color_guideC: "가이드의 C",
+    launchpad_color_pressed: "누른 패드",
+    launchpad_color_custom: "사용자 RGB",
+    launchpad_color_reset: "Launchpad 색상 초기화",
+    launchpad_color_palette: "팔레트",
+    launchpad_color_off: "꺼짐",
+
+    launchpad_programmer: "<strong>Launchpad Pro MK3(Web)</strong> — MIDI SysEx를 허용하고 컨트롤러 한 대만 연결한 뒤 MIDI 포트를 선택하세요. Programmer 모드에서 화면의 패드 위치가 켜지며 ↑/↓로 옥타브를 이동합니다. 같은 기기를 DOJO 또는 DAW와 동시에 사용하지 마세요. 다른 Launchpad 모델은 포함되지 않습니다.",
     title: '64 Pad Explorer',
     description: '64패드 그리드에서 스케일, 코드, 보이싱을 탐색하는 도구입니다.',
     manual_link: 'Manual →',
@@ -667,7 +680,7 @@ I18N.addLang('ko', {
       sound_msg_desktop: 'Sound 패널에 MIDI 출력 설정이 있습니다.\nDAW 또는 외부 VST/AU 플러그인에서 오디오가 재생됩니다. 벨로시티 감도는 여기서 조정할 수 있습니다.',
       sound_done: '좋은 소리네요! 다음을 눌러 계속하세요.',
       midi_title: 'MIDI 컨트롤러',
-      midi_msg: 'MIDI 컨트롤러가 감지되었습니다. Push 3과 Launchpad는 즉시 사용 가능 — 설정 불필요.\n벨로시티 감도는 Sound 패널에서 조절할 수 있습니다.',
+      midi_msg: "MIDI 컨트롤러가 감지되었습니다. 입력 포트를 선택하세요.\nLaunchpad Pro MK3 LED 제어에는 MIDI SysEx 권한과 한 쌍의 MIDI 입출력이 필요합니다. 한 번에 하나의 앱만 사용하세요.\n벨로시티 감도는 사운드 패널에서 조절할 수 있습니다.",
       midi_no_device: 'MIDI 컨트롤러가 감지되지 않았습니다 — 괜찮습니다.\n패드 클릭, 기타/베이스/피아노 입력 또는 텍스트 코드 입력을 사용할 수 있습니다.',
       input_title: '세 가지 모드',
       input_msg: 'Scale — 64패드 그리드에서 스케일 음 보기\nChord — 보이싱, 전위, 텐션으로 코드 구성\nInput — 패드를 자유롭게 탭하여 코드명 판별\n\nTab 또는 위의 모드 버튼으로 전환합니다.',
