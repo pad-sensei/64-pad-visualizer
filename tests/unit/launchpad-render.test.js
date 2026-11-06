@@ -76,8 +76,8 @@ describe('actual renderPads → Launchpad screen-position projection', () => {
     // MIDI66 appears at (0,6) and (1,1), but only the former belongs to the shape.
     expect(pads[6].getAttribute('fill')).toBe('var(--pad-basic-chord)'); expect(colors[6]).toBe(13);
     expect(pads[9].getAttribute('fill')).toBe('var(--pad-basic-scale)'); expect(colors[9]).toBe(2);
-    // D at row2,col4 is a scale tonic, not another copy of the chord handshape.
-    expect(pads[20].getAttribute('fill')).toBe('var(--pad-root)'); expect(colors[20]).toBe(9);
+    // Tonic D is also a chord tone: its role wins without expanding the handshape set.
+    expect(pads[20].getAttribute('fill')).toBe('var(--pad-basic-chord)'); expect(colors[20]).toBe(13);
   });
   it('selected voicing suppresses hidden same-pitch duplicates', () => {
     const f = fixture(); f.context.VoicingState.selectedBoxIdx = 0;
@@ -100,7 +100,7 @@ describe('actual renderPads → Launchpad screen-position projection', () => {
     expect(pads[6].getAttribute('opacity')).not.toBe('0'); expect(colors[6]).toBe(13);
     expect(pads[9].getAttribute('fill')).toBe(background ? 'var(--pad-basic-scale)' : 'var(--pad-off)');
     expect(colors[9]).toBe(background ? 2 : 0);
-    expect(colors[20]).toBe(background ? 9 : 0);
+    expect(colors[20]).toBe(background ? 13 : 0);
   });
 });
 
@@ -114,8 +114,93 @@ describe('custom Launchpad colours keep the resolved handshape positions', () =>
     expect(after.colors[0]).toBe(0); // guide C can intentionally be dark
     expect(after.colors[6]).toBe('#00aaff'); // physical shape pad
     expect(after.colors[9]).toBe(7); // same MIDI pitch, different physical background pad
-    expect(after.colors[20]).toBe(9); // selected scale tonic remains a separate Explorer role
+    expect(after.colors[20]).toBe('#00aaff'); // chord-tone tonic follows the configured guide role
     expect(after.pads.map(p=>p.getAttribute('fill'))).toEqual(before.pads.map(p=>p.getAttribute('fill')));
     expect(after.pads.map(p=>p.getAttribute('opacity'))).toEqual(before.pads.map(p=>p.getAttribute('opacity')));
+  });
+});
+
+// Execute the background assembly from render() verbatim, then the real renderPads().
+// This covers the auto/manual Available Scale boundary without MIDI or audio access.
+function chordBackground({ fixed = false, all = false, manual = false, key = 0, rootPC = 2, selected = true } = {}) {
+  const f = fixture();
+  Object.assign(f.context.AppState, { key, scaleIdx: 0, padCFixed: fixed,
+    showAllPositions: all, showParentScales: selected });
+  f.state.rootPC = rootPC;
+  f.state.activePCS = new Set([0, 3, 7, 10].map(iv => (rootPC + iv) % 12));
+  f.state.activeIvPCS = new Set([0, 3, 7, 10]);
+  f.state.overlayPCS = new Set([0, 2, 3, 5, 7, 9, 10].map(iv => (rootPC + iv) % 12));
+  const positions = [];
+  for (let i = 0; i < 64 && positions.length < 4; i++) {
+    if (f.state.activePCS.has((60 + Math.floor(i / 8) * 5 + i % 8) % 12))
+      positions.push({ row: Math.floor(i / 8), col: i % 8 });
+  }
+  Object.assign(f.context, {
+    padState: f.state, BuilderState: { root: rootPC },
+    SCALES: [{ pcs: [0, 2, 4, 5, 7, 9, 11] }],
+    TastyState: { enabled: false }, StockState: { enabled: false },
+    _voicingReflectMode: false, _stockReflectMode: false,
+    _selectedPS: selected ? { parentKey: key, scaleIdx: 1 } : null,
+    _psAutoSelect: !manual,
+    chordBasicFormActive: () => !all,
+    getCurrentChordMidiNotes: () => positions.map(p => 60 + p.row * 5 + p.col),
+    basicFormArrangements: () => [{ positions }],
+  });
+  const start = renderSource.indexOf('  // Basic-form default:');
+  const end = renderSource.indexOf("  if (AppState.mode === 'scale' && typeof doubleStopActive", start);
+  expect(start).toBeGreaterThan(0); expect(end).toBeGreaterThan(start);
+  vm.runInContext(renderSource.slice(start, end), f.context);
+  return f;
+}
+
+describe('Chord scale background context (RC1 Dm7 regression)', () => {
+  it.each([false, true])('auto Dorian does not move the C Major tonic (all positions %s)', all => {
+    const f = chordBackground({ all });
+    expect(f.state.scaleBgRootPC).toBe(0);
+    expect([...f.state.scaleBgPCS].sort()).toEqual([0, 2, 4, 5, 7, 9, 11].sort());
+    const { pads } = f.render();
+    pads.forEach((p, i) => {
+      const pc = (60 + Math.floor(i / 8) * 5 + i % 8) % 12;
+      if (pc === 2) expect(p.getAttribute('fill')).not.toBe('var(--pad-root)');
+      if (pc === 0 && (all || f.state.basicFormPadSet.has(i)))
+        expect(p.getAttribute('fill')).toBe('var(--pad-basic-chord)');
+    });
+  });
+  it.each([1, 2, 3])('half-step chord root %i leaves the selected key background in place', rootPC => {
+    const f = chordBackground({ rootPC, key: 7 });
+    expect(f.state.scaleBgRootPC).toBe(7);
+    expect(f.state.scaleBgPCS.has(6)).toBe(true); // G Major F#
+    f.render();
+  });
+  it('explicit Available Scale selection retains its chord-rooted surface', () => {
+    const f = chordBackground({ manual: true });
+    expect(f.state.scaleBgRootPC).toBe(2);
+    expect([...f.state.scaleBgPCS]).toEqual([...f.state.overlayPCS]);
+    f.render();
+  });
+  it.each([false, true])('C Fixed keeps C Major even for explicit selection and G key (all %s)', all => {
+    const f = chordBackground({ fixed: true, manual: true, key: 7, all });
+    expect(f.state.scaleBgRootPC).toBe(0);
+    expect([...f.state.scaleBgPCS].sort()).toEqual([0, 2, 4, 5, 7, 9, 11].sort());
+    f.render();
+  });
+  it('C Fixed all positions respects C Major when Available Scale is closed', () => {
+    const f = chordBackground({ fixed: true, key: 7, all: true, selected: false });
+    expect(f.state.scaleBgRootPC).toBe(0);
+    expect(f.state.scaleBgPCS.has(6)).toBe(false);
+    f.render();
+  });
+  it('keeps C in the chord role without changing the selected one shape', () => {
+    const f = chordBackground({ selected: false });
+    const { pads, colors } = f.render();
+    let selectedC = 0, backgroundC = 0;
+    pads.forEach((p, i) => {
+      if ((60 + Math.floor(i / 8) * 5 + i % 8) % 12 !== 0) return;
+      const shown = f.state.basicFormPadSet.has(i);
+      expect(p.getAttribute('fill')).toBe('var(--pad-basic-chord)');
+      expect(colors[i]).toBe(13); // chord tone takes priority over the C background role
+      if (shown) selectedC++; else backgroundC++;
+    });
+    expect(selectedC).toBeGreaterThan(0); expect(backgroundC).toBeGreaterThan(0);
   });
 });

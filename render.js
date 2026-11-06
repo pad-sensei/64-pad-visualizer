@@ -314,6 +314,21 @@ function renderPads(svg, state, grid) {
           fill = 'var(--pad-off)'; textColor = 'var(--text-muted)';
         }
       }
+      // A scale tonic that belongs to the chord keeps the chord role, including the
+      // background copies. This tonic-only exception does not expand the selected shape.
+      var _chordTonic = !grid && !_performView && AppState.mode === 'chord'
+        && ((basicPadSet && basicPadSet.size > 0) || allPosScaleBg) && pc === scaleBgRootPC
+        && activePCS.has(pc) && !omittedPCS.has(pc);
+      if (_chordTonic) {
+        if (colorOff) { fill = 'var(--pad-basic-chord)'; textColor = '#000'; }
+        else if (pc === rootPC) { fill = 'var(--pad-root)'; textColor = '#000'; }
+        else if (bassPC !== null && pc === bassPC) { fill = '#ff9800'; textColor = '#000'; }
+        else if (guide3PCS.has(pc) && !tensionPCS.has(pc)) { fill = 'var(--pad-guide3)'; textColor = '#fff'; }
+        else if (guide7PCS.has(pc) && !tensionPCS.has(pc)) { fill = 'var(--pad-guide7)'; textColor = '#fff'; }
+        else if (avoidPCS.has(pc)) { fill = 'var(--pad-avoid)'; textColor = '#fff'; }
+        else if (tensionPCS.has(pc)) { fill = 'var(--pad-tension)'; textColor = '#fff'; }
+        else { fill = 'var(--pad-chord)'; textColor = '#000'; }
+      }
       // Input / Perform direct-education view: force the final colour language to match
       // Scale/Chord basic form. Background = scale (blue) + tonic (orange). Shown/played notes
       // = neutral grey. This intentionally overrides root/guide/tension/engine colours so
@@ -448,7 +463,7 @@ function renderPads(svg, state, grid) {
       }
       // Reuse the final screen-resolved fill and position; no second voicing engine.
       if (!grid && state.launchpadPadColors) {
-        var lpBackground = !_doubleStopPad && (AppState.mode === 'scale' || isEngineScaleBg
+        var lpBackground = !_doubleStopPad && !_chordTonic && (AppState.mode === 'scale' || isEngineScaleBg
           || ((basicPadSet || allPosScaleBg) && _isScaleBgSlot)
           || (_directEduView && !_directEduActive) || isOverlay || isOverlayPad);
         state.launchpadPadColors[row * cols + col] = padLaunchpadProgrammer.paletteForRenderedPad(
@@ -1027,9 +1042,11 @@ function render() {
   if (AppState.mode === 'chord' && AppState.showAllPositions && VoicingState.selectedBoxIdx === null
       && !TastyState.enabled && !StockState.enabled
       && !(_voicingReflectMode && _guitarSyncSource === 'position') && !_stockReflectMode) {
-    var _scAllPos = SCALES[AppState.scaleIdx];
-    padState.scaleBgPCS = new Set(_scAllPos.pcs.map(function(iv){ return (iv + AppState.key) % 12; }));
-    padState.scaleBgRootPC = AppState.key;
+    var _allCFixed = AppState.padCFixed === true;
+    var _allKey = _allCFixed ? 0 : AppState.key;
+    var _scAllPos = SCALES[_allCFixed ? 0 : AppState.scaleIdx];
+    padState.scaleBgPCS = new Set(_scAllPos.pcs.map(function(iv){ return (iv + _allKey) % 12; }));
+    padState.scaleBgRootPC = _allKey;
     padState.allPosScaleBg = true;
   }
   // Engine modes (TASTY / STOCK / Guitar): paint the scale as the educational background behind
@@ -1115,9 +1132,11 @@ function render() {
     padState.scaleBgRootPC = _pfKey;
     padState.allPosScaleBg = true;
   }
-  // Available Scale selection: show the chosen chord-scale surface and label its degrees from
-  // the chord root. This keeps the view aligned with chord-scale theory (e.g. E Locrian = E:R).
-  if (AppState.mode === 'chord' && AppState.showParentScales && _selectedPS && padState.overlayPCS) {
+  // Only an explicit Available Scale choice changes the educational surface. Automatic
+  // diatonic suggestions must keep the current key tonic; C Fixed always keeps C Major.
+  // Explicit choices still use chord-rooted degrees (e.g. E Locrian = E:R).
+  if (AppState.mode === 'chord' && AppState.padCFixed !== true && !_psAutoSelect
+      && AppState.showParentScales && _selectedPS && padState.overlayPCS) {
     padState.scaleBgPCS = new Set(padState.overlayPCS);
     padState.scaleBgRootPC = BuilderState.root;
     padState.allPosScaleBg = true;

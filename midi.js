@@ -1138,6 +1138,17 @@ function _padColorToLP(state, row, col) {
 
   if (_isPush && AppState.mode === 'chord' && chordPadIdxs) {
     if (chordPadIdxs.has(row * COLS + col)) return 21;
+    // Tonic/chord overlap has the chord role; other background chord copies stay scale-coloured.
+    if (!selectedBox && (typeof memoryViewMode === 'undefined' || memoryViewMode !== 'perform')
+        && pc === scaleRoot && isActive && !omittedPCS.has(pc)) {
+      if (AppState.colorOff !== false) return 21;
+      if (isRoot || isBass) return AppState.pushScaleRootColor || 3;
+      if (isGuide3) return 26;
+      if (isGuide7) return 10;
+      if (isAvoid) return 25;
+      if (isTension) return 16;
+      return 18;
+    }
     if (pc === scaleRoot) return AppState.pushScaleRootColor || 3;
     if (scalePCS.has(pc)) return AppState.pushScaleToneColor || 122;
     return 0;
@@ -1152,6 +1163,10 @@ function _padColorToLP(state, row, col) {
     if (scalePCS.has(pc)) return AppState.pushScaleToneColor || 122;
     return 0;
   }
+
+  if (_isPush && AppState.mode === 'chord' && AppState.showAllPositions === true
+      && (typeof memoryViewMode === 'undefined' || memoryViewMode !== 'perform')
+      && AppState.colorOff === true && pc === scaleRoot && isActive && !omittedPCS.has(pc)) return 21;
 
   var chordColor = 0;
   if (isRoot && isActive) chordColor = AppState.pushScaleRootColor || 3;

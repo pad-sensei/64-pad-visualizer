@@ -95,14 +95,14 @@ describe('Push Chord pad LEDs', () => {
       selectedBoxIdx:0,
     };
     expect(runPadColor(state, app, 0, 3, {VoicingState})).toBe(21);
-    expect(runPadColor(state, app, 0, 0, {VoicingState})).toBe(3); // scale root background, not old basic shape
+    expect(runPadColor(state, app, 0, 0, {VoicingState})).toBe(3); // selected-box outside tonic keeps its existing scale reference
   });
 
   it('Tasty/Stock-style explicit positions get exact-position overlay priority', () => {
     const state = chordState();
     const StockState={enabled:true,currentIndex:0,padPositions:[{row:2,col:2}]};
     expect(runPadColor(state, app, 2, 2, {StockState})).toBe(21);
-    expect(runPadColor(state, app, 0, 0, {StockState})).toBe(3);
+    expect(runPadColor(state, app, 0, 0, {StockState})).toBe(21);
   });
 
   it('all-position view colors chord tones and keeps scale background behind them', () => {
