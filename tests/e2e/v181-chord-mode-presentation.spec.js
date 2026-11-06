@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test';
+import { isolateColourPage } from './helpers/isolated-colour-page';
+
+test.use({ serviceWorkers: 'block',
+  launchOptions: { args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio'] } });
 
 async function prepareChordMode(page, notes) {
+  await isolateColourPage(page, test.info().project.use.baseURL);
   await page.goto('./?silent=1&e2e=v181-chord-mode-presentation');
   await page.waitForLoadState('domcontentloaded');
 
