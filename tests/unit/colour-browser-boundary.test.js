@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import vm from 'node:vm';
 import { isolateColourPage } from '../e2e/helpers/isolated-colour-page.js';
 
 function fakePage() {
@@ -29,4 +30,20 @@ describe('colour browser CI boundary before any navigation', () => {
     expect(errors.blockedExternal).toEqual(['https://analytics.example.test/event']);
     expect(fixture.page.addInitScript).toHaveBeenCalledOnce();
   });
+});
+
+it('installs only dummy device/worker APIs and returns a compatible worker registration', async () => {
+  const { page } = fakePage();
+  await isolateColourPage(page, 'http://127.0.0.1:8080/');
+  const initialize = page.addInitScript.mock.calls[0][0];
+  const navigator = {};
+  vm.runInNewContext('(' + initialize.toString() + ')()', { navigator, localStorage: { setItem() {} } });
+  expect(navigator.serviceWorker.controller).toBe(null);
+  expect(await navigator.serviceWorker.getRegistrations()).toEqual([]);
+  const registration = await navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
+  expect(() => registration.addEventListener('updatefound', () => {})).not.toThrow();
+  const midi = await navigator.requestMIDIAccess({ sysex: true });
+  expect(midi.inputs.size).toBe(0); expect(midi.outputs.size).toBe(0);
+  expect(await navigator.usb.getDevices()).toEqual([]);
+  await expect(navigator.usb.requestDevice()).rejects.toThrow('USB disabled');
 });

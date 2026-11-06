@@ -3,12 +3,12 @@ import { isolateColourPage } from './helpers/isolated-colour-page';
 
 // Actual DOM/render/updateLaunchpadLEDs paths. Only device/audio boundaries are fake.
 // This is browser/transport-role evidence, never physical LED or Native Push acceptance.
-test.use({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block',
+test.use({ viewport: { width: 1280, height: 900 },
   launchOptions: { args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio'] } });
 
 async function prepare(page, fixed, key = 0) {
   const errors = await isolateColourPage(page, test.info().project.use.baseURL);
-  await page.goto('./?e2e=chord-tonic-colours');
+  await page.goto('./?silent=1&e2e=chord-tonic-colours');
   await page.waitForFunction(() => document.querySelectorAll('#pad-grid rect.pad').length === 64 && midiAccess !== null);
   await page.evaluate(async ({ fixed, key }) => {
     // No sounding output is needed for a display test. Keep all rendering/theory real.

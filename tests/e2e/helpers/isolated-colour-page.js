@@ -27,6 +27,12 @@ export async function isolateColourPage(page, baseURL) {
     localStorage.setItem('64pad-tutorial-complete', '1');
     const emptyAccess = { sysexEnabled: true, inputs: new Map(), outputs: new Map(), addEventListener() {} };
     Object.defineProperty(navigator, 'requestMIDIAccess', { configurable: true, value: async () => emptyAccess });
+    // index.html expects register() to resolve a registration, not undefined.
+    // No actual worker is registered and no cached source can control this page.
+    Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: {
+      controller: null, getRegistrations: async () => [],
+      register: async () => ({ addEventListener() {} }),
+    } });
     Object.defineProperty(navigator, 'usb', { configurable: true, value: {
       getDevices: async () => [], requestDevice: async () => { throw new Error('USB disabled in browser regression'); },
     } });
