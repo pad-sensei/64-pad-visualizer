@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { writeFile } from 'node:fs/promises';
 import { isolateColourPage } from './helpers/isolated-colour-page';
 
 // Actual DOM/render/updateLaunchpadLEDs paths. Only device/audio boundaries are fake.
@@ -70,6 +71,7 @@ async function snapshot(page) {
       .map(role => [role, normalize(css.getPropertyValue('--' + role).trim())]));
     return {
       root: BuilderState.root, chordLabel: document.getElementById('chord-name').textContent, key: AppState.key, fixed: AppState.padCFixed, all: AppState.showAllPositions,
+      overlay: [...(_lastLEDState.overlayPCS || [])].sort((a,b) => a-b),
       backgroundRoot: _lastLEDState.scaleBgRootPC, background: [..._lastLEDState.scaleBgPCS].sort((a,b) => a-b),
       shape: [...(_lastLEDState.basicFormPadSet || [])].sort((a,b) => a-b), notes: getCurrentChordMidiNotes(),
       position: VoicingState.basicPosIdx, count: basicFormArrangements().length,
@@ -92,6 +94,8 @@ function assertSurface(state, root, all = false) {
   if (root === 2) expect(state.chordLabel).toBe('Dm7');
   expect(state.backgroundRoot).toBe(0);
   expect(state.background).toEqual([0, 2, 4, 5, 7, 9, 11]);
+  // Auto Available Scale is D Dorian for Dm7 in C Major. Keep it independently asserted.
+  if (root === 2) expect(state.overlay).toEqual([0, 2, 4, 5, 7, 9, 11]);
   expect(state.pads).toHaveLength(64);
   expect(state.lpMessages).toBeGreaterThan(0); expect(state.pushMessages).toBeGreaterThan(0);
   if (!all) {
@@ -111,6 +115,9 @@ function assertSurface(state, root, all = false) {
     let push = chordRole ? 21 : scaleRole ? (pc === 0 ? 3 : 122) : 0;
     if (all && pc !== 0 && chord.includes(pc))
       push = pc === root ? 3 : pc === (root + 3) % 12 ? 26 : pc === (root + 10) % 12 ? 10 : 18;
+    // Existing Push overview distinguishes non-chord Available Scale overlay (121)
+    // from the plain scale fallback (122). Chord roles, including tonic C, win.
+    if (all && !chord.includes(pc) && state.overlay.includes(pc)) push = 121;
     expect(pad.push, `Push message pad ${pad.index}`).toBe(push);
     expect(pad.bounds.width).toBeGreaterThan(0); expect(pad.bounds.height).toBeGreaterThan(0);
     expect(pad.opacity).not.toBe('0');
@@ -118,7 +125,10 @@ function assertSurface(state, root, all = false) {
 }
 
 async function record(page, info, name, state, errors) {
-  await info.attach(name + '.json', { body: Buffer.from(JSON.stringify({ state, errors }, null, 2)), contentType: 'application/json' });
+  // The line reporter does not materialize inline attachment bodies in --output.
+  const json = info.outputPath(name + '.json');
+  await writeFile(json, JSON.stringify({ state, errors }, null, 2));
+  await info.attach(name + '.json', { path: json, contentType: 'application/json' });
   const file = info.outputPath(name + '.png');
   await page.locator('#pad-grid').screenshot({ path: file });
   await info.attach(name, { path: file, contentType: 'image/png' });
@@ -135,35 +145,40 @@ async function record(page, info, name, state, errors) {
 for (const fixed of [false, true]) {
   test(`Dm7 C tone, selected shape and chromatic return (C Fixed ${fixed})`, async ({ page }, info) => {
     const errors = await prepare(page, fixed);
-    const initial = await snapshot(page); assertSurface(initial, 2);
-    expect(initial.notes).toEqual([50, 53, 57, 60]);
+    const initial = await snapshot(page);
     await record(page, info, 'dm7-initial', initial, errors);
+    assertSurface(initial, 2); expect(initial.notes).toEqual([50, 53, 57, 60]);
     for (const [key, root] of [['ArrowLeft', 1], ['ArrowRight', 2], ['ArrowRight', 3], ['ArrowLeft', 2]]) {
       await page.keyboard.press(key);
-      const state = await snapshot(page); assertSurface(state, root);
+      const state = await snapshot(page);
       await record(page, info, `${key}-${root}`, state, errors);
+      assertSurface(state, root);
     }
     const returned = await snapshot(page);
     expect(returned.shape).toEqual(initial.shape); expect(returned.notes).toEqual(initial.notes);
     if (returned.count > 1) {
       await page.keyboard.press('Space');
-      const cycled = await snapshot(page); assertSurface(cycled, 2);
+      const cycled = await snapshot(page);
+      await record(page, info, 'dm7-cycled-shape', cycled, errors);
+      assertSurface(cycled, 2);
       expect(cycled.position).toBe((returned.position + 1) % returned.count);
       expect(cycled.shape).not.toEqual(returned.shape); expect(cycled.notes).toEqual(returned.notes);
-      await record(page, info, 'dm7-cycled-shape', cycled, errors);
     }
     await page.locator('#btn-show-all-positions').click();
-    const overview = await snapshot(page); assertSurface(overview, 2, true);
+    const overview = await snapshot(page);
     await record(page, info, 'dm7-all-positions', overview, errors);
+    assertSurface(overview, 2, true);
     await page.locator('#btn-show-all-positions').click();
-    const one = await snapshot(page); assertSurface(one, 2);
+    const one = await snapshot(page);
+    await record(page, info, 'dm7-one-position-restored', one, errors);
+    assertSurface(one, 2);
     expect(one.shape).toEqual(initial.shape);
   });
 }
 
 test('C Fixed stays C Major over a G key and auto Available Scale', async ({ page }, info) => {
   const errors = await prepare(page, true, 7);
-  const state = await snapshot(page); assertSurface(state, 2);
-  expect(state.key).toBe(7);
+  const state = await snapshot(page);
   await record(page, info, 'fixed-C-over-key-G', state, errors);
+  assertSurface(state, 2); expect(state.key).toBe(7);
 });
