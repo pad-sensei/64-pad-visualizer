@@ -54,6 +54,7 @@ async function prepare(page, fixed, key = 0) {
     midiOutput = pushOutput; _pushLedOutputs = [pushOutput];
     _isPush = true; _lpOutputActive = true; _lpProgrammerMode = true; _lpLEDMode = 'full';
     _prevLEDState.fill(-1);
+    updateKeyButtons(); updateChordDisplay();
     render();
     document.activeElement?.blur();
   }, { fixed, key });
@@ -68,7 +69,7 @@ async function snapshot(page) {
     const roles = Object.fromEntries(['pad-basic-chord', 'pad-basic-scale', 'pad-root', 'pad-off']
       .map(role => [role, normalize(css.getPropertyValue('--' + role).trim())]));
     return {
-      root: BuilderState.root, key: AppState.key, fixed: AppState.padCFixed, all: AppState.showAllPositions,
+      root: BuilderState.root, chordLabel: document.getElementById('chord-name').textContent, key: AppState.key, fixed: AppState.padCFixed, all: AppState.showAllPositions,
       backgroundRoot: _lastLEDState.scaleBgRootPC, background: [..._lastLEDState.scaleBgPCS].sort((a,b) => a-b),
       shape: [...(_lastLEDState.basicFormPadSet || [])].sort((a,b) => a-b), notes: getCurrentChordMidiNotes(),
       position: VoicingState.basicPosIdx, count: basicFormArrangements().length,
@@ -88,6 +89,7 @@ async function snapshot(page) {
 
 function assertSurface(state, root, all = false) {
   expect(state.root).toBe(root); expect(state.all).toBe(all);
+  if (root === 2) expect(state.chordLabel).toBe('Dm7');
   expect(state.backgroundRoot).toBe(0);
   expect(state.background).toEqual([0, 2, 4, 5, 7, 9, 11]);
   expect(state.pads).toHaveLength(64);
