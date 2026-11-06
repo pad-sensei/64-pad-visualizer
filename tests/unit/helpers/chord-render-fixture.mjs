@@ -11,7 +11,7 @@ function element(tag) {
     appendChild(e) { this.children.push(e); }, addEventListener() {},
   };
 }
-export function dm7({ all = false, fixed = true, inversion = 0, root = 2, colorOff = true, renderFile = 'render.js' } = {}) {
+export function dm7({ all = false, fixed = true, inversion = 0, root = 2, colorOff = true, quality = { name: 'm7', pcs: [0, 3, 7, 10] }, position = 0, renderFile = 'render.js' } = {}) {
   const c = vm.createContext({
     location: { pathname: '/', search: '' },
     document: { readyState: 'loading', addEventListener() {}, createElementNS: (_, tag) => element(tag), getElementById: () => null },
@@ -32,7 +32,7 @@ export function dm7({ all = false, fixed = true, inversion = 0, root = 2, colorO
   vm.runInContext(`
     AppState.mode = 'chord'; AppState.key = 0; AppState.scaleIdx = 0;
     AppState.colorOff = ${colorOff}; AppState.padCFixed = ${fixed}; AppState.showAllPositions = ${all};
-    BuilderState.root = ${root}; BuilderState.quality = { name: 'm7', pcs: [0, 3, 7, 10] };
+    BuilderState.root = ${root}; BuilderState.quality = ${JSON.stringify(quality)}; VoicingState.basicPosIdx = ${position};
     VoicingState.inversion = ${inversion};
     var actualNotes = getCurrentChordMidiNotes();
     var arrangements = basicFormArrangements();

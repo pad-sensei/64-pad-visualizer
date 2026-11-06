@@ -17,12 +17,12 @@ describe('Dm7 / C Major tonic versus actual one-position chord shape', () => {
       expect(f.pads[i].getAttribute('fill')).toBe('var(--pad-basic-chord)');
       expect(f.read(`padState.launchpadPadColors[${i}]`)).toBe(13);
     });
-    // The tonic is a chord tone even outside the selected shape; other duplicates stay background.
+    // Position membership alone owns the chord layer; identical notes outside stay background.
     const outsideC = cIndices.filter(i => !selected.has(i));
     expect(outsideC.length).toBeGreaterThan(0);
     outsideC.forEach(i => {
-      expect(f.pads[i].getAttribute('fill')).toBe('var(--pad-basic-chord)');
-      expect(f.read(`padState.launchpadPadColors[${i}]`)).toBe(13);
+      expect(f.pads[i].getAttribute('fill')).toBe('var(--pad-root)');
+      expect(f.read(`padState.launchpadPadColors[${i}]`)).toBe(45);
     });
   });
   it('all-positions gives every C the chord role while the chord remains Dm7', () => {
@@ -52,19 +52,19 @@ it.each([1, 2, 3, 2])('half-step chord root %i recalculates C priority without e
     const pc = f.read(`pitchClass(midiNote(${Math.floor(i / 8)}, ${i % 8}))`);
     if (selected.has(i)) continue;
     if (pc === 0) {
-      expect(f.pads[i].getAttribute('fill')).toBe(root === 2 ? 'var(--pad-basic-chord)' : 'var(--pad-root)');
-      expect(f.read(`padState.launchpadPadColors[${i}]`)).toBe(root === 2 ? 13 : 45);
+      expect(f.pads[i].getAttribute('fill')).toBe('var(--pad-root)');
+      expect(f.read(`padState.launchpadPadColors[${i}]`)).toBe(45);
     } else if (f.read(`padState.activePCS.has(${pc})`) && f.read(`padState.scaleBgPCS.has(${pc})`)) {
       expect(f.pads[i].getAttribute('fill')).toBe('var(--pad-basic-scale)');
     }
   }
 });
 
-it('degree-colour opt-in uses the chord seventh role for C, keeping tonic-only scope', () => {
+it('degree colour applies only to the selected C seventh', () => {
   const f = dm7({ colorOff: false });
+  const selected = new Set(f.read('Array.from(padState.basicFormPadSet || [])'));
   for (const i of [0, 15, 18, 36, 54, 57])
-    expect(f.pads[i].getAttribute('fill')).toBe('var(--pad-guide7)');
-  expect(f.pads[2].getAttribute('fill')).toBe('var(--pad-basic-scale)');
+    expect(f.pads[i].getAttribute('fill')).toBe(selected.has(i) ? 'var(--pad-guide7)' : 'var(--pad-root)');
 });
 
 function webPush(f, index) {
@@ -77,7 +77,8 @@ function webPush(f, index) {
 }
 it.each([false, true])('Web Push shares the C chord priority with screen and Launchpad (all=%s)', all => {
   const f = dm7({ all });
-  for (const i of [0, 15, 18, 36, 54, 57]) expect(webPush(f, i)).toBe(21);
+  const selected = new Set(f.read('Array.from(padState.basicFormPadSet || [])'));
+  for (const i of [0, 15, 18, 36, 54, 57]) expect(webPush(f, i)).toBe(all || selected.has(i) ? 21 : 3);
   if (!all) {
     expect(webPush(f, 2)).toBe(122); // D outside selected shape remains background
     expect(webPush(f, 5)).toBe(122); // F
@@ -85,8 +86,8 @@ it.each([false, true])('Web Push shares the C chord priority with screen and Lau
   }
 });
 it('Web Push preserves degree-colour C role and changes it after a half-step', () => {
-  expect(webPush(dm7({ colorOff: false }), 0)).toBe(10);
-  for (const root of [1, 2, 3, 2]) expect(webPush(dm7({ root }), 0)).toBe(root === 2 ? 21 : 3);
+  expect(webPush(dm7({ colorOff: false }), 0)).toBe(3);
+  for (const root of [1, 2, 3, 2]) expect(webPush(dm7({ root }), 0)).toBe(3);
 });
 
 it('selected voicing boxes retain the existing outside-shape suppression and Push background', () => {
@@ -109,7 +110,42 @@ it('the production chromatic arrow branch updates C priority over repeated left/
     f.c.chromaticStep(key);
     expect(f.read('BuilderState.root')).toBe(root);
     expect(f.read('[...padState.basicFormPadSet].length')).toBe(4);
-    expect(f.pads[0].getAttribute('fill')).toBe(root === 2 ? 'var(--pad-basic-chord)' : 'var(--pad-root)');
-    expect(webPush(f, 0)).toBe(root === 2 ? 21 : 3);
+    expect(f.pads[0].getAttribute('fill')).toBe('var(--pad-root)');
+    expect(webPush(f, 0)).toBe(3);
+  }
+});
+
+const major7 = { name: 'Maj7', pcs: [0, 4, 7, 11] };
+for (const [label, root, quality] of [['CMaj7', 0, major7], ['Dm7', 2, { name: 'm7', pcs: [0,3,7,10] }]])
+for (const fixed of [false, true]) for (const colorOff of [true, false])
+it(`${label} selected positions versus all identical background notes fixed=${fixed} singleColour=${colorOff}`, () => {
+  const f = dm7({ root, quality, fixed, colorOff });
+  const first = f.read('[...padState.basicFormPadSet]');
+  const notes = f.read('actualNotes');
+  function check() {
+    const chosen = new Set(f.read('[...padState.basicFormPadSet]'));
+    expect(chosen.size).toBe(4);
+    let outsideC = 0;
+    for (let i = 0; i < 64; i++) {
+      const pc = (36 + Math.floor(i/8)*5 + i%8)%12;
+      if (chosen.has(i)) {
+        expect(webPush(f, i)).toBe(21);
+        expect(f.read(`padState.launchpadPadColors[${i}]`)).toBe(13);
+        if (colorOff) expect(f.pads[i].getAttribute('fill')).toBe('var(--pad-basic-chord)');
+      } else {
+        if (pc === 0) outsideC++;
+        const inScale = [0,2,4,5,7,9,11].includes(pc);
+        expect(f.pads[i].getAttribute('fill')).toBe(pc===0 ? 'var(--pad-root)' : inScale ? 'var(--pad-basic-scale)' : 'var(--pad-off)');
+        expect(f.read(`padState.launchpadPadColors[${i}]`)).toBe(pc===0 ? 45 : inScale ? 2 : 0);
+        expect(webPush(f, i)).toBe(pc===0 ? 3 : inScale ? 122 : 0);
+      }
+    }
+    expect(outsideC).toBeGreaterThan(0);
+  }
+  check();
+  if (f.read('arrangements.length') > 1) {
+    vm.runInContext('VoicingState.basicPosIdx = 1', f.c); f.rerender(); check();
+    expect(f.read('[...padState.basicFormPadSet]')).not.toEqual(first);
+    expect(f.read('actualNotes')).toEqual(notes);
   }
 });

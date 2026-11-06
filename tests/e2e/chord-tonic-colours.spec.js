@@ -7,22 +7,22 @@ import { isolateColourPage } from './helpers/isolated-colour-page';
 test.use({ viewport: { width: 1280, height: 900 },
   launchOptions: { args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio'] } });
 
-async function prepare(page, fixed, key = 0) {
+async function prepare(page, fixed, key = 0, root = 2, quality = 'm7', colorOff = true) {
   const errors = await isolateColourPage(page, test.info().project.use.baseURL);
   await page.goto('./?silent=1&e2e=chord-tonic-colours');
   await page.waitForFunction(() => document.querySelectorAll('#pad-grid rect.pad').length === 64 && midiAccess !== null);
-  await page.evaluate(async ({ fixed, key }) => {
+  await page.evaluate(async ({ fixed, key, root, quality, colorOff }) => {
     // No sounding output is needed for a display test. Keep all rendering/theory real.
     playCurrentChord = () => {};
     playMidiNotes = () => {};
     noteOn = () => {};
     noteOff = () => {};
     setMode('chord');
-    Object.assign(AppState, { key, scaleIdx: 0, padCFixed: fixed, colorOff: true,
+    Object.assign(AppState, { key, scaleIdx: 0, padCFixed: fixed, colorOff,
       showAllPositions: false, octaveShift: 0, semitoneShift: 0, showParentScales: true,
       pushScaleRootColor: 3, pushScaleToneColor: 122,
       launchpadColors: { ...padLaunchpadProgrammer.defaultColors } });
-    Object.assign(BuilderState, { root: 2, quality: BUILDER_QUALITIES.flat().find(q => q?.name === 'm7'),
+    Object.assign(BuilderState, { root, quality: BUILDER_QUALITIES.flat().find(q => q?.name === quality),
       tension: null, bass: null, _fromDiatonic: true, _fromSecDom: false, _diatonicScaleIdx: 1 });
     Object.assign(VoicingState, { selectedBoxIdx: null, lastBoxes: [], basicPosIdx: 0,
       basicOctave: 0, inversion: 0, drop: null, shell: null, omit3: false, omit5: false, rootless: false });
@@ -58,7 +58,7 @@ async function prepare(page, fixed, key = 0) {
     updateKeyButtons(); updateChordDisplay();
     render();
     document.activeElement?.blur();
-  }, { fixed, key });
+  }, { fixed, key, root, quality, colorOff });
   return errors;
 }
 
@@ -67,10 +67,10 @@ async function snapshot(page) {
     const svg = document.getElementById('pad-grid');
     const normalize = value => { const style = document.createElement('span').style; style.color = value; return style.color; };
     const css = getComputedStyle(document.documentElement);
-    const roles = Object.fromEntries(['pad-basic-chord', 'pad-basic-scale', 'pad-root', 'pad-off']
+    const roles = Object.fromEntries(['pad-basic-chord', 'pad-basic-scale', 'pad-root', 'pad-off', 'pad-guide3', 'pad-guide7', 'pad-chord']
       .map(role => [role, normalize(css.getPropertyValue('--' + role).trim())]));
     return {
-      root: BuilderState.root, chordLabel: document.getElementById('chord-name').textContent, key: AppState.key, fixed: AppState.padCFixed, all: AppState.showAllPositions,
+      colorOff: AppState.colorOff, quality: BuilderState.quality.name, root: BuilderState.root, chordLabel: document.getElementById('chord-name').textContent, key: AppState.key, fixed: AppState.padCFixed, all: AppState.showAllPositions,
       overlay: [...(_lastLEDState.overlayPCS || [])].sort((a,b) => a-b),
       backgroundRoot: _lastLEDState.scaleBgRootPC, background: [..._lastLEDState.scaleBgPCS].sort((a,b) => a-b),
       shape: [...(_lastLEDState.basicFormPadSet || [])].sort((a,b) => a-b), notes: getCurrentChordMidiNotes(),
@@ -89,32 +89,35 @@ async function snapshot(page) {
   });
 }
 
-function assertSurface(state, root, all = false) {
+function assertSurface(state, root, all = false, major = false) {
   expect(state.root).toBe(root); expect(state.all).toBe(all);
-  if (root === 2) expect(state.chordLabel).toBe('Dm7');
+  expect(state.quality).toBe(major ? 'Maj7' : 'm7');
+  if (!major && root === 2) expect(state.chordLabel).toBe('Dm7');
   expect(state.backgroundRoot).toBe(0);
   expect(state.background).toEqual([0, 2, 4, 5, 7, 9, 11]);
   // Auto Available Scale is D Dorian for Dm7 in C Major. Keep it independently asserted.
-  if (root === 2) expect(state.overlay).toEqual([0, 2, 4, 5, 7, 9, 11]);
+  if (!major && root === 2) expect(state.overlay).toEqual([0, 2, 4, 5, 7, 9, 11]);
   expect(state.pads).toHaveLength(64);
   expect(state.lpMessages).toBeGreaterThan(0); expect(state.pushMessages).toBeGreaterThan(0);
   if (!all) {
     expect(state.shape).toHaveLength(4);
     expect(state.shape.map(i => state.pads[i].midi).sort((a,b) => a-b)).toEqual(state.notes);
   }
-  const chord = [0, 3, 7, 10].map(iv => (root + iv) % 12);
+  const intervals = major ? [0,4,7,11] : [0,3,7,10];
+  const chord = intervals.map(iv => (root + iv) % 12);
   for (const pad of state.pads) {
     const pc = pad.midi % 12;
-    const chordRole = (all ? chord.includes(pc) : state.shape.includes(pad.index)) || (pc === 0 && chord.includes(0));
+    const chordRole = all ? chord.includes(pc) : state.shape.includes(pad.index);
     const scaleRole = [0, 2, 4, 5, 7, 9, 11].includes(pc);
-    const role = chordRole ? 'pad-basic-chord' : scaleRole ? (pc === 0 ? 'pad-root' : 'pad-basic-scale') : 'pad-off';
+    const degreeRole = pc === root ? 'pad-root' : pc === (root + intervals[1])%12 ? 'pad-guide3' : pc === (root + intervals[3])%12 ? 'pad-guide7' : 'pad-chord';
+    const role = chordRole ? (state.colorOff ? 'pad-basic-chord' : degreeRole) : scaleRole ? (pc === 0 ? 'pad-root' : 'pad-basic-scale') : 'pad-off';
     expect(pad.fill, `screen pad ${pad.index}`).toBe(`var(--${role})`);
     expect(pad.computedFill, `resolved CSS pad ${pad.index}`).toBe(state.roles[role]);
     expect(pad.lp, `Launchpad message pad ${pad.index}`).toBe(chordRole ? 13 : scaleRole ? (pc === 0 ? 45 : 2) : 0);
     // Push overview retains non-tonic chord-degree roles; its palette differs from Launchpad.
     let push = chordRole ? 21 : scaleRole ? (pc === 0 ? 3 : 122) : 0;
-    if (all && pc !== 0 && chord.includes(pc))
-      push = pc === root ? 3 : pc === (root + 3) % 12 ? 26 : pc === (root + 10) % 12 ? 10 : 18;
+    if (all && chord.includes(pc))
+      push = state.colorOff && pc === 0 ? 21 : pc === root ? 3 : pc === (root + intervals[1])%12 ? 26 : pc === (root + intervals[3])%12 ? 10 : 18;
     // Existing Push overview distinguishes non-chord Available Scale overlay (121)
     // from the plain scale fallback (122). Chord roles, including tonic C, win.
     if (all && !chord.includes(pc) && state.overlay.includes(pc)) push = 121;
@@ -142,36 +145,37 @@ async function record(page, info, name, state, errors) {
   expect(unexpectedConsole).toEqual([]);
 }
 
-for (const fixed of [false, true]) {
-  test(`Dm7 C tone, selected shape and chromatic return (C Fixed ${fixed})`, async ({ page }, info) => {
-    const errors = await prepare(page, fixed);
+for (const major of [false, true]) for (const fixed of [false, true]) for (const colorOff of [true, false]) {
+  test(`${major ? 'CMaj7' : 'Dm7'} exact shape and chromatic return (C Fixed ${fixed}, single colour ${colorOff})`, async ({ page }, info) => {
+    const initialRoot = major ? 0 : 2;
+    const errors = await prepare(page, fixed, 0, initialRoot, major ? 'Maj7' : 'm7', colorOff);
     const initial = await snapshot(page);
-    await record(page, info, 'dm7-initial', initial, errors);
-    assertSurface(initial, 2); expect(initial.notes).toEqual([50, 53, 57, 60]);
-    for (const [key, root] of [['ArrowLeft', 1], ['ArrowRight', 2], ['ArrowRight', 3], ['ArrowLeft', 2]]) {
+    await record(page, info, 'chord-initial', initial, errors);
+    assertSurface(initial, initialRoot, false, major); expect(initial.notes).toEqual(major ? [48,52,55,59] : [50,53,57,60]);
+    for (const [key, root] of [['ArrowLeft', (initialRoot+11)%12], ['ArrowRight', initialRoot], ['ArrowRight', (initialRoot+1)%12], ['ArrowLeft', initialRoot]]) {
       await page.keyboard.press(key);
       const state = await snapshot(page);
       await record(page, info, `${key}-${root}`, state, errors);
-      assertSurface(state, root);
+      assertSurface(state, root, false, major);
     }
     const returned = await snapshot(page);
     expect(returned.shape).toEqual(initial.shape); expect(returned.notes).toEqual(initial.notes);
     if (returned.count > 1) {
       await page.keyboard.press('Space');
       const cycled = await snapshot(page);
-      await record(page, info, 'dm7-cycled-shape', cycled, errors);
-      assertSurface(cycled, 2);
+      await record(page, info, 'chord-cycled-shape', cycled, errors);
+      assertSurface(cycled, initialRoot, false, major);
       expect(cycled.position).toBe((returned.position + 1) % returned.count);
       expect(cycled.shape).not.toEqual(returned.shape); expect(cycled.notes).toEqual(returned.notes);
     }
     await page.locator('#btn-show-all-positions').click();
     const overview = await snapshot(page);
-    await record(page, info, 'dm7-all-positions', overview, errors);
-    assertSurface(overview, 2, true);
+    await record(page, info, 'chord-all-positions', overview, errors);
+    assertSurface(overview, initialRoot, true, major);
     await page.locator('#btn-show-all-positions').click();
     const one = await snapshot(page);
-    await record(page, info, 'dm7-one-position-restored', one, errors);
-    assertSurface(one, 2);
+    await record(page, info, 'chord-one-position-restored', one, errors);
+    assertSurface(one, initialRoot, false, major);
     expect(one.shape).toEqual(initial.shape);
   });
 }

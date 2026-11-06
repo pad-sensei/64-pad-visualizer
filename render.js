@@ -314,10 +314,10 @@ function renderPads(svg, state, grid) {
           fill = 'var(--pad-off)'; textColor = 'var(--text-muted)';
         }
       }
-      // A scale tonic that belongs to the chord keeps the chord role, including the
-      // background copies. This tonic-only exception does not expand the selected shape.
+      // Chord colour belongs to selected pad positions, never their background copies.
+      // Overview is a separate pitch-class display; retain its tonic chord priority.
       var _chordTonic = !grid && !_performView && AppState.mode === 'chord'
-        && ((basicPadSet && basicPadSet.size > 0) || allPosScaleBg) && pc === scaleBgRootPC
+        && (basicPadSet || allPosScaleBg) && !_isScaleBgSlot && pc === scaleBgRootPC
         && activePCS.has(pc) && !omittedPCS.has(pc);
       if (_chordTonic) {
         if (colorOff) { fill = 'var(--pad-basic-chord)'; textColor = '#000'; }

@@ -76,8 +76,8 @@ describe('actual renderPads → Launchpad screen-position projection', () => {
     // MIDI66 appears at (0,6) and (1,1), but only the former belongs to the shape.
     expect(pads[6].getAttribute('fill')).toBe('var(--pad-basic-chord)'); expect(colors[6]).toBe(13);
     expect(pads[9].getAttribute('fill')).toBe('var(--pad-basic-scale)'); expect(colors[9]).toBe(2);
-    // Tonic D is also a chord tone: its role wins without expanding the handshape set.
-    expect(pads[20].getAttribute('fill')).toBe('var(--pad-basic-chord)'); expect(colors[20]).toBe(13);
+    // Unselected tonic D remains a background reference, even though D is a chord tone.
+    expect(pads[20].getAttribute('fill')).toBe('var(--pad-root)'); expect(colors[20]).toBe(9);
   });
   it('selected voicing suppresses hidden same-pitch duplicates', () => {
     const f = fixture(); f.context.VoicingState.selectedBoxIdx = 0;
@@ -100,7 +100,7 @@ describe('actual renderPads → Launchpad screen-position projection', () => {
     expect(pads[6].getAttribute('opacity')).not.toBe('0'); expect(colors[6]).toBe(13);
     expect(pads[9].getAttribute('fill')).toBe(background ? 'var(--pad-basic-scale)' : 'var(--pad-off)');
     expect(colors[9]).toBe(background ? 2 : 0);
-    expect(colors[20]).toBe(background ? 13 : 0);
+    expect(colors[20]).toBe(background ? 9 : 0);
   });
 });
 
@@ -114,7 +114,7 @@ describe('custom Launchpad colours keep the resolved handshape positions', () =>
     expect(after.colors[0]).toBe(0); // guide C can intentionally be dark
     expect(after.colors[6]).toBe('#00aaff'); // physical shape pad
     expect(after.colors[9]).toBe(7); // same MIDI pitch, different physical background pad
-    expect(after.colors[20]).toBe('#00aaff'); // chord-tone tonic follows the configured guide role
+    expect(after.colors[20]).toBe(9); // unselected tonic keeps the background role
     expect(after.pads.map(p=>p.getAttribute('fill'))).toEqual(before.pads.map(p=>p.getAttribute('fill')));
     expect(after.pads.map(p=>p.getAttribute('opacity'))).toEqual(before.pads.map(p=>p.getAttribute('opacity')));
   });
@@ -197,10 +197,32 @@ describe('Chord scale background context (RC1 Dm7 regression)', () => {
     pads.forEach((p, i) => {
       if ((60 + Math.floor(i / 8) * 5 + i % 8) % 12 !== 0) return;
       const shown = f.state.basicFormPadSet.has(i);
-      expect(p.getAttribute('fill')).toBe('var(--pad-basic-chord)');
-      expect(colors[i]).toBe(13); // chord tone takes priority over the C background role
+      expect(p.getAttribute('fill')).toBe(shown ? 'var(--pad-basic-chord)' : 'var(--pad-root)');
+      expect(colors[i]).toBe(shown ? 13 : 45); // membership, not pitch class
       if (shown) selectedC++; else backgroundC++;
     });
     expect(selectedC).toBeGreaterThan(0); expect(backgroundC).toBeGreaterThan(0);
   });
+});
+
+it('engine background flag does not turn unselected tonic copies into a second shape', () => {
+  const f=fixture(); f.context.AppState.key=0;
+  f.state.activePCS=new Set([0,2,5,9]); f.state.rootPC=2;
+  f.state.tastyMidiSet=new Set([62,65,69,72]);
+  f.state.tastyPadPositions=[{row:0,col:2},{row:0,col:5},{row:1,col:4},{row:2,col:2}];
+  f.state.allPosScaleBg=true; f.state.engineScaleBg=true;
+  f.state.scaleBgPCS=new Set([0,2,4,5,7,9,11]); f.state.scaleBgRootPC=0;
+  const {pads,colors}=f.render();
+  expect(pads[18].getAttribute('fill')).toBe('var(--pad-basic-chord)'); expect(colors[18]).toBe(13);
+  expect(pads[0].getAttribute('fill')).toBe('var(--pad-root)'); expect(colors[0]).toBe(45);
+});
+it('explicit Available Scale keeps outside tonic at background while its selected copy is chord-coloured', () => {
+  const f=chordBackground({manual:true});const {pads,colors}=f.render();
+  let inside=0,outside=0;
+  for(let i=0;i<64;i++) if((60+Math.floor(i/8)*5+i%8)%12===2) {
+    const chosen=f.state.basicFormPadSet.has(i);chosen?inside++:outside++;
+    expect(pads[i].getAttribute('fill')).toBe(chosen?'var(--pad-basic-chord)':'var(--pad-root)');
+    expect(colors[i]).toBe(chosen?13:9);
+  }
+  expect(inside).toBeGreaterThan(0);expect(outside).toBeGreaterThan(0);
 });

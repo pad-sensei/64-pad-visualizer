@@ -102,7 +102,7 @@ describe('Push Chord pad LEDs', () => {
     const state = chordState();
     const StockState={enabled:true,currentIndex:0,padPositions:[{row:2,col:2}]};
     expect(runPadColor(state, app, 2, 2, {StockState})).toBe(21);
-    expect(runPadColor(state, app, 0, 0, {StockState})).toBe(21);
+    expect(runPadColor(state, app, 0, 0, {StockState})).toBe(3);
   });
 
   it('all-position view colors chord tones and keeps scale background behind them', () => {

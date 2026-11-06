@@ -14,11 +14,13 @@ Memory/Perform slot layout remains owned by `padWebPushSlotPadColor`.
 No theory, audio, pedal, native, manual, release, or S2 button behavior changes.
 Physical Push colour/perception remains a Human Gate after machine/audit/dev.
 
-## Chord-tone tonic priority
+## Selected positions and tonic priority
 
-In basic-form/engine views, a scale tonic that is part of the chord uses the
-chord role, including background copies. For Dm7 over C Major this makes C a
-chord tone rather than a competing scale-root anchor. Other background chord
-pitch classes stay scale-coloured; the chosen shape and playback do not expand.
-Degree-colour mode retains the chord's degree role. Selected-box, Input/Perform,
-and scale-only previews retain their existing outside-position behaviour.
+In one-position views, only the selected pad positions use the chord role.
+A selected C in Dm7 over C Major is a chord tone, while every C outside that
+shape retains its scale-root background role. The same position rule applies
+to C/E/G/B: identical pitch classes do not expand the selected handshape.
+Overview remains a separate pitch-class display with chord tones over scale
+background. Screen, Launchpad, Web Push and Native Push retain their respective
+palettes; degree-colour mode does not promote unselected tonic copies.
+Selected-box, Input/Perform and scale-only preview behaviour is unchanged.
