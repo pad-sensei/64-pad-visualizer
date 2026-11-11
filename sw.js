@@ -1,4 +1,4 @@
-var CACHE_NAME = '64pad-v19-launchpad-candidate-20261031-2';
+var CACHE_NAME = '64pad-v19-chord-initial-scale-20261111-1';
 var ASSETS = [
   './',
   'index.html',
@@ -32,7 +32,7 @@ var ASSETS = [
   'parent-scales-ui.js?v=6.7.52',
   'play-controls.js?v=6.7.52',
   'double-stop.js?v=6.7.52',
-  'render.js?v=1.9.0-launchpad1',
+  'render.js?v=1.9.0-chord-initial-scale1',
   'builder.js?v=1.8.0-parity2',
   'pad-core/observed-structure.js?v=6.7.52',
   'observed-ust-consumer.js?v=6.7.53',

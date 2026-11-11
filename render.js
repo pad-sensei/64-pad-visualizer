@@ -1027,9 +1027,12 @@ function render() {
   if (AppState.mode === 'chord' && AppState.showAllPositions && VoicingState.selectedBoxIdx === null
       && !TastyState.enabled && !StockState.enabled
       && !(_voicingReflectMode && _guitarSyncSource === 'position') && !_stockReflectMode) {
-    var _scAllPos = SCALES[AppState.scaleIdx];
-    padState.scaleBgPCS = new Set(_scAllPos.pcs.map(function(iv){ return (iv + AppState.key) % 12; }));
-    padState.scaleBgRootPC = AppState.key;
+    // With no chord selected, C Fixed must match the initial scale surface.
+    var _emptyAllCFixed = AppState.padCFixed === true && padState.activePCS.size === 0;
+    var _allKey = _emptyAllCFixed ? 0 : AppState.key;
+    var _scAllPos = SCALES[_emptyAllCFixed ? 0 : AppState.scaleIdx];
+    padState.scaleBgPCS = new Set(_scAllPos.pcs.map(function(iv){ return (iv + _allKey) % 12; }));
+    padState.scaleBgRootPC = _allKey;
     padState.allPosScaleBg = true;
   }
   // Engine modes (TASTY / STOCK / Guitar): paint the scale as the educational background behind
@@ -1120,6 +1123,18 @@ function render() {
   if (AppState.mode === 'chord' && AppState.showParentScales && _selectedPS && padState.overlayPCS) {
     padState.scaleBgPCS = new Set(padState.overlayPCS);
     padState.scaleBgRootPC = BuilderState.root;
+    padState.allPosScaleBg = true;
+  }
+  // Chord starts without a root/quality, so there is no basic-form arrangement yet.
+  // Keep the educational scale visible until a chord is chosen (and after clearing it).
+  // Existing shape/engine/Available Scale backgrounds keep their own precedence.
+  if (AppState.mode === 'chord' && VoicingState.selectedBoxIdx === null
+      && !padState.scaleBgPCS && padState.activePCS.size === 0) {
+    var _emptyCFixed = AppState.padCFixed === true;
+    var _emptyKey = _emptyCFixed ? 0 : AppState.key;
+    var _emptyScale = SCALES[_emptyCFixed ? 0 : AppState.scaleIdx];
+    padState.scaleBgPCS = new Set(_emptyScale.pcs.map(function(iv){ return (iv + _emptyKey) % 12; }));
+    padState.scaleBgRootPC = _emptyKey;
     padState.allPosScaleBg = true;
   }
   if (AppState.mode === 'scale' && typeof doubleStopActive === 'function' && doubleStopActive()) {
