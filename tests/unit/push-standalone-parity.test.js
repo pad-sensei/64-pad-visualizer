@@ -14,7 +14,7 @@ function expectCompleteParityRun(output) {
 }
 
 it('executes all 18 real classic-script Standalone gesture and MIDI-to-audio regressions', () => {
-  const output = execFileSync(process.execPath, [path.resolve('tests/push-standalone-parity.cjs')], {
+  const output = execFileSync(process.execPath, ['--test-reporter=tap', path.resolve('tests/push-standalone-parity.cjs')], {
     encoding: 'utf8', timeout: 30000,
   });
   expectCompleteParityRun(output);
