@@ -72,10 +72,10 @@
     var timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0 ? options.timeoutMs : 1500;
     var now = options.now || function() { return typeof performance !== 'undefined' ? performance.now() : 0; };
     var generation = 0, ownedInput = null, output = null, active = false, modeSent = false;
-    var status = 'idle', listener = null, pending = null, managedInputs = new Set();
+    var status = 'idle', statusReason = null, listener = null, pending = null, managedInputs = new Set();
     var previous = new Array(64).fill(-1);
-    function setStatus(value) {
-      status = value;
+    function setStatus(value, detail) {
+      status = value; statusReason = detail || null;
       if (typeof options.onStateChange === 'function') options.onStateChange(value);
     }
     function settle(ready) {
@@ -105,7 +105,7 @@
       if (modeSent) restore(output, clearPads);
       modeSent = false;
       // Retain ownership until rebinding: unconfirmed packets must not become raw notes.
-      setStatus(reason);
+      setStatus(reason, reason === 'timeout' ? 'timeout' : reason === 'mismatch' ? 'layout' : 'transport');
     }
     function disconnect() {
       generation += 1;
@@ -121,12 +121,12 @@
       var token = generation;
       managedInputs = new Set((selectedInputs || []).filter(function(input) { return isMidiPort(input.name); }));
       if (!managedInputs.size) return false;
-      if (!access || access.sysexEnabled !== true) { setStatus('unconfirmed'); return false; }
+      if (!access || access.sysexEnabled !== true) { setStatus('unconfirmed', 'sysex'); return false; }
       var inputs = values(access.inputs).filter(function(p) { return isMidiPort(p.name); });
       var outputs = values(access.outputs).filter(function(p) { return isMidiPort(p.name); });
-      if (inputs.length !== 1 || outputs.length !== 1 || selectedInputs.indexOf(inputs[0]) < 0) { setStatus('unconfirmed'); return false; }
+      if (inputs.length !== 1 || outputs.length !== 1 || selectedInputs.indexOf(inputs[0]) < 0) { setStatus('unconfirmed', 'ports'); return false; }
       var input = inputs[0], port = outputs[0];
-      if (typeof input.addEventListener !== 'function' || typeof input.removeEventListener !== 'function') { setStatus('unconfirmed'); return false; }
+      if (typeof input.addEventListener !== 'function' || typeof input.removeEventListener !== 'function') { setStatus('unconfirmed', 'interface'); return false; }
       ownedInput = input; output = port; setStatus('opening');
       try {
         if (typeof port.open === 'function') await port.open();
@@ -180,6 +180,7 @@
       connect: connect, disconnect: disconnect, paint: paint, isActiveFor: isActiveFor,
       isManagedFor: function(input) { return managedInputs.has(input); },
       getStatus: function() { return status; },
+      getReason: function() { return statusReason; },
     };
   }
   var api = { isMidiPort: isMidiPort, position: position, padNote: padNote, create: create,

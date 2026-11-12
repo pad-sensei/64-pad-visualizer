@@ -366,6 +366,14 @@ I18N.addLang('de', {
     major: 'Major',
   },
   midi: {
+    lp_retry: "Erneut prüfen",
+    lp_retry_title: "Programmer-Modus automatisch erneut bestätigen",
+    lp_timeout: "Launchpad: keine Modusantwort",
+    lp_wrong_mode: "Launchpad: anderer Modus erkannt",
+    lp_sysex: "Launchpad: MIDI SysEx nicht verfügbar",
+    lp_ports: "Launchpad: ein MIDI-Paar wählen",
+    lp_connection: "Launchpad: MIDI-Verbindung fehlgeschlagen",
+
     lp_pending: "Launchpad: Programmer-Modus wird bestätigt…",
     lp_confirmed: "Launchpad: Programmer-Modus bestätigt",
     lp_unconfirmed: "Launchpad: Programmer-Modus nicht bestätigt",

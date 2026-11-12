@@ -184,7 +184,7 @@ describe('Launchpad delivery assets', () => {
       vm.runInNewContext(fs.readFileSync(`lang-${lang}.js`,'utf8'),{I18N:{addLang:(id,obj)=>{expect(id).toBe(lang);data=obj;}}});
       expect(data.help.launchpad_programmer).toContain('Launchpad Pro MK3');
       expect(data.help.launchpad_programmer).toContain('SysEx');
-      for(const key of ['lp_pending','lp_confirmed','lp_unconfirmed'])expect(data.midi[key]).toBeTruthy();
+      for(const key of ['lp_pending','lp_confirmed','lp_unconfirmed','lp_retry','lp_retry_title','lp_timeout','lp_wrong_mode','lp_sysex','lp_ports','lp_connection'])expect(data.midi[key]).toBeTruthy();
       expect(data.tut.onboarding.midi_msg).toContain('SysEx');
     }
     expect(fs.readFileSync('guide.html','utf8')).toContain('data-i18n="help.launchpad_programmer"');
@@ -241,5 +241,27 @@ describe('restored page must reconfirm',()=>{
     const count=r.events.length;r.send(r.input,[144,11,100]);expect(r.events).toHaveLength(count);
     expect(vm.runInContext('launchpadLink.getStatus()',r.c)).toBe('pending');r.send(r.input,confirmedLayout);await tick();r.send(r.input,[144,11,100]);expect(r.events.at(-1)).toEqual(['on',36]);
     for(const fn of r.handlers.pagehide)fn();
+  });
+});
+
+describe('reported Note-mode hypothesis and one-click recovery',()=>{
+  it('blocks raw24/36 until confirmed, then maps11/33 to C1/C2 without blacklisting valid coordinates',async()=>{
+    const keyboard=port('keyboard','Keyboard'),r=await runtime([keyboard],[],false);
+    const oldAck=[...r.input.listeners][0];
+    for(const raw of [24,36]){r.send(r.input,[144,raw,100]);r.send(r.input,[128,raw,0]);}expect(r.events).toEqual([]);
+    const noteMode=confirmedLayout.slice();noteMode[7]=4;r.send(r.input,noteMode);
+    expect(vm.runInContext('launchpadLink.getReason()',r.c)).toBe('layout');
+    for(const raw of [24,36])r.send(r.input,[144,raw,100]);expect(r.events).toEqual([]);
+    r.send(keyboard,[144,61,100]);const retry=r.elements.get('launchpad-retry');expect(retry.hidden).toBe(false);retry.onclick();retry.onclick();await tick();
+    expect(r.events).toEqual([['on',61]]);expect(vm.runInContext('launchpadLink.getReason()',r.c)).toBe(null);expect(vm.runInContext('launchpadLink.getStatus()',r.c)).toBe('pending');
+    oldAck({data:noteMode});expect(vm.runInContext('launchpadLink.getStatus()',r.c)).toBe('pending');expect(vm.runInContext('launchpadLink.getReason()',r.c)).toBe(null);
+    for(const raw of [24,36])r.send(r.input,[144,raw,100]);expect(r.events).toEqual([['on',61]]);
+    r.send(r.input,confirmedLayout);await tick();expect(retry.hidden).toBe(true);expect(vm.runInContext('launchpadLink.getReason()',r.c)).toBe(null);
+    for(const [raw,pitch] of [[11,36],[33,48],[24,44],[36,51]]){r.send(r.input,[144,raw,100]);r.send(r.input,[128,raw,0]);expect(r.events.slice(-2)).toEqual([['on',pitch],['off',pitch]]);}
+    expect(r.events.filter(e=>e[0]==='off'&&e[1]===61)).toEqual([]);for(const fn of r.handlers.pagehide)fn();
+  });
+  it.each(['sysex','ports'])('shows unavailable reason %s without trying to force permission or a port',async reason=>{
+    const w=world(false);if(reason==='sysex')w.access.sysexEnabled=false;else w.access.outputs.set('other',port('other'));
+    expect(await w.link.connect(w.access,[w.input])).toBe(false);expect(w.link.getReason()).toBe(reason);expect(w.output.send).not.toHaveBeenCalled();w.link.disconnect();expect(w.link.getReason()).toBe(null);
   });
 });

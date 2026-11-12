@@ -67,3 +67,20 @@ position offset is not established as this bug's cause or verified as resolved.
 This1.9.1 candidate is local-only. Desktop WebUI and Native Launchpad ownership use
 separate integration paths; synchronizing Web files alone does not add Native ACK
 validation. No Desktop package or public release is part of this candidate.
+
+### Diagnostic recovery and the Windows report
+
+Unconfirmed status identifies no reply, a different mode, unavailable SysEx,
+ambiguous MIDI pairs or transport failure. Retry is shown only after failure and
+repeats automatic confirmation once through the existing adapter. It does not
+rebind Keyboard/Push inputs or release their held notes, force permissions,
+start an automatic retry loop or require a manual Programmer-mode switch.
+Missing SysEx permission or an ambiguous pair must be resolved before confirmation
+can succeed; Retry alone does not override those conditions.
+
+The reported C1→Ab1 / C2→Eb observation is tested as a hypothesis, not a proven
+hardware cause: raw24/36 while pending or reporting Note layout are silent.
+After confirmed Programmer layout, coordinates11/33 produce MIDI36/48
+(the application's C1/C2). Coordinates24/36 remain valid after confirmation
+and correctly produce MIDI44/51; they are not globally blacklisted.
+The real Windows Chrome / Pro MK3 symptom still requires physical verification.

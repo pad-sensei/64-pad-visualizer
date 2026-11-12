@@ -367,6 +367,14 @@ I18N.addLang('ko', {
     major: 'Major',
   },
   midi: {
+    lp_retry: "다시 확인",
+    lp_retry_title: "Programmer 모드 자동 확인 다시 시도",
+    lp_timeout: "Launchpad: 모드 응답 없음",
+    lp_wrong_mode: "Launchpad: 다른 모드 감지",
+    lp_sysex: "Launchpad: MIDI SysEx 사용 불가",
+    lp_ports: "Launchpad: MIDI 한 쌍 선택",
+    lp_connection: "Launchpad: MIDI 연결 실패",
+
     lp_pending: "Launchpad: Programmer 모드 확인 중…",
     lp_confirmed: "Launchpad: Programmer 모드 확인됨",
     lp_unconfirmed: "Launchpad: Programmer 모드 미확인",

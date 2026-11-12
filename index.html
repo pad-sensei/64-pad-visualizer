@@ -723,6 +723,7 @@ document.addEventListener('click', function(e) {
       <div id="sound-header" style="display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap;">
         <span id="midi-status" style="display:none;font-size:0.65rem;color:var(--text-muted);">
           <span id="launchpad-status" role="status" hidden style="margin-right:4px;"></span>
+          <button id="launchpad-retry" hidden class="inst-toggle" style="font-size:0.6rem;padding:1px 4px;" data-i18n="midi.lp_retry" data-i18n-title="midi.lp_retry_title">Retry</button>
           <span id="midi-indicator" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#555;vertical-align:middle;margin-right:2px;"></span>
           <select id="midi-device-select" style="font-size:0.6rem;background:var(--surface);color:var(--text);border:1px solid var(--text-muted);border-radius:3px;padding:1px 3px;max-width:140px;" data-info="info.midi_device"></select>
           <button onclick="midiActiveNotes.clear();updateMidiDisplay();" style="font-size:0.5rem;background:var(--surface);color:var(--text-muted);border:1px solid var(--text-muted);border-radius:3px;padding:1px 3px;cursor:pointer;" data-info="info.midi_panic">Panic</button>

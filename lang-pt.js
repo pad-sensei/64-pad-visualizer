@@ -367,6 +367,14 @@ I18N.addLang('pt', {
     major: 'Major',
   },
   midi: {
+    lp_retry: "Tentar novamente",
+    lp_retry_title: "Repetir confirmação automática do modo Programmer",
+    lp_timeout: "Launchpad: sem resposta de modo",
+    lp_wrong_mode: "Launchpad: outro modo detectado",
+    lp_sysex: "Launchpad: MIDI SysEx indisponível",
+    lp_ports: "Launchpad: selecione um par MIDI",
+    lp_connection: "Launchpad: falha na conexão MIDI",
+
     lp_pending: "Launchpad: confirmando modo Programmer…",
     lp_confirmed: "Launchpad: modo Programmer confirmado",
     lp_unconfirmed: "Launchpad: modo Programmer não confirmado",

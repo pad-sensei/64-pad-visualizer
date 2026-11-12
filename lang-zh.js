@@ -367,6 +367,14 @@ I18N.addLang('zh', {
     major: 'Major',
   },
   midi: {
+    lp_retry: "重试",
+    lp_retry_title: "重新自动确认 Programmer 模式",
+    lp_timeout: "Launchpad：无模式回复",
+    lp_wrong_mode: "Launchpad：检测到其他模式",
+    lp_sysex: "Launchpad：MIDI SysEx 不可用",
+    lp_ports: "Launchpad：请选择一对 MIDI 端口",
+    lp_connection: "Launchpad：MIDI 连接失败",
+
     lp_pending: "Launchpad：正在确认 Programmer 模式…",
     lp_confirmed: "Launchpad：已确认 Programmer 模式",
     lp_unconfirmed: "Launchpad：未确认 Programmer 模式",

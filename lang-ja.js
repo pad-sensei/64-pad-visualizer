@@ -248,6 +248,14 @@ I18N.addLang('ja', {
     major: 'メジャー',
   },
   midi: {
+    lp_retry: "再確認",
+    lp_retry_title: "Programmerモードを自動で再確認",
+    lp_timeout: "Launchpad: モード応答なし",
+    lp_wrong_mode: "Launchpad: 別モードを検出",
+    lp_sysex: "Launchpad: MIDI SysExが利用不可",
+    lp_ports: "Launchpad: MIDIを1組だけ選択",
+    lp_connection: "Launchpad: MIDI接続に失敗",
+
     lp_pending: "Launchpad: Programmer モード確認中…",
     lp_confirmed: "Launchpad: Programmer モード確認済み",
     lp_unconfirmed: "Launchpad: Programmer モード未確認",

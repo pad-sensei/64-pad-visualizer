@@ -26,10 +26,15 @@ function syncLaunchpadConnectionStatus() {
   var label = document.getElementById('launchpad-status');
   var indicator = document.getElementById('midi-indicator');
   var state = launchpadLink.getStatus();
+  var reason = launchpadLink.getReason();
+  var retry = document.getElementById('launchpad-retry');
+  if (retry) retry.hidden = ['idle', 'opening', 'pending', 'confirmed'].indexOf(state) >= 0;
   if (label) {
     label.hidden = state === 'idle';
     var key = state === 'confirmed' ? 'midi.lp_confirmed'
-      : state === 'opening' || state === 'pending' ? 'midi.lp_pending' : 'midi.lp_unconfirmed';
+      : state === 'opening' || state === 'pending' ? 'midi.lp_pending'
+      : reason === 'timeout' ? 'midi.lp_timeout' : reason === 'layout' ? 'midi.lp_wrong_mode'
+      : reason === 'sysex' ? 'midi.lp_sysex' : reason === 'ports' ? 'midi.lp_ports' : 'midi.lp_connection';
     label.textContent = state === 'idle' ? '' : t(key);
     if (state !== 'idle' && typeof label.setAttribute === 'function') label.setAttribute('data-i18n', key);
   }
@@ -1010,7 +1015,8 @@ function initWebMIDI() {
         }
       }
 
-      if (launchpadLink && !window.IS_DESKTOP_MODE) {
+      function confirmLaunchpad() {
+        if (!launchpadLink || window.IS_DESKTOP_MODE) return;
         launchpadLink.connect(access, inputCluster).then(function(ready) {
           if (ready && inputCluster.some(function(input) { return launchpadLink.isActiveFor(input); })) {
             if (ledSel) ledSel.style.display = '';
@@ -1024,6 +1030,12 @@ function initWebMIDI() {
             render();
           }
         });
+      }
+      if (launchpadLink && !window.IS_DESKTOP_MODE) {
+        confirmLaunchpad();
+        var retry = document.getElementById('launchpad-retry');
+        // Retry only this adapter: do not rebind or release Keyboard/Push notes.
+        if (retry) retry.onclick = confirmLaunchpad;
       }
       indicator.style.background = connected ? '#4caf50' : '#ff9800';
       syncLaunchpadConnectionStatus();
