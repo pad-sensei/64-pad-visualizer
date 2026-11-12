@@ -13,7 +13,7 @@ I18N.addLang('de', {
     launchpad_color_palette: "Palette",
     launchpad_color_off: "Aus",
 
-    launchpad_programmer: "<strong>Launchpad Pro MK3 (Web)</strong> — MIDI SysEx erlauben und den MIDI-Port wählen; nur einen Controller anschließen. Der Programmer-Modus beleuchtet die angezeigten Pad-Positionen; ↑/↓ wechseln die Oktave. Nicht gleichzeitig mit DOJO oder einer DAW verwenden. Andere Launchpad-Modelle sind nicht enthalten.",
+    launchpad_programmer: "<strong>Launchpad Pro MK3 (Web)</strong> — MIDI SysEx erlauben und den MIDI-Port wählen; nur einen Controller anschließen. Der Programmer-Modus beleuchtet die angezeigten Pad-Positionen; ↑/↓ wechseln die Oktave. Nicht gleichzeitig mit DOJO oder einer DAW verwenden. Andere Launchpad-Modelle sind nicht enthalten. Eingabe und LEDs bleiben bis zur Bestätigung des Programmer-Modus durch das Gerät deaktiviert; bei Zeitüberschreitung oder Layoutwechsel erlischt die Bestätigung.",
     title: '64 Pad Explorer',
     description: 'Ein Werkzeug zum Erkunden von Skalen, Akkorden und Voicings auf einem 64-Pad-Raster.',
     manual_link: 'Manual →',
@@ -366,6 +366,10 @@ I18N.addLang('de', {
     major: 'Major',
   },
   midi: {
+    lp_pending: "Launchpad: Programmer-Modus wird bestätigt…",
+    lp_confirmed: "Launchpad: Programmer-Modus bestätigt",
+    lp_unconfirmed: "Launchpad: Programmer-Modus nicht bestätigt",
+
     all_devices: 'Alle Geräte',
   },
   memory: {

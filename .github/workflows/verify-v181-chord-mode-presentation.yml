@@ -60,7 +60,7 @@ jobs:
           exit 1
 
       - name: Run fixed chord-mode regression
-        run: npx playwright test tests/e2e/v181-chord-mode-presentation.spec.js tests/e2e/chord-initial-scale.spec.js --workers=1 --project=chromium --reporter=line --output=/tmp/v181-playwright-results
+        run: npx playwright test tests/e2e/v181-chord-mode-presentation.spec.js tests/e2e/chord-initial-scale.spec.js tests/e2e/launchpad-confirmation.spec.js --workers=1 --project=chromium --reporter=line --output=/tmp/v181-playwright-results
 
       - name: Store browser verification evidence
         if: always()

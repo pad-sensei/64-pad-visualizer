@@ -13,7 +13,7 @@ I18N.addLang('ja', {
     launchpad_color_palette: "パレット",
     launchpad_color_off: "消灯",
 
-    launchpad_programmer: "<strong>Launchpad Pro MK3（Web）</strong> — MIDI SysEx を許可し、1台だけ接続して MIDI ポートを選択。Programmer モードで画面のパッド位置を点灯し、↑/↓でオクターブ移動します。同じ機器を DOJO・DAW と同時使用しないでください。他の Launchpad 機種は対象外です。",
+    launchpad_programmer: "<strong>Launchpad Pro MK3（Web）</strong> — MIDI SysEx を許可し、1台だけ接続して MIDI ポートを選択。Programmer モードで画面のパッド位置を点灯し、↑/↓でオクターブ移動します。同じ機器を DOJO・DAW と同時使用しないでください。他の Launchpad 機種は対象外です。 本体からProgrammerモードの応答を確認するまで入力とLEDを有効にしません。応答待ち時間切れやモード変更で確認を解除します。",
     title: '64 Pad Explorer',
     description: '64パッド上のスケール・コード・ボイシングを探索するツール。',
     manual_link: 'マニュアル →',
@@ -248,6 +248,10 @@ I18N.addLang('ja', {
     major: 'メジャー',
   },
   midi: {
+    lp_pending: "Launchpad: Programmer モード確認中…",
+    lp_confirmed: "Launchpad: Programmer モード確認済み",
+    lp_unconfirmed: "Launchpad: Programmer モード未確認",
+
     all_devices: 'All Devices',
   },
   memory: {

@@ -13,7 +13,7 @@ I18N.addLang('zh', {
     launchpad_color_palette: "调色板",
     launchpad_color_off: "熄灭",
 
-    launchpad_programmer: "<strong>Launchpad Pro MK3（Web）</strong> — 允许 MIDI SysEx，仅连接一台控制器并选择其 MIDI 端口。Programmer 模式显示屏幕上的打击垫位置，↑/↓切换八度。请勿同时在 DOJO 或 DAW 中使用同一控制器。暂不包含其他 Launchpad 型号。",
+    launchpad_programmer: "<strong>Launchpad Pro MK3（Web）</strong> — 允许 MIDI SysEx，仅连接一台控制器并选择其 MIDI 端口。Programmer 模式显示屏幕上的打击垫位置，↑/↓切换八度。请勿同时在 DOJO 或 DAW 中使用同一控制器。暂不包含其他 Launchpad 型号。 控制器确认 Programmer 模式后才启用输入和 LED；超时或布局改变会取消确认。",
     title: '64 Pad Explorer',
     description: '在64键打击垫上探索音阶、和弦与声位的工具。',
     manual_link: 'Manual →',
@@ -367,6 +367,10 @@ I18N.addLang('zh', {
     major: 'Major',
   },
   midi: {
+    lp_pending: "Launchpad：正在确认 Programmer 模式…",
+    lp_confirmed: "Launchpad：已确认 Programmer 模式",
+    lp_unconfirmed: "Launchpad：未确认 Programmer 模式",
+
     all_devices: 'All Devices',
   },
   memory: {

@@ -19,7 +19,22 @@ const launchpadLink = typeof padLaunchpadProgrammer !== 'undefined'
     if (!midiHeldState) return;
     midiHeldState.clearDevice(input.id).forEach(function(note) { try { noteOff(note); } catch (_) {} });
     syncMidiActiveNotesFromOwnership();
-  }) : null;
+  }, { onStateChange: function() { syncLaunchpadConnectionStatus(); } }) : null;
+
+function syncLaunchpadConnectionStatus() {
+  if (typeof document === 'undefined' || !launchpadLink) return;
+  var label = document.getElementById('launchpad-status');
+  var indicator = document.getElementById('midi-indicator');
+  var state = launchpadLink.getStatus();
+  if (label) {
+    label.hidden = state === 'idle';
+    var key = state === 'confirmed' ? 'midi.lp_confirmed'
+      : state === 'opening' || state === 'pending' ? 'midi.lp_pending' : 'midi.lp_unconfirmed';
+    label.textContent = state === 'idle' ? '' : t(key);
+    if (state !== 'idle' && typeof label.setAttribute === 'function') label.setAttribute('data-i18n', key);
+  }
+  if (indicator && state !== 'idle') indicator.style.background = state === 'confirmed' ? '#4caf50' : '#ff9800';
+}
 
 function syncMidiActiveNotesFromOwnership() {
   if (!midiHeldState) return;
@@ -792,6 +807,9 @@ function initWebMIDI() {
         const inputHandler = (e) => {
           if (!e || !e.data) return;
           padWebRecordPushMidiEvent(input, e.data);
+          // The adapter owns this port during setup and after a failed confirmation.
+          // Do not let Note/CC packets fall through to raw MIDI or legacy octave handling.
+          if (launchpadLink && launchpadLink.isManagedFor(input) && !launchpadLink.isActiveFor(input)) return;
           if (e.data.length < 3) return;
           const [status, rawNote, velocity] = e.data;
           const cmd = status & 0xf0;
@@ -994,7 +1012,7 @@ function initWebMIDI() {
 
       if (launchpadLink && !window.IS_DESKTOP_MODE) {
         launchpadLink.connect(access, inputCluster).then(function(ready) {
-          if (ready) {
+          if (ready && inputCluster.some(function(input) { return launchpadLink.isActiveFor(input); })) {
             if (ledSel) ledSel.style.display = '';
             try {
               var saved = localStorage.getItem('64pad-led-mode');
@@ -1008,6 +1026,7 @@ function initWebMIDI() {
         });
       }
       indicator.style.background = connected ? '#4caf50' : '#ff9800';
+      syncLaunchpadConnectionStatus();
     }
 
     select.addEventListener('change', () => {

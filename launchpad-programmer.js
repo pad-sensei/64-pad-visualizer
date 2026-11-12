@@ -56,43 +56,115 @@
     if (background) return midi % 12 === 0 ? colorForRole('c') : /--pad-root/.test(fill) ? 9 : colorForRole('scale');
     return colorForRole(midi % 12 === 0 ? 'guideC' : 'guide');
   }
-  function create(onRelease) {
-    var generation = 0, ownedInput = null, output = null, active = false;
+  // Novation reference pp.6–7: a query returns the select-layout packet.
+  var layoutQuery = [0xf0, 0, 32, 41, 2, 14, 0, 0xf7];
+  function readLayout(data) {
+    if (!data || data.length !== 11) return null;
+    var header = [0xf0, 0, 32, 41, 2, 14, 0];
+    if (!header.every(function(byte, i) { return data[i] === byte; })
+        || data[10] !== 0xf7 || data[9] !== 0
+        || !Number.isInteger(data[7]) || data[7] < 0 || data[7] > 19
+        || !Number.isInteger(data[8]) || data[8] < 0 || data[8] > 7) return null;
+    return { layout: data[7], page: data[8] };
+  }
+  function create(onRelease, options) {
+    options = options || {};
+    var timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0 ? options.timeoutMs : 1500;
+    var now = options.now || function() { return typeof performance !== 'undefined' ? performance.now() : 0; };
+    var generation = 0, ownedInput = null, output = null, active = false, modeSent = false;
+    var status = 'idle', listener = null, pending = null, managedInputs = new Set();
     var previous = new Array(64).fill(-1);
+    function setStatus(value) {
+      status = value;
+      if (typeof options.onStateChange === 'function') options.onStateChange(value);
+    }
+    function settle(ready) {
+      if (!pending) return;
+      var old = pending; pending = null;
+      clearTimeout(old.timer);
+      old.resolve(ready);
+    }
+    function removeListener() {
+      if (listener && ownedInput) ownedInput.removeEventListener('midimessage', listener);
+      listener = null;
+    }
+    function restore(port, clearPads) {
+      if (!port) return;
+      try { port.clear?.(); } catch (_) {}
+      if (clearPads) {
+        try { port.send(ledMessage(Array.from({length:64}, function(_, i) { return [i, 0]; }))); } catch (_) {}
+      }
+      try { port.send(live); } catch (_) {}
+      try { port.send(noteLayout); } catch (_) {}
+    }
+    function fail(reason) {
+      var clearPads = active;
+      generation += 1; active = false;
+      settle(false); removeListener(); previous.fill(-1);
+      if (ownedInput && typeof onRelease === 'function') onRelease(ownedInput);
+      if (modeSent) restore(output, clearPads);
+      modeSent = false;
+      // Retain ownership until rebinding: unconfirmed packets must not become raw notes.
+      setStatus(reason);
+    }
     function disconnect() {
       generation += 1;
-      var oldInput = ownedInput, oldOutput = output, wasActive = active;
-      active = false; ownedInput = null; output = null;
-      previous.fill(-1);
+      var oldInput = ownedInput, oldOutput = output, clearPads = active, restoreMode = modeSent;
+      active = false; settle(false); removeListener();
+      ownedInput = null; output = null; modeSent = false; managedInputs.clear(); previous.fill(-1);
       if (oldInput && typeof onRelease === 'function') onRelease(oldInput);
-      if (oldOutput && wasActive) {
-        // Best effort on page teardown. Never route through Push's all-CC sweep.
-        try { oldOutput.clear?.(); } catch (_) {}
-        try { oldOutput.send(ledMessage(Array.from({length:64}, function(_, i) { return [i, 0]; }))); } catch (_) {}
-        try { oldOutput.send(live); } catch (_) {}
-        try { oldOutput.send(noteLayout); } catch (_) {}
-      }
+      if (restoreMode) restore(oldOutput, clearPads);
+      setStatus('idle');
     }
     async function connect(access, selectedInputs) {
       disconnect();
       var token = generation;
-      if (!access || access.sysexEnabled !== true) return false;
+      managedInputs = new Set((selectedInputs || []).filter(function(input) { return isMidiPort(input.name); }));
+      if (!managedInputs.size) return false;
+      if (!access || access.sysexEnabled !== true) { setStatus('unconfirmed'); return false; }
       var inputs = values(access.inputs).filter(function(p) { return isMidiPort(p.name); });
       var outputs = values(access.outputs).filter(function(p) { return isMidiPort(p.name); });
-      if (inputs.length !== 1 || outputs.length !== 1 || selectedInputs.indexOf(inputs[0]) < 0) return false;
+      if (inputs.length !== 1 || outputs.length !== 1 || selectedInputs.indexOf(inputs[0]) < 0) { setStatus('unconfirmed'); return false; }
       var input = inputs[0], port = outputs[0];
+      if (typeof input.addEventListener !== 'function' || typeof input.removeEventListener !== 'function') { setStatus('unconfirmed'); return false; }
+      ownedInput = input; output = port; setStatus('opening');
       try {
         if (typeof port.open === 'function') await port.open();
-        if (token !== generation || input.state === 'disconnected' || port.state === 'disconnected') return false;
-        port.send(enter);
-      } catch (_) { return false; }
-      // Web MIDI send success is not hardware acknowledgement; real-device QA remains required.
-      ownedInput = input; output = port; active = true;
-      previous.fill(-1);
-      return true;
+        if (token !== generation) return false;
+        if (input.state === 'disconnected' || port.state === 'disconnected') { fail('failed'); return false; }
+        var querySent = false, queryTime = 0;
+        var ready = new Promise(function(resolve) {
+          pending = { resolve: resolve, timer: setTimeout(function() {
+            if (token === generation) fail('timeout');
+          }, timeoutMs) };
+        });
+        listener = function(event) {
+          if (token !== generation || input !== ownedInput || !querySent) return;
+          if (input.state === 'disconnected' || port.state === 'disconnected') { fail('failed'); return; }
+          // Reject queued events stamped before this query. The wire protocol has no nonce.
+          if (Number.isFinite(event.timeStamp) && event.timeStamp < queryTime) return;
+          var reply = readLayout(event.data);
+          if (!reply) return;
+          if (reply.layout !== 17 || reply.page !== 0) { fail('mismatch'); return; }
+          if (!pending) return; // A repeated confirmation is not a new session.
+          active = true; previous.fill(-1); settle(true); setStatus('confirmed');
+        };
+        input.addEventListener('midimessage', listener);
+        setStatus('pending');
+        modeSent = true; port.send(enter);
+        queryTime = now(); querySent = true; port.send(layoutQuery);
+        return await ready;
+      } catch (_) {
+        if (token === generation) fail('failed');
+        return false;
+      }
+    }
+    function isActiveFor(input) {
+      return active && input === ownedInput && input.state !== 'disconnected'
+        && output && output.state !== 'disconnected';
     }
     function paint(colors) {
-      if (!active || !output || output.state === 'disconnected' || !colors || colors.length !== 64) return false;
+      if (!isActiveFor(ownedInput) || !colors || colors.length !== 64) return false;
       var changed = [];
       for (var i = 0; i < 64; i++) {
         if (!validDescriptor(colors[i])) return false;
@@ -105,13 +177,14 @@
       return true;
     }
     return {
-      connect: connect, disconnect: disconnect, paint: paint,
-      isActiveFor: function(input) { return active && input === ownedInput && output && output.state !== 'disconnected'; },
+      connect: connect, disconnect: disconnect, paint: paint, isActiveFor: isActiveFor,
+      isManagedFor: function(input) { return managedInputs.has(input); },
+      getStatus: function() { return status; },
     };
   }
   var api = { isMidiPort: isMidiPort, position: position, padNote: padNote, create: create,
     paletteForRenderedPad: paletteForRenderedPad, defaultColors: defaultColors, validColor: validColor,
-    sanitizeColors: sanitizeColors, colorForRole: colorForRole, validDescriptor: validDescriptor };
+    sanitizeColors: sanitizeColors, colorForRole: colorForRole, validDescriptor: validDescriptor, readLayout: readLayout };
   global.padLaunchpadProgrammer = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
