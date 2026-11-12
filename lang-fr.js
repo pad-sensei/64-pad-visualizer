@@ -13,7 +13,7 @@ I18N.addLang('fr', {
     launchpad_color_palette: "Palette",
     launchpad_color_off: "Éteint",
 
-    launchpad_programmer: "<strong>Launchpad Pro MK3 (Web)</strong> — Autorisez MIDI SysEx et sélectionnez son port MIDI, avec un seul contrôleur connecté. Le mode Programmer éclaire les positions affichées ; ↑/↓ changent l’octave. N’utilisez pas ce contrôleur simultanément dans DOJO ou un DAW. Les autres modèles Launchpad ne sont pas inclus.",
+    launchpad_programmer: "<strong>Launchpad Pro MK3 (Web)</strong> — Autorisez MIDI SysEx et sélectionnez son port MIDI, avec un seul contrôleur connecté. Le mode Programmer éclaire les positions affichées ; ↑/↓ changent l’octave. N’utilisez pas ce contrôleur simultanément dans DOJO ou un DAW. Les autres modèles Launchpad ne sont pas inclus. Les entrées et LED restent désactivées jusqu’à confirmation du mode Programmer par le contrôleur ; un délai dépassé ou changement de disposition annule la confirmation.",
     title: '64 Pad Explorer',
     description: 'Un outil pour explorer les gammes, accords et voicings sur une grille de 64 pads.',
     manual_link: 'Manual →',
@@ -363,6 +363,18 @@ I18N.addLang('fr', {
     major: 'Major',
   },
   midi: {
+    lp_retry: "Réessayer",
+    lp_retry_title: "Relancer la confirmation automatique du mode Programmer",
+    lp_timeout: "Launchpad : aucune réponse de mode",
+    lp_wrong_mode: "Launchpad : autre mode détecté",
+    lp_sysex: "Launchpad : MIDI SysEx indisponible",
+    lp_ports: "Launchpad : choisir une paire MIDI",
+    lp_connection: "Launchpad : échec de connexion MIDI",
+
+    lp_pending: "Launchpad : confirmation du mode Programmer…",
+    lp_confirmed: "Launchpad : mode Programmer confirmé",
+    lp_unconfirmed: "Launchpad : mode Programmer non confirmé",
+
     all_devices: 'Tous les appareils',
   },
   memory: {

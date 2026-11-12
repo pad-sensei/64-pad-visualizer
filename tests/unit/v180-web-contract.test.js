@@ -20,8 +20,8 @@ describe('Web product contract (v1.8 behavior retained in v1.9)', () => {
   });
 
   it('shows one product version for Web', () => {
-    expect(html).toContain('<span class="version-tag">v1.9.0</span>');
-    expect(html).toContain('"softwareVersion":"1.9.0"');
+    expect(html).toContain('<span class="version-tag">v1.9.1</span>');
+    expect(html).toContain('"softwareVersion":"1.9.1"');
   });
 
   it('forces a fresh /64-pad-dev/ navigation before app assets when a stale service worker controls the page', () => {

@@ -13,7 +13,7 @@ I18N.addLang('ko', {
     launchpad_color_palette: "팔레트",
     launchpad_color_off: "꺼짐",
 
-    launchpad_programmer: "<strong>Launchpad Pro MK3(Web)</strong> — MIDI SysEx를 허용하고 컨트롤러 한 대만 연결한 뒤 MIDI 포트를 선택하세요. Programmer 모드에서 화면의 패드 위치가 켜지며 ↑/↓로 옥타브를 이동합니다. 같은 기기를 DOJO 또는 DAW와 동시에 사용하지 마세요. 다른 Launchpad 모델은 포함되지 않습니다.",
+    launchpad_programmer: "<strong>Launchpad Pro MK3(Web)</strong> — MIDI SysEx를 허용하고 컨트롤러 한 대만 연결한 뒤 MIDI 포트를 선택하세요. Programmer 모드에서 화면의 패드 위치가 켜지며 ↑/↓로 옥타브를 이동합니다. 같은 기기를 DOJO 또는 DAW와 동시에 사용하지 마세요. 다른 Launchpad 모델은 포함되지 않습니다. 기기가 Programmer 모드를 확인한 후에만 입력과 LED가 활성화됩니다. 시간 초과 또는 레이아웃 변경 시 확인이 해제됩니다.",
     title: '64 Pad Explorer',
     description: '64패드 그리드에서 스케일, 코드, 보이싱을 탐색하는 도구입니다.',
     manual_link: 'Manual →',
@@ -367,6 +367,18 @@ I18N.addLang('ko', {
     major: 'Major',
   },
   midi: {
+    lp_retry: "다시 확인",
+    lp_retry_title: "Programmer 모드 자동 확인 다시 시도",
+    lp_timeout: "Launchpad: 모드 응답 없음",
+    lp_wrong_mode: "Launchpad: 다른 모드 감지",
+    lp_sysex: "Launchpad: MIDI SysEx 사용 불가",
+    lp_ports: "Launchpad: MIDI 한 쌍 선택",
+    lp_connection: "Launchpad: MIDI 연결 실패",
+
+    lp_pending: "Launchpad: Programmer 모드 확인 중…",
+    lp_confirmed: "Launchpad: Programmer 모드 확인됨",
+    lp_unconfirmed: "Launchpad: Programmer 모드 미확인",
+
     all_devices: '모든 기기',
   },
   memory: {

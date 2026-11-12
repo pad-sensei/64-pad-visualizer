@@ -3,12 +3,19 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 const lp = require('../../launchpad-programmer.js');
 function port(id, name = 'Launchpad Pro MK3 LPProMK3 MIDI') {
-  return { id, name, state:'connected', open:vi.fn(async () => {}), send:vi.fn(), clear:vi.fn() };
+  const listeners=new Set();
+  return { id, name, state:'connected', open:vi.fn(async () => {}), send:vi.fn(), clear:vi.fn(),
+    addEventListener(type,fn){if(type==='midimessage')listeners.add(fn);},
+    removeEventListener(type,fn){if(type==='midimessage')listeners.delete(fn);},
+    emit(data,extra={}){const e={data,...extra};for(const fn of [...listeners])fn(e);this.onmidimessage?.(e);},
+    listeners };
+
 }
-function world() {
+function world(autoReply=true,options={}) {
   const input = port('in'), output = port('out');
   const access = { sysexEnabled:true, inputs:new Map([[input.id,input]]), outputs:new Map([[output.id,output]]) };
-  const released = [], link = lp.create(p => released.push(p.id));
+  if(autoReply) output.send.mockImplementation(bytes=>{if(bytes.length===8&&bytes[6]===0)input.emit([240,0,32,41,2,14,0,17,0,0,247]);});
+  const released = [], link = lp.create(p => released.push(p.id),options);
   return { input, output, access, released, link };
 }
 describe('Pro MK3 Programmer transport', () => {
@@ -25,6 +32,7 @@ describe('Pro MK3 Programmer transport', () => {
     expect(await w.link.connect(w.access,[w.input])).toBe(true);
     expect(w.output.open).toHaveBeenCalledOnce();
     expect(w.output.send.mock.calls[0][0]).toEqual([240,0,32,41,2,14,14,1,247]);
+    expect(w.output.send.mock.calls[1][0]).toEqual([240,0,32,41,2,14,0,247]);
     expect(w.link.isActiveFor(w.input)).toBe(true);
     expect(w.link.isActiveFor({...w.input})).toBe(false);
   });
@@ -79,8 +87,8 @@ describe('Pro MK3 Programmer transport', () => {
 });
 
 // Exercise the real classic-script MIDI runtime; only device/audio/DOM boundaries are mocked.
-async function runtime(extraInputs=[],extraOutputs=[]) {
-  const w=world(), events=[], handlers={}, elements=new Map();let base=36;
+async function runtime(extraInputs=[],extraOutputs=[],autoReply=true) {
+  const w=world(autoReply), events=[], handlers={}, elements=new Map();let base=36;
   for(const p of extraInputs) w.access.inputs.set(p.id,p);
   for(const p of extraOutputs) w.access.outputs.set(p.id,p);
   const element=()=>({style:{},value:'all',options:[],appendChild(p){this.options.push(p);},querySelector:()=>({}),addEventListener(type,fn){this[type]=fn;}});
@@ -94,12 +102,12 @@ async function runtime(extraInputs=[],extraOutputs=[]) {
     shiftOctave(delta){base+=delta*12;}, memoryViewMode:'memory',linkMode:true,
     handlePerformMidi:()=>false,ensureAudioResumed(){},applyVelocityCurve:v=>v/127,
     noteOn:(n)=>events.push(['on',n]),noteOff:(n)=>events.push(['off',n]),t:k=>k,
-    setTimeout:()=>0,clearTimeout(){},render(){},IS_DESKTOP_MODE:false };
+    setTimeout,clearTimeout,render(){},IS_DESKTOP_MODE:false };
   c.window=c;vm.createContext(c);
   for(const f of ['midi-input-state.js','push-midi-port-contract.js','launchpad-programmer.js','midi.js']) vm.runInContext(fs.readFileSync(f,'utf8'),c,{filename:f});
   c.updateMidiDisplay=()=>{};c.scheduleMidiUpdate=()=>{};
   c.initWebMIDI();await new Promise(resolve=>setImmediate(resolve));
-  return {...w,c,events,handlers,elements,send:(p,data)=>p.onmidimessage({data})};
+  return {...w,c,events,handlers,elements,send:(p,data)=>p.emit(data)};
 }
 describe('Programmer input through the production MIDI runtime',()=>{
   it('keeps 64 physical identities and releases the pressed pitch after octave moves',async()=>{
@@ -176,8 +184,84 @@ describe('Launchpad delivery assets', () => {
       vm.runInNewContext(fs.readFileSync(`lang-${lang}.js`,'utf8'),{I18N:{addLang:(id,obj)=>{expect(id).toBe(lang);data=obj;}}});
       expect(data.help.launchpad_programmer).toContain('Launchpad Pro MK3');
       expect(data.help.launchpad_programmer).toContain('SysEx');
+      for(const key of ['lp_pending','lp_confirmed','lp_unconfirmed','lp_retry','lp_retry_title','lp_timeout','lp_wrong_mode','lp_sysex','lp_ports','lp_connection'])expect(data.midi[key]).toBeTruthy();
       expect(data.tut.onboarding.midi_msg).toContain('SysEx');
     }
     expect(fs.readFileSync('guide.html','utf8')).toContain('data-i18n="help.launchpad_programmer"');
+  });
+});
+
+const confirmedLayout=[240,0,32,41,2,14,0,17,0,0,247];
+const tick=()=>new Promise(resolve=>setImmediate(resolve));
+describe('layout confirmation boundaries',()=>{
+  it('send success alone never authorizes notes or LED painting',async()=>{
+    const w=world(false),p=w.link.connect(w.access,[w.input]);await tick();
+    expect(w.link.isActiveFor(w.input)).toBe(false);expect(w.link.getStatus()).toBe('pending');expect(w.link.isManagedFor(w.input)).toBe(true);expect(w.link.paint(Array(64).fill(2))).toBe(false);
+    expect(w.output.send.mock.calls.map(c=>c[0])).toEqual([[240,0,32,41,2,14,14,1,247],[240,0,32,41,2,14,0,247]]);
+    w.input.emit(confirmedLayout);expect(await p).toBe(true);expect(w.link.getStatus()).toBe('confirmed');w.link.disconnect();
+  });
+  it.each([confirmedLayout.slice(0,-1),[...confirmedLayout,0],confirmedLayout.map((v,i)=>i===5?12:v),confirmedLayout.map((v,i)=>i===6?14:v),confirmedLayout.map((v,i)=>i===9?1:v),confirmedLayout.map((v,i)=>i===7?128:v)])('ignores malformed/different-product reply %j',async data=>{
+    const w=world(false),p=w.link.connect(w.access,[w.input]);await tick();w.input.emit(data);expect(w.link.isActiveFor(w.input)).toBe(false);expect(w.link.getStatus()).toBe('pending');w.link.disconnect();expect(await p).toBe(false);expect(w.input.listeners.size).toBe(0);
+  });
+  it.each([[4,0],[17,1]])('rejects wrong layout/page %s/%s and restores Note',async(layout,page)=>{
+    const w=world(false),p=w.link.connect(w.access,[w.input]);await tick();const data=confirmedLayout.slice();data[7]=layout;data[8]=page;w.input.emit(data);expect(await p).toBe(false);expect(w.link.getStatus()).toBe('mismatch');expect(w.link.isManagedFor(w.input)).toBe(true);expect(w.output.send.mock.calls.at(-1)[0]).toEqual([240,0,32,41,2,14,0,4,0,0,247]);expect(w.input.listeners.size).toBe(0);w.link.disconnect();
+  });
+  it('timeout releases held ownership and ignores late responses',async()=>{
+    vi.useFakeTimers();try{const w=world(false,{timeoutMs:50}),p=w.link.connect(w.access,[w.input]);await Promise.resolve();const stale=[...w.input.listeners][0];await vi.advanceTimersByTimeAsync(50);expect(await p).toBe(false);expect(w.link.getStatus()).toBe('timeout');expect(w.released).toEqual(['in']);stale({data:confirmedLayout});w.input.emit(confirmedLayout);expect(w.link.isActiveFor(w.input)).toBe(false);expect(w.input.listeners.size).toBe(0);w.link.disconnect();}finally{vi.useRealTimers();}
+  });
+  it('ignores pre-query, stale timestamp and other-input responses',async()=>{
+    const w=world(false,{now:()=>100});w.output.send.mockImplementation(bytes=>{if(bytes.length===9)w.input.emit(confirmedLayout);});const p=w.link.connect(w.access,[w.input]);await tick();expect(w.link.isActiveFor(w.input)).toBe(false);port('other').emit(confirmedLayout);w.input.emit(confirmedLayout,{timeStamp:99});expect(w.link.isActiveFor(w.input)).toBe(false);w.input.emit(confirmedLayout,{timeStamp:101});expect(await p).toBe(true);w.link.disconnect();
+  });
+  it('old handlers and promises cannot authorize a reconnect; duplicate ACK is inert',async()=>{
+    const w=world(false),first=w.link.connect(w.access,[w.input]);await tick();const stale=[...w.input.listeners][0],second=w.link.connect(w.access,[w.input]);await tick();expect(await first).toBe(false);stale({data:confirmedLayout});expect(w.link.isActiveFor(w.input)).toBe(false);w.input.emit(confirmedLayout);expect(await second).toBe(true);const count=w.output.send.mock.calls.length;w.input.emit(confirmedLayout);expect(w.output.send).toHaveBeenCalledTimes(count);w.link.disconnect();
+  });
+  it.each(['input','output'])('rejects confirmation after %s disconnect',async which=>{
+    const w=world(false),p=w.link.connect(w.access,[w.input]);await tick();w[which].state='disconnected';w.input.emit(confirmedLayout);expect(await p).toBe(false);expect(w.link.isActiveFor(w.input)).toBe(false);w.link.disconnect();
+  });
+  it('pending input is silent; confirmation loss releases captured pitch after octave change',async()=>{
+    const keyboard=port('keyboard','Keyboard'),r=await runtime([keyboard],[],false);expect(r.elements.get('midi-indicator').style.background).toBe('#ff9800');for(const data of [[144,11,100],[128,11,0],[176,91,127],[176,80,127]])r.send(r.input,data);expect(r.events).toEqual([]);r.send(keyboard,[144,61,100]);expect(r.events.at(-1)).toEqual(['on',61]);r.send(r.input,confirmedLayout);await tick();expect(r.elements.get('midi-indicator').style.background).toBe('#4caf50');r.send(r.input,[144,11,100]);r.send(r.input,[176,80,127]);const lost=confirmedLayout.slice();lost[7]=4;r.send(r.input,lost);expect(r.events.at(-1)).toEqual(['off',36]);expect(r.elements.get('midi-indicator').style.background).toBe('#ff9800');const count=r.events.length;r.send(r.input,[144,11,100]);r.send(r.input,confirmedLayout);r.send(r.input,[128,11,0]);expect(r.events).toHaveLength(count);for(const fn of r.handlers.pagehide)fn();
+  });
+});
+
+describe('unavailable Programmer transport is still quarantined',()=>{
+  it.each(['sysex','ambiguous outputs'])('never passes Pro MK3 notes through on %s',async reason=>{
+    const r=await runtime([],reason==='ambiguous outputs'?[port('out2')]:[],false);
+    if(reason==='sysex'){r.access.sysexEnabled=false;r.elements.get('midi-device-select').change();await tick();}
+    expect(vm.runInContext('launchpadLink.isManagedFor(midiAccess.inputs.get("in"))',r.c)).toBe(true);
+    expect(r.elements.get('midi-indicator').style.background).toBe('#ff9800');
+    for(const data of [[144,11,100],[176,91,127],[128,11,0]])r.send(r.input,data);
+    expect(r.events).toEqual([]);for(const fn of r.handlers.pagehide)fn();
+  });
+});
+
+describe('restored page must reconfirm',()=>{
+  it('BFCache resume remains silent until a new response, never reuses the old ACK',async()=>{
+    const r=await runtime();r.send(r.input,[144,11,100]);for(const fn of r.handlers.pagehide)fn();expect(r.events.at(-1)).toEqual(['off',36]);
+    r.output.send.mockImplementation(()=>{});for(const fn of r.handlers.pageshow)fn({persisted:true});await tick();
+    const count=r.events.length;r.send(r.input,[144,11,100]);expect(r.events).toHaveLength(count);
+    expect(vm.runInContext('launchpadLink.getStatus()',r.c)).toBe('pending');r.send(r.input,confirmedLayout);await tick();r.send(r.input,[144,11,100]);expect(r.events.at(-1)).toEqual(['on',36]);
+    for(const fn of r.handlers.pagehide)fn();
+  });
+});
+
+describe('reported Note-mode hypothesis and one-click recovery',()=>{
+  it('blocks raw24/36 until confirmed, then maps11/33 to C1/C2 without blacklisting valid coordinates',async()=>{
+    const keyboard=port('keyboard','Keyboard'),r=await runtime([keyboard],[],false);
+    const oldAck=[...r.input.listeners][0];
+    for(const raw of [24,36]){r.send(r.input,[144,raw,100]);r.send(r.input,[128,raw,0]);}expect(r.events).toEqual([]);
+    const noteMode=confirmedLayout.slice();noteMode[7]=4;r.send(r.input,noteMode);
+    expect(vm.runInContext('launchpadLink.getReason()',r.c)).toBe('layout');
+    for(const raw of [24,36])r.send(r.input,[144,raw,100]);expect(r.events).toEqual([]);
+    r.send(keyboard,[144,61,100]);const retry=r.elements.get('launchpad-retry');expect(retry.hidden).toBe(false);retry.onclick();retry.onclick();await tick();
+    expect(r.events).toEqual([['on',61]]);expect(vm.runInContext('launchpadLink.getReason()',r.c)).toBe(null);expect(vm.runInContext('launchpadLink.getStatus()',r.c)).toBe('pending');
+    oldAck({data:noteMode});expect(vm.runInContext('launchpadLink.getStatus()',r.c)).toBe('pending');expect(vm.runInContext('launchpadLink.getReason()',r.c)).toBe(null);
+    for(const raw of [24,36])r.send(r.input,[144,raw,100]);expect(r.events).toEqual([['on',61]]);
+    r.send(r.input,confirmedLayout);await tick();expect(retry.hidden).toBe(true);expect(vm.runInContext('launchpadLink.getReason()',r.c)).toBe(null);
+    for(const [raw,pitch] of [[11,36],[33,48],[24,44],[36,51]]){r.send(r.input,[144,raw,100]);r.send(r.input,[128,raw,0]);expect(r.events.slice(-2)).toEqual([['on',pitch],['off',pitch]]);}
+    expect(r.events.filter(e=>e[0]==='off'&&e[1]===61)).toEqual([]);for(const fn of r.handlers.pagehide)fn();
+  });
+  it.each(['sysex','ports'])('shows unavailable reason %s without trying to force permission or a port',async reason=>{
+    const w=world(false);if(reason==='sysex')w.access.sysexEnabled=false;else w.access.outputs.set('other',port('other'));
+    expect(await w.link.connect(w.access,[w.input])).toBe(false);expect(w.link.getReason()).toBe(reason);expect(w.output.send).not.toHaveBeenCalled();w.link.disconnect();expect(w.link.getReason()).toBe(null);
   });
 });
