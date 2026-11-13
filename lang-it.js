@@ -367,9 +367,12 @@ I18N.addLang('it', {
     major: 'Major',
   },
   midi: {
+    lp_unaccepted: "Launchpad: risposta ricevuta, non confermata",
+    lp_details: "Dettagli connessione (solo locali)",
+
     lp_retry: "Riprova",
     lp_retry_title: "Ripeti conferma automatica modalità Programmer",
-    lp_timeout: "Launchpad: nessuna risposta di modalità",
+    lp_timeout: "Launchpad: nessuna risposta di modalità entro il termine",
     lp_wrong_mode: "Launchpad: altra modalità rilevata",
     lp_sysex: "Launchpad: MIDI SysEx non disponibile",
     lp_ports: "Launchpad: seleziona una coppia MIDI",

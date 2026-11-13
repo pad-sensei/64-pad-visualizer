@@ -40,7 +40,7 @@ describe('Launchpad colour settings',()=>{
     const old=settingsWorld({key:2});old.c.loadAppSettings();expect(old.c.state.launchpadColors).toEqual(lp.defaultColors);
   });
   it('sends exact mixed RGB/palette bytes and redraws changed descriptors only',async()=>{
-    let listener;const input={name:'LPProMK3 MIDI',addEventListener(t,fn){listener=fn;},removeEventListener(){listener=null;}},output={name:'LPProMK3 MIDI',send:vi.fn(bytes=>{if(bytes.length===8)listener({data:[240,0,32,41,2,14,0,17,0,0,247]});})};
+    let listener;const input={name:'LPProMK3 MIDI',open:async()=>{},addEventListener(t,fn){listener=fn;},removeEventListener(){listener=null;}},output={name:'LPProMK3 MIDI',open:async()=>{},send:vi.fn(bytes=>{if(bytes.length===8)listener({data:[240,0,32,41,2,14,0,17,0,0,247]});})};
     const link=lp.create();await link.connect({sysexEnabled:true,inputs:new Map([['i',input]]),outputs:new Map([['o',output]])},[input]);
     const colors=Array(64).fill(0);link.paint(colors);output.send.mockClear();
     colors[0]='#ff8000';colors[1]=13;expect(link.paint(colors)).toBe(true);

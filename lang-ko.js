@@ -367,9 +367,12 @@ I18N.addLang('ko', {
     major: 'Major',
   },
   midi: {
+    lp_unaccepted: "Launchpad: 응답 수신, 확인되지 않음",
+    lp_details: "연결 상세 정보 (기기 내에서만)",
+
     lp_retry: "다시 확인",
     lp_retry_title: "Programmer 모드 자동 확인 다시 시도",
-    lp_timeout: "Launchpad: 모드 응답 없음",
+    lp_timeout: "Launchpad: 확인 시간 내 모드 응답 없음",
     lp_wrong_mode: "Launchpad: 다른 모드 감지",
     lp_sysex: "Launchpad: MIDI SysEx 사용 불가",
     lp_ports: "Launchpad: MIDI 한 쌍 선택",

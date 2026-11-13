@@ -34,11 +34,21 @@ function syncLaunchpadConnectionStatus() {
     var key = state === 'confirmed' ? 'midi.lp_confirmed'
       : state === 'opening' || state === 'pending' ? 'midi.lp_pending'
       : reason === 'timeout' ? 'midi.lp_timeout' : reason === 'layout' ? 'midi.lp_wrong_mode'
+      : reason === 'unaccepted' ? 'midi.lp_unaccepted'
       : reason === 'sysex' ? 'midi.lp_sysex' : reason === 'ports' ? 'midi.lp_ports' : 'midi.lp_connection';
     label.textContent = state === 'idle' ? '' : t(key);
     if (state !== 'idle' && typeof label.setAttribute === 'function') label.setAttribute('data-i18n', key);
   }
+  var details = document.getElementById('launchpad-diagnostics');
+  var detailText = document.getElementById('launchpad-diagnostics-text');
+  if (details) details.hidden = ['idle', 'opening', 'pending', 'confirmed'].indexOf(state) >= 0;
+  if (detailText && typeof launchpadLink.getDiagnostics === 'function') detailText.textContent = JSON.stringify(launchpadLink.getDiagnostics(), null, 2);
   if (indicator && state !== 'idle') indicator.style.background = state === 'confirmed' ? '#4caf50' : '#ff9800';
+}
+
+// Explicitly local diagnostic snapshot: no network transmission and no Note/CC history.
+function getLaunchpadConnectionDiagnostics() {
+  return launchpadLink ? launchpadLink.getDiagnostics() : null;
 }
 
 function syncMidiActiveNotesFromOwnership() {

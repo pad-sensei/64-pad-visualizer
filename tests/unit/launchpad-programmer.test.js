@@ -51,7 +51,7 @@ describe('Pro MK3 Programmer transport', () => {
   it('discards a late open completion after disconnect or another connect', async () => {
     const w=world(); let finish;
     w.output.open.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
-    const pending=w.link.connect(w.access,[w.input]);w.link.disconnect();finish();
+    const pending=w.link.connect(w.access,[w.input]);await new Promise(resolve=>setImmediate(resolve));w.link.disconnect();finish();
     expect(await pending).toBe(false);expect(w.output.send).not.toHaveBeenCalled();
   });
   it('uses native Launchpad palette, never custom Push palette numbers', () => {
@@ -184,7 +184,7 @@ describe('Launchpad delivery assets', () => {
       vm.runInNewContext(fs.readFileSync(`lang-${lang}.js`,'utf8'),{I18N:{addLang:(id,obj)=>{expect(id).toBe(lang);data=obj;}}});
       expect(data.help.launchpad_programmer).toContain('Launchpad Pro MK3');
       expect(data.help.launchpad_programmer).toContain('SysEx');
-      for(const key of ['lp_pending','lp_confirmed','lp_unconfirmed','lp_retry','lp_retry_title','lp_timeout','lp_wrong_mode','lp_sysex','lp_ports','lp_connection'])expect(data.midi[key]).toBeTruthy();
+      for(const key of ['lp_pending','lp_confirmed','lp_unconfirmed','lp_retry','lp_retry_title','lp_timeout','lp_wrong_mode','lp_sysex','lp_ports','lp_connection','lp_unaccepted','lp_details'])expect(data.midi[key]).toBeTruthy();
       expect(data.tut.onboarding.midi_msg).toContain('SysEx');
     }
     expect(fs.readFileSync('guide.html','utf8')).toContain('data-i18n="help.launchpad_programmer"');
@@ -204,13 +204,13 @@ describe('layout confirmation boundaries',()=>{
     const w=world(false),p=w.link.connect(w.access,[w.input]);await tick();w.input.emit(data);expect(w.link.isActiveFor(w.input)).toBe(false);expect(w.link.getStatus()).toBe('pending');w.link.disconnect();expect(await p).toBe(false);expect(w.input.listeners.size).toBe(0);
   });
   it.each([[4,0],[17,1]])('rejects wrong layout/page %s/%s and restores Note',async(layout,page)=>{
-    const w=world(false),p=w.link.connect(w.access,[w.input]);await tick();const data=confirmedLayout.slice();data[7]=layout;data[8]=page;w.input.emit(data);expect(await p).toBe(false);expect(w.link.getStatus()).toBe('mismatch');expect(w.link.isManagedFor(w.input)).toBe(true);expect(w.output.send.mock.calls.at(-1)[0]).toEqual([240,0,32,41,2,14,0,4,0,0,247]);expect(w.input.listeners.size).toBe(0);w.link.disconnect();
+    const w=world(false,{timeoutMs:25,queryRetryMs:[]}),p=w.link.connect(w.access,[w.input]);await tick();const data=confirmedLayout.slice();data[7]=layout;data[8]=page;w.input.emit(data);expect(await p).toBe(false);expect(w.link.getStatus()).toBe('mismatch');expect(w.link.isManagedFor(w.input)).toBe(true);expect(w.output.send.mock.calls.at(-1)[0]).toEqual([240,0,32,41,2,14,0,4,0,0,247]);expect(w.input.listeners.size).toBe(0);w.link.disconnect();
   });
   it('timeout releases held ownership and ignores late responses',async()=>{
-    vi.useFakeTimers();try{const w=world(false,{timeoutMs:50}),p=w.link.connect(w.access,[w.input]);await Promise.resolve();const stale=[...w.input.listeners][0];await vi.advanceTimersByTimeAsync(50);expect(await p).toBe(false);expect(w.link.getStatus()).toBe('timeout');expect(w.released).toEqual(['in']);stale({data:confirmedLayout});w.input.emit(confirmedLayout);expect(w.link.isActiveFor(w.input)).toBe(false);expect(w.input.listeners.size).toBe(0);w.link.disconnect();}finally{vi.useRealTimers();}
+    vi.useFakeTimers();try{const w=world(false,{timeoutMs:50}),p=w.link.connect(w.access,[w.input]);await vi.advanceTimersByTimeAsync(0);const stale=[...w.input.listeners][0];await vi.advanceTimersByTimeAsync(50);expect(await p).toBe(false);expect(w.link.getStatus()).toBe('timeout');expect(w.released).toEqual(['in']);stale({data:confirmedLayout});w.input.emit(confirmedLayout);expect(w.link.isActiveFor(w.input)).toBe(false);expect(w.input.listeners.size).toBe(0);w.link.disconnect();}finally{vi.useRealTimers();}
   });
-  it('ignores pre-query, stale timestamp and other-input responses',async()=>{
-    const w=world(false,{now:()=>100});w.output.send.mockImplementation(bytes=>{if(bytes.length===9)w.input.emit(confirmedLayout);});const p=w.link.connect(w.access,[w.input]);await tick();expect(w.link.isActiveFor(w.input)).toBe(false);port('other').emit(confirmedLayout);w.input.emit(confirmedLayout,{timeStamp:99});expect(w.link.isActiveFor(w.input)).toBe(false);w.input.emit(confirmedLayout,{timeStamp:101});expect(await p).toBe(true);w.link.disconnect();
+  it('ignores pre-query/other-input callbacks but records a negative timestamp on a current reply',async()=>{
+    const w=world(false,{now:()=>100});w.output.send.mockImplementation(bytes=>{if(bytes.length===9)w.input.emit(confirmedLayout);});const p=w.link.connect(w.access,[w.input]);await tick();expect(w.link.isActiveFor(w.input)).toBe(false);port('other').emit(confirmedLayout);w.input.emit(confirmedLayout,{timeStamp:99});expect(w.link.getDiagnostics().lastEventDeltaMs).toBe(-1);expect(await p).toBe(true);w.link.disconnect();
   });
   it('old handlers and promises cannot authorize a reconnect; duplicate ACK is inert',async()=>{
     const w=world(false),first=w.link.connect(w.access,[w.input]);await tick();const stale=[...w.input.listeners][0],second=w.link.connect(w.access,[w.input]);await tick();expect(await first).toBe(false);stale({data:confirmedLayout});expect(w.link.isActiveFor(w.input)).toBe(false);w.input.emit(confirmedLayout);expect(await second).toBe(true);const count=w.output.send.mock.calls.length;w.input.emit(confirmedLayout);expect(w.output.send).toHaveBeenCalledTimes(count);w.link.disconnect();
@@ -250,6 +250,7 @@ describe('reported Note-mode hypothesis and one-click recovery',()=>{
     const oldAck=[...r.input.listeners][0];
     for(const raw of [24,36]){r.send(r.input,[144,raw,100]);r.send(r.input,[128,raw,0]);}expect(r.events).toEqual([]);
     const noteMode=confirmedLayout.slice();noteMode[7]=4;r.send(r.input,noteMode);
+    await new Promise(resolve=>setTimeout(resolve,1550));
     expect(vm.runInContext('launchpadLink.getReason()',r.c)).toBe('layout');
     for(const raw of [24,36])r.send(r.input,[144,raw,100]);expect(r.events).toEqual([]);
     r.send(keyboard,[144,61,100]);const retry=r.elements.get('launchpad-retry');expect(retry.hidden).toBe(false);retry.onclick();retry.onclick();await tick();

@@ -28,7 +28,7 @@ async function prepare(page, fixed = false, key = 0, root = null, quality = null
     memoryViewMode = null; PlainState.currentSlot = null; PlainState.activeNotes.clear(); padExtNotes.clear();
     _selectedPS = null; _psChordFP = ''; _psAutoSelect = true;
     const capture = window.__colourCapture = { lp: Array(64).fill(null), push: Array(64).fill(null), lpMessages: [], pushMessages: [] };
-    const input = Object.assign(new EventTarget(), { id: 'colour-lp-in', name: 'Launchpad Pro MK3 MIDI', state: 'connected' });
+    const input = Object.assign(new EventTarget(), { id: 'colour-lp-in', name: 'Launchpad Pro MK3 MIDI', state: 'connected', open: async () => {} });
     const lpOutput = { id: 'colour-lp-out', name: input.name, state: 'connected', open: async () => {},
       send(bytes) {
         const message = Array.from(bytes); capture.lpMessages.push(message);

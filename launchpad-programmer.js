@@ -58,14 +58,18 @@
   }
   // Novation reference pp.6–7: a query returns the select-layout packet.
   var layoutQuery = [0xf0, 0, 32, 41, 2, 14, 0, 0xf7];
-  function readLayout(data) {
-    if (!data || data.length !== 11) return null;
+  function layoutRejection(data) {
+    if (!data || data.length !== 11) return 'length';
     var header = [0xf0, 0, 32, 41, 2, 14, 0];
-    if (!header.every(function(byte, i) { return data[i] === byte; })
-        || data[10] !== 0xf7 || data[9] !== 0
-        || !Number.isInteger(data[7]) || data[7] < 0 || data[7] > 19
-        || !Number.isInteger(data[8]) || data[8] < 0 || data[8] > 7) return null;
-    return { layout: data[7], page: data[8] };
+    if (!header.every(function(byte, i) { return data[i] === byte; })) return 'header';
+    if (data[10] !== 0xf7) return 'terminator';
+    if (data[9] !== 0) return 'reserved';
+    if (!Number.isInteger(data[7]) || data[7] < 0 || data[7] > 19) return 'layout';
+    if (!Number.isInteger(data[8]) || data[8] < 0 || data[8] > 7) return 'page';
+    return null;
+  }
+  function readLayout(data) {
+    return layoutRejection(data) ? null : { layout: data[7], page: data[8] };
   }
   function create(onRelease, options) {
     options = options || {};
@@ -74,6 +78,30 @@
     var generation = 0, ownedInput = null, output = null, active = false, modeSent = false;
     var status = 'idle', statusReason = null, listener = null, pending = null, managedInputs = new Set();
     var previous = new Array(64).fill(-1);
+    var retryMs = (Array.isArray(options.queryRetryMs) ? options.queryRetryMs : [100, 300, 700])
+      .filter(function(ms, i, all) { return Number.isFinite(ms) && ms > 0 && ms < timeoutMs && all.indexOf(ms) === i; })
+      .sort(function(a, b) { return a - b; }).slice(0, 3);
+    var diagnostics = {};
+    function portMetadata(port) {
+      if (!port) return null;
+      var result = {};
+      ['name', 'manufacturer', 'state', 'connection'].forEach(function(key) {
+        result[key] = String(port[key] || '').slice(0, 120);
+      });
+      return result;
+    }
+    function resetDiagnostics() {
+      diagnostics = { attempt: generation, stage: 'selecting', inputCount: null, outputCount: null,
+        queryCount: 0, rxCount: 0, sysexCount: 0, parserRejects: {}, lastReject: null,
+        lastSysExLength: null, lastSysExHex: null, lastArrivalDeltaMs: null,
+        lastEventDeltaMs: null, negativeTimestampCount: 0, lastLayout: null,
+        timestampPolicy: 'same-port-generation-dispatch-window' };
+    }
+    function finishWindow() {
+      if (!pending) return;
+      if (diagnostics.lastLayout && (diagnostics.lastLayout.layout !== 17 || diagnostics.lastLayout.page !== 0)) fail('mismatch');
+      else fail('timeout', diagnostics.sysexCount ? 'unaccepted' : 'timeout');
+    }
     function setStatus(value, detail) {
       status = value; statusReason = detail || null;
       if (typeof options.onStateChange === 'function') options.onStateChange(value);
@@ -82,6 +110,7 @@
       if (!pending) return;
       var old = pending; pending = null;
       clearTimeout(old.timer);
+      (old.retries || []).forEach(clearTimeout);
       old.resolve(ready);
     }
     function removeListener() {
@@ -97,7 +126,7 @@
       try { port.send(live); } catch (_) {}
       try { port.send(noteLayout); } catch (_) {}
     }
-    function fail(reason) {
+    function fail(reason, detail) {
       var clearPads = active;
       generation += 1; active = false;
       settle(false); removeListener(); previous.fill(-1);
@@ -105,7 +134,7 @@
       if (modeSent) restore(output, clearPads);
       modeSent = false;
       // Retain ownership until rebinding: unconfirmed packets must not become raw notes.
-      setStatus(reason, reason === 'timeout' ? 'timeout' : reason === 'mismatch' ? 'layout' : 'transport');
+      setStatus(reason, detail || (reason === 'timeout' ? 'timeout' : reason === 'mismatch' ? 'layout' : 'transport'));
     }
     function disconnect() {
       generation += 1;
@@ -119,40 +148,80 @@
     async function connect(access, selectedInputs) {
       disconnect();
       var token = generation;
+      resetDiagnostics();
       managedInputs = new Set((selectedInputs || []).filter(function(input) { return isMidiPort(input.name); }));
+      diagnostics.selectedInputs = Array.from(managedInputs).slice(0, 4).map(portMetadata);
       if (!managedInputs.size) return false;
       if (!access || access.sysexEnabled !== true) { setStatus('unconfirmed', 'sysex'); return false; }
       var inputs = values(access.inputs).filter(function(p) { return isMidiPort(p.name); });
       var outputs = values(access.outputs).filter(function(p) { return isMidiPort(p.name); });
+      diagnostics.inputCount = inputs.length; diagnostics.outputCount = outputs.length;
       if (inputs.length !== 1 || outputs.length !== 1 || selectedInputs.indexOf(inputs[0]) < 0) { setStatus('unconfirmed', 'ports'); return false; }
       var input = inputs[0], port = outputs[0];
-      if (typeof input.addEventListener !== 'function' || typeof input.removeEventListener !== 'function') { setStatus('unconfirmed', 'interface'); return false; }
-      ownedInput = input; output = port; setStatus('opening');
+      if (typeof input.addEventListener !== 'function' || typeof input.removeEventListener !== 'function' || typeof input.open !== 'function' || typeof port.open !== 'function') { setStatus('unconfirmed', 'interface'); return false; }
+      ownedInput = input; output = port; diagnostics.input = portMetadata(input); diagnostics.output = portMetadata(port); setStatus('opening');
       try {
-        if (typeof port.open === 'function') await port.open();
+        diagnostics.stage = 'input-open';
+        await input.open();
         if (token !== generation) return false;
         if (input.state === 'disconnected' || port.state === 'disconnected') { fail('failed'); return false; }
-        var querySent = false, queryTime = 0;
+        diagnostics.stage = 'output-open';
+        await port.open();
+        if (token !== generation) return false;
+        if (input.state === 'disconnected' || port.state === 'disconnected') { fail('failed'); return false; }
+        var querySent = false, queryTime = 0, deadline = 0;
         var ready = new Promise(function(resolve) {
-          pending = { resolve: resolve, timer: setTimeout(function() {
-            if (token === generation) fail('timeout');
-          }, timeoutMs) };
+          pending = { resolve: resolve, timer: null, retries: [] };
         });
         listener = function(event) {
-          if (token !== generation || input !== ownedInput || !querySent) return;
+          if (token !== generation || input !== ownedInput) return;
+          var arrival = now(), data = event && event.data;
+          diagnostics.rxCount += 1;
+          if (data && data[0] === 0xf0) {
+            diagnostics.sysexCount += 1;
+            diagnostics.lastSysExLength = data.length;
+            // Local-only, bounded SysEx shape; never capture Note/CC payloads or histories.
+            diagnostics.lastSysExHex = Array.prototype.slice.call(data, 0, 16).map(function(byte) {
+              return Number(byte).toString(16).padStart(2, '0');
+            }).join(' ');
+            diagnostics.lastArrivalDeltaMs = querySent ? arrival - queryTime : null;
+            diagnostics.lastEventDeltaMs = querySent && Number.isFinite(event.timeStamp) ? event.timeStamp - queryTime : null;
+            if (diagnostics.lastEventDeltaMs !== null && diagnostics.lastEventDeltaMs < 0) diagnostics.negativeTimestampCount += 1;
+          }
+          if (!querySent) { diagnostics.lastReject = 'before-query'; return; }
           if (input.state === 'disconnected' || port.state === 'disconnected') { fail('failed'); return; }
-          // Reject queued events stamped before this query. The wire protocol has no nonce.
-          if (Number.isFinite(event.timeStamp) && event.timeStamp < queryTime) return;
-          var reply = readLayout(event.data);
-          if (!reply) return;
-          if (reply.layout !== 17 || reply.page !== 0) { fail('mismatch'); return; }
-          if (!pending) return; // A repeated confirmation is not a new session.
-          active = true; previous.fill(-1); settle(true); setStatus('confirmed');
+          if (pending && arrival >= deadline) { diagnostics.lastReject = 'deadline'; finishWindow(); return; }
+          if (!data || data[0] !== 0xf0) return;
+          var rejection = layoutRejection(data);
+          if (rejection) {
+            diagnostics.lastReject = rejection;
+            diagnostics.parserRejects[rejection] = (diagnostics.parserRejects[rejection] || 0) + 1;
+            return;
+          }
+          var reply = readLayout(data);
+          diagnostics.lastReject = null; diagnostics.lastLayout = reply;
+          if (reply.layout !== 17 || reply.page !== 0) {
+            if (!pending) fail('mismatch'); // Established confirmation is revoked immediately.
+            return; // While switching, bounded queries may still observe the old layout.
+          }
+          if (!pending) return;
+          active = true; previous.fill(-1); settle(true); diagnostics.stage = 'confirmed'; setStatus('confirmed');
         };
         input.addEventListener('midimessage', listener);
-        setStatus('pending');
+        diagnostics.stage = 'mode-send'; setStatus('pending');
         modeSent = true; port.send(enter);
-        queryTime = now(); querySent = true; port.send(layoutQuery);
+        queryTime = now(); deadline = queryTime + timeoutMs; querySent = true;
+        diagnostics.stage = 'query'; diagnostics.queryAtMs = queryTime; diagnostics.deadlineMs = deadline;
+        function query() {
+          if (token !== generation || !pending) return;
+          if (now() >= deadline) { finishWindow(); return; }
+          if (input.state === 'disconnected' || port.state === 'disconnected') { fail('failed'); return; }
+          diagnostics.queryCount += 1;
+          try { port.send(layoutQuery); } catch (_) { fail('failed'); }
+        }
+        pending.timer = setTimeout(function() { if (token === generation) finishWindow(); }, timeoutMs);
+        pending.retries = retryMs.map(function(ms) { return setTimeout(query, ms); });
+        query();
         return await ready;
       } catch (_) {
         if (token === generation) fail('failed');
@@ -181,6 +250,13 @@
       isManagedFor: function(input) { return managedInputs.has(input); },
       getStatus: function() { return status; },
       getReason: function() { return statusReason; },
+      getDiagnostics: function() {
+        var copy = JSON.parse(JSON.stringify(diagnostics));
+        copy.status = status; copy.reason = statusReason;
+        if (ownedInput) copy.input = portMetadata(ownedInput);
+        if (output) copy.output = portMetadata(output);
+        return copy;
+      },
     };
   }
   var api = { isMidiPort: isMidiPort, position: position, padNote: padNote, create: create,
