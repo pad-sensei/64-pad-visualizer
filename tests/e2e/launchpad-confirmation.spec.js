@@ -4,25 +4,31 @@ import { isolateColourPage } from './helpers/isolated-colour-page';
 test.use({viewport:{width:1280,height:900},launchOptions:{args:['--mute-audio']}});
 async function prepare(page,config={}) {
   const errors=await isolateColourPage(page,test.info().project.use.baseURL);
-  await page.addInitScript(({sysex=true,ambiguous=false})=>{
+  await page.addInitScript(({sysex=true,ambiguous=false,replyKind=null,openDelay=0})=>{
     class Input extends EventTarget {
       constructor(){super();this.id='fake-lp-in';this.name='LPProMK3 MIDI';this.state='connected';}
+      async open(){if(openDelay)await new Promise(resolve=>setTimeout(resolve,openDelay));return this;}
       emit(data){const event=Object.assign(new Event('midimessage'),{data:new Uint8Array(data)});this.dispatchEvent(event);this.onmidimessage?.(event);}
     }
-    const input=new Input(),packets=[],output={id:'fake-lp-out',name:input.name,state:'connected',open:async()=>{},clear(){},send(data){packets.push(Array.from(data));}};
+    const input=new Input(),packets=[],output={id:'fake-lp-out',name:input.name,state:'connected',open:async()=>{},clear(){},send(data){const bytes=Array.from(data);packets.push(bytes);if(bytes.length===8&&replyKind){
+      const response=replyKind==='short'?[240,0,32,41,2,14,0,17,247]:replyKind==='other-layout'?[240,0,32,41,2,14,0,4,0,0,247]:[240,0,32,41,2,14,0,17,0,0,247];
+      const event=Object.assign(new Event('midimessage'),{data:new Uint8Array(response)});
+      if(replyKind==='rounded')Object.defineProperty(event,'timeStamp',{value:Math.floor(performance.now())-3});
+      input.dispatchEvent(event);input.onmidimessage?.(event);
+    }}};
     const access={sysexEnabled:sysex,inputs:new Map([[input.id,input]]),outputs:new Map([[output.id,output]]),addEventListener(){}};
     if(ambiguous)access.outputs.set('other',{...output,id:'other'});
     window.__lp191={input,output,access,packets,events:[]};
     Object.defineProperty(navigator,'requestMIDIAccess',{configurable:true,value:async()=>access});
   },config);
   await page.goto('./?e2e=launchpad-confirmation');
-  await page.waitForFunction(()=>typeof launchpadLink!=='undefined'&&['pending','unconfirmed'].includes(launchpadLink.getStatus()));
+  await page.waitForFunction(()=>typeof launchpadLink!=='undefined'&&['pending','unconfirmed','confirmed','timeout','mismatch'].includes(launchpadLink.getStatus()));
   await page.evaluate(()=>{ensureAudioResumed=()=>{};noteOn=n=>window.__lp191.events.push(['on',n]);noteOff=n=>window.__lp191.events.push(['off',n]);playCurrentChord=()=>{};});
   if(await page.locator('#audio-start-overlay').isVisible())await page.locator('#audio-start-overlay').click();
   await page.evaluate(()=>{if(getComputedStyle(document.getElementById('sound-controls')).display==='none')toggleInstrument('sound');});
   // A real UI selection starts a fresh confirmation after the audio-start gesture.
   await page.locator('#midi-device-select').selectOption('fake-lp-in');
-  await page.waitForFunction(()=>['pending','unconfirmed'].includes(launchpadLink.getStatus()));
+  await page.waitForFunction(()=>['pending','unconfirmed','confirmed','timeout','mismatch'].includes(launchpadLink.getStatus()));
   return errors;
 }
 async function emit(page,data){await page.evaluate(d=>window.__lp191.input.emit(d),data);}
@@ -31,7 +37,7 @@ async function record(page,info,name,errors){
   await page.evaluate(()=>{if(getComputedStyle(document.getElementById('sound-controls')).display==='none')toggleInstrument('sound');});
   await expect(page.locator('#audio-start-overlay')).toBeHidden();
   await page.locator('#midi-status').scrollIntoViewIfNeeded();
-  const state=await page.evaluate(()=>({status:launchpadLink.getStatus(),reason:launchpadLink.getReason(),retryHidden:document.getElementById('launchpad-retry').hidden,label:document.getElementById('launchpad-status').textContent,hidden:document.getElementById('launchpad-status').hidden,indicator:getComputedStyle(document.getElementById('midi-indicator')).backgroundColor,active:launchpadLink.isActiveFor(window.__lp191.input),held:getMidiHeldSources(),events:window.__lp191.events,packets:window.__lp191.packets,octave:AppState.octaveShift,version:document.querySelector('.version-tag').textContent,layout:(()=>{const label=document.getElementById('launchpad-status'),shown=label.hidden,withStatus=document.documentElement.scrollWidth;label.hidden=true;const withoutStatus=document.documentElement.scrollWidth;label.hidden=shown;return {withStatus,withoutStatus,labelWidth:label.getBoundingClientRect().width,containerWidth:document.getElementById('sound-header').getBoundingClientRect().width};})(),grid:[...document.querySelectorAll('#pad-grid rect.pad')].map(p=>({fill:p.getAttribute('fill'),computed:getComputedStyle(p).fill,width:p.getBoundingClientRect().width}))}));
+  const state=await page.evaluate(()=>({status:launchpadLink.getStatus(),reason:launchpadLink.getReason(),diagnostics:getLaunchpadConnectionDiagnostics(),retryHidden:document.getElementById('launchpad-retry').hidden,label:document.getElementById('launchpad-status').textContent,hidden:document.getElementById('launchpad-status').hidden,indicator:getComputedStyle(document.getElementById('midi-indicator')).backgroundColor,active:launchpadLink.isActiveFor(window.__lp191.input),held:getMidiHeldSources(),events:window.__lp191.events,packets:window.__lp191.packets,octave:AppState.octaveShift,version:document.querySelector('.version-tag').textContent,layout:(()=>{const label=document.getElementById('launchpad-status'),shown=label.hidden,withStatus=document.documentElement.scrollWidth;label.hidden=true;const withoutStatus=document.documentElement.scrollWidth;label.hidden=shown;return {withStatus,withoutStatus,labelWidth:label.getBoundingClientRect().width,containerWidth:document.getElementById('sound-header').getBoundingClientRect().width};})(),grid:[...document.querySelectorAll('#pad-grid rect.pad')].map(p=>({fill:p.getAttribute('fill'),computed:getComputedStyle(p).fill,width:p.getBoundingClientRect().width}))}));
   await writeFile(info.outputPath(name+'.json'),JSON.stringify({state,errors},null,2));await page.screenshot({path:info.outputPath(name+'.png')});
   expect(state.version).toBe('v1.9.1');expect(state.hidden).toBe(false);expect(state.layout.withStatus).toBeLessThanOrEqual(state.layout.withoutStatus);expect(state.layout.labelWidth).toBeGreaterThan(0);expect(state.layout.labelWidth).toBeLessThanOrEqual(state.layout.containerWidth);expect(state.grid).toHaveLength(64);expect(state.grid.every(p=>p.width>0)).toBe(true);
   for(const key of ['page','network','http'])expect(errors[key]).toEqual([]);
@@ -71,6 +77,7 @@ test('Note-mode raw24/36 hypothesis: failed confirmation and one-click Retry',as
   for(const raw of [24,36]){await emit(page,[144,raw,100]);await emit(page,[128,raw,0]);}
   expect(await page.evaluate(()=>window.__lp191.events)).toEqual([]);
   await emit(page,[240,0,32,41,2,14,0,4,0,0,247]);
+  await page.waitForFunction(()=>launchpadLink.getStatus()==='mismatch');
   const wrong=await record(page,info,'01-note-mode-blocked',errors);expect(wrong.reason).toBe('layout');expect(wrong.retryHidden).toBe(false);expect(wrong.label).toContain('another mode');
   for(const raw of [24,36])await emit(page,[144,raw,100]);expect(await page.evaluate(()=>window.__lp191.events)).toEqual([]);
   await page.locator('#launchpad-retry').click();await page.waitForFunction(()=>launchpadLink.getStatus()==='pending');
@@ -79,4 +86,23 @@ test('Note-mode raw24/36 hypothesis: failed confirmation and one-click Retry',as
   await emit(page,ack);await page.waitForFunction(()=>launchpadLink.getStatus()==='confirmed');
   for(const [raw,pitch] of [[11,36],[33,48],[24,44],[36,51]]){await emit(page,[144,raw,100]);await emit(page,[128,raw,0]);expect(await page.evaluate(()=>window.__lp191.events.slice(-2))).toEqual([['on',pitch],['off',pitch]]);}
   const confirmed=await record(page,info,'03-confirmed-pitches',errors);expect(confirmed.reason).toBe(null);expect(confirmed.retryHidden).toBe(true);expect(confirmed.held).toEqual([]);
+});
+
+for(const config of [{replyKind:null},{replyKind:'short'},{replyKind:'other-layout'}])test(`local diagnostic separates reception ${JSON.stringify(config)}`,async({page},info)=>{
+  if(config.replyKind==='short')await page.setViewportSize({width:390,height:844});
+  const errors=await prepare(page,config);await page.waitForFunction(()=>['timeout','mismatch'].includes(launchpadLink.getStatus()));
+  const s=await record(page,info,'reply-diagnostic',errors);expect(s.active).toBe(false);expect(s.events).toEqual([]);
+  expect(s.diagnostics.queryCount).toBe(4);expect(s.diagnostics.input.name).toBe('LPProMK3 MIDI');
+  if(config.replyKind===null){expect(s.reason).toBe('timeout');expect(s.diagnostics.sysexCount).toBe(0);expect(s.label).toContain('no mode reply');}
+  else if(config.replyKind==='short'){expect(s.reason).toBe('unaccepted');expect(s.diagnostics.sysexCount).toBe(4);expect(s.diagnostics.parserRejects.length).toBe(4);expect(s.label).toContain('reply received');}
+  else{expect(s.reason).toBe('layout');expect(s.diagnostics.lastLayout).toEqual({layout:4,page:0});}
+  await page.locator('#launchpad-diagnostics > summary').click();await expect(page.locator('#launchpad-diagnostics-text')).toBeVisible();
+  const detail=JSON.parse(await page.locator('#launchpad-diagnostics-text').textContent());expect(detail.reason).toBe(s.reason);
+  expect(await page.locator('#launchpad-diagnostics-text').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath('expanded-local-details.png')});
+});
+test('delayed input open and rounded timestamp still require an exact reply before enabling notes',async({page},info)=>{
+  const errors=await prepare(page,{replyKind:'rounded',openDelay:80});await page.waitForFunction(()=>launchpadLink.getStatus()==='confirmed');
+  const s=await record(page,info,'rounded-timestamp-confirmed',errors);expect(s.active).toBe(true);expect(s.diagnostics.negativeTimestampCount).toBeGreaterThan(0);expect(s.diagnostics.lastEventDeltaMs).toBeLessThan(0);
+  for(const [raw,pitch] of [[11,36],[33,48]]){await emit(page,[144,raw,100]);await emit(page,[128,raw,0]);expect(await page.evaluate(()=>window.__lp191.events.slice(-2))).toEqual([['on',pitch],['off',pitch]]);}
 });

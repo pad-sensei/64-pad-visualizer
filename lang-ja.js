@@ -248,9 +248,12 @@ I18N.addLang('ja', {
     major: 'メジャー',
   },
   midi: {
+    lp_unaccepted: "Launchpad: 受信あり・確認不成立",
+    lp_details: "接続の詳細（端末内のみ）",
+
     lp_retry: "再確認",
     lp_retry_title: "Programmerモードを自動で再確認",
-    lp_timeout: "Launchpad: モード応答なし",
+    lp_timeout: "Launchpad: 確認窓内のモード応答なし",
     lp_wrong_mode: "Launchpad: 別モードを検出",
     lp_sysex: "Launchpad: MIDI SysExが利用不可",
     lp_ports: "Launchpad: MIDIを1組だけ選択",

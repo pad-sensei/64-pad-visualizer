@@ -84,3 +84,47 @@ After confirmed Programmer layout, coordinates11/33 produce MIDI36/48
 (the application's C1/C2). Coordinates24/36 remain valid after confirmation
 and correctly produce MIDI44/51; they are not globally blacklisted.
 The real Windows Chrome / Pro MK3 symptom still requires physical verification.
+
+## Mode-reply investigation after 1.9.1 (local candidate)
+
+The reported Windows Chrome timeout is not attributed to user settings or established
+as a single hardware cause. Reproducible implementation issues are handled separately:
+explicitly await the selected input's `open()` and then the output's `open()`;
+keep the input isolated while opening; and preserve generation checks after each await.
+Implicit opening by the MIDI registry may already have completed, so this ordering
+change is hardening, not proof of the repeated-Retry failure's cause.
+
+Chromium's WinMM backend reconstructs input times from an integer-ms driver timestamp
+and an input-session clock origin. A current callback's `event.timeStamp` can therefore
+precede fractional `performance.now()` at the query. The adapter no longer rejects a
+strictly valid current-port reply solely for a negative timestamp delta. It records
+that delta and authorizes only the current listener generation, after query dispatch,
+inside the1500ms local confirmation window. The callback checks the absolute deadline
+itself, so a delayed timeout task cannot permit a late ACK. This is not a universal
+1ms tolerance or a claim about the reporting device's actual timestamp.
+
+One attempt sends mode entry once, then at most four layout queries (initial,
+100/300/700ms) within the same window. These are finite read-only queries on the same
+MIDI output, not a connection retry loop or DAW/DIN broadcast. A pre-switch Note layout
+may be observed while waiting; it does not enable input. If it never becomes Programmer,
+the attempt ends as a different-layout result. An established confirmation is still
+revoked immediately by a valid different-layout message.
+
+The documented11byte frame remains mandatory; a9byte frame is diagnosed as a length
+rejection, not accepted as a new protocol variant. No-mode-reply means no SysEx arrived
+during the listening window. SysEx received but not accepted has a separate status;
+a valid different layout is separate again. Expand Connection details for a local-only
+snapshot (also `getLaunchpadConnectionDiagnostics()`): bounded port metadata, RX/SysEx
+counts, query count, last SysEx length and first16bytes in hex, parser rejection counts,
+local callback delay and event timestamp delta, last valid layout and attempt stage.
+No Note/CC payload history is retained and nothing is sent to a diagnostic server.
+Snapshots are replaced per attempt and returned as copies.
+
+The exact MIDI input/output pair policy is unchanged (Pro MK3 first MIDI interface;
+DIN/DAW are excluded). DOJO's mode fan-out is not evidence that a layout ACK is received
+on this interface, and is not copied here without physical evidence. There is no nonce:
+a same-port old wire reply delivered during a new confirmation window still cannot be
+proven old. Physical Windows/Pro MK3 behavior and the reported symptom remain unverified.
+
+References: Novation Programmer reference pp.6–7/18–19 above;
+[Chromium WinMM implementation](https://chromium.googlesource.com/chromium/src/+/main/media/midi/midi_manager_win.cc).
