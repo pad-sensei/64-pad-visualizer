@@ -128,3 +128,23 @@ proven old. Physical Windows/Pro MK3 behavior and the reported symptom remain un
 
 References: Novation Programmer reference pp.6–7/18–19 above;
 [Chromium WinMM implementation](https://chromium.googlesource.com/chromium/src/+/main/media/midi/midi_manager_win.cc).
+
+## 1.9.2: firmware in Connection details
+
+To investigate one Windows Pro MK3 whose Programmer mode cannot be confirmed,
+send Universal Device Inquiry once on the selected output after both ports open
+and the listener is attached, before mode entry. Connection details includes
+`inquirySent` (successful send) and `firmware` (null until a matching Novation
+17-byte reply arrives): four decimal digits as a string, application/bootloader
+mode, family bytes and the complete bounded hex reply. Family codes are not
+filtered; non-decimal version bytes retain hex with a null version.
+
+This is diagnostic evidence, not proof that old firmware causes the symptom.
+Inquiry send failures are ignored. Matching replies only record firmware, including
+before the layout query or beyond its deadline, even after confirmation fails,
+until disconnect. A separate firmware listener stays attached during that period.
+They do not enter layout parsing, SysEx/timestamp rejection diagnostics, or change
+confirmation, timeout, unaccepted or mismatch results. Attempt reset clears the
+firmware snapshot. Disconnect removes the firmware listener and invalidates its
+connection token; reconnect also rejects callbacks from the previous connection,
+using that token and the owned input rather than the confirmation generation.

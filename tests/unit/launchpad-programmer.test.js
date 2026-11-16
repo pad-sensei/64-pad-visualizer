@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import fs from 'node:fs';
 import vm from 'node:vm';
 const lp = require('../../launchpad-programmer.js');
+const inquiry = [240,126,127,6,1,247];
 function port(id, name = 'Launchpad Pro MK3 LPProMK3 MIDI') {
   const listeners=new Set();
   return { id, name, state:'connected', open:vi.fn(async () => {}), send:vi.fn(), clear:vi.fn(),
@@ -31,8 +32,11 @@ describe('Pro MK3 Programmer transport', () => {
     const w=world();
     expect(await w.link.connect(w.access,[w.input])).toBe(true);
     expect(w.output.open).toHaveBeenCalledOnce();
-    expect(w.output.send.mock.calls[0][0]).toEqual([240,0,32,41,2,14,14,1,247]);
-    expect(w.output.send.mock.calls[1][0]).toEqual([240,0,32,41,2,14,0,247]);
+    expect(w.output.send.mock.calls[0][0]).toEqual(inquiry);
+    expect(w.output.send.mock.calls[1][0]).toEqual([240,0,32,41,2,14,14,1,247]);
+    expect(w.output.send.mock.calls[2][0]).toEqual([240,0,32,41,2,14,0,247]);
+    expect(w.output.send.mock.calls.filter(c=>c[0].length===6)).toHaveLength(1);
+    expect(w.link.getDiagnostics()).toMatchObject({inquirySent:true,firmware:null});
     expect(w.link.isActiveFor(w.input)).toBe(true);
     expect(w.link.isActiveFor({...w.input})).toBe(false);
   });
@@ -197,17 +201,17 @@ describe('layout confirmation boundaries',()=>{
   it('send success alone never authorizes notes or LED painting',async()=>{
     const w=world(false),p=w.link.connect(w.access,[w.input]);await tick();
     expect(w.link.isActiveFor(w.input)).toBe(false);expect(w.link.getStatus()).toBe('pending');expect(w.link.isManagedFor(w.input)).toBe(true);expect(w.link.paint(Array(64).fill(2))).toBe(false);
-    expect(w.output.send.mock.calls.map(c=>c[0])).toEqual([[240,0,32,41,2,14,14,1,247],[240,0,32,41,2,14,0,247]]);
+    expect(w.output.send.mock.calls.map(c=>c[0])).toEqual([inquiry,[240,0,32,41,2,14,14,1,247],[240,0,32,41,2,14,0,247]]);
     w.input.emit(confirmedLayout);expect(await p).toBe(true);expect(w.link.getStatus()).toBe('confirmed');w.link.disconnect();
   });
   it.each([confirmedLayout.slice(0,-1),[...confirmedLayout,0],confirmedLayout.map((v,i)=>i===5?12:v),confirmedLayout.map((v,i)=>i===6?14:v),confirmedLayout.map((v,i)=>i===9?1:v),confirmedLayout.map((v,i)=>i===7?128:v)])('ignores malformed/different-product reply %j',async data=>{
     const w=world(false),p=w.link.connect(w.access,[w.input]);await tick();w.input.emit(data);expect(w.link.isActiveFor(w.input)).toBe(false);expect(w.link.getStatus()).toBe('pending');w.link.disconnect();expect(await p).toBe(false);expect(w.input.listeners.size).toBe(0);
   });
   it.each([[4,0],[17,1]])('rejects wrong layout/page %s/%s and restores Note',async(layout,page)=>{
-    const w=world(false,{timeoutMs:25,queryRetryMs:[]}),p=w.link.connect(w.access,[w.input]);await tick();const data=confirmedLayout.slice();data[7]=layout;data[8]=page;w.input.emit(data);expect(await p).toBe(false);expect(w.link.getStatus()).toBe('mismatch');expect(w.link.isManagedFor(w.input)).toBe(true);expect(w.output.send.mock.calls.at(-1)[0]).toEqual([240,0,32,41,2,14,0,4,0,0,247]);expect(w.input.listeners.size).toBe(0);w.link.disconnect();
+    const w=world(false,{timeoutMs:25,queryRetryMs:[]}),p=w.link.connect(w.access,[w.input]);await tick();const data=confirmedLayout.slice();data[7]=layout;data[8]=page;w.input.emit(data);expect(await p).toBe(false);expect(w.link.getStatus()).toBe('mismatch');expect(w.link.isManagedFor(w.input)).toBe(true);expect(w.output.send.mock.calls.at(-1)[0]).toEqual([240,0,32,41,2,14,0,4,0,0,247]);expect(w.input.listeners.size).toBe(1);w.link.disconnect();expect(w.input.listeners.size).toBe(0);
   });
   it('timeout releases held ownership and ignores late responses',async()=>{
-    vi.useFakeTimers();try{const w=world(false,{timeoutMs:50}),p=w.link.connect(w.access,[w.input]);await vi.advanceTimersByTimeAsync(0);const stale=[...w.input.listeners][0];await vi.advanceTimersByTimeAsync(50);expect(await p).toBe(false);expect(w.link.getStatus()).toBe('timeout');expect(w.released).toEqual(['in']);stale({data:confirmedLayout});w.input.emit(confirmedLayout);expect(w.link.isActiveFor(w.input)).toBe(false);expect(w.input.listeners.size).toBe(0);w.link.disconnect();}finally{vi.useRealTimers();}
+    vi.useFakeTimers();try{const w=world(false,{timeoutMs:50}),p=w.link.connect(w.access,[w.input]);await vi.advanceTimersByTimeAsync(0);const stale=[...w.input.listeners][0];await vi.advanceTimersByTimeAsync(50);expect(await p).toBe(false);expect(w.link.getStatus()).toBe('timeout');expect(w.released).toEqual(['in']);stale({data:confirmedLayout});w.input.emit(confirmedLayout);expect(w.link.isActiveFor(w.input)).toBe(false);expect(w.input.listeners.size).toBe(1);w.link.disconnect();expect(w.input.listeners.size).toBe(0);}finally{vi.useRealTimers();}
   });
   it('ignores pre-query/other-input callbacks but records a negative timestamp on a current reply',async()=>{
     const w=world(false,{now:()=>100});w.output.send.mockImplementation(bytes=>{if(bytes.length===9)w.input.emit(confirmedLayout);});const p=w.link.connect(w.access,[w.input]);await tick();expect(w.link.isActiveFor(w.input)).toBe(false);port('other').emit(confirmedLayout);w.input.emit(confirmedLayout,{timeStamp:99});expect(w.link.getDiagnostics().lastEventDeltaMs).toBe(-1);expect(await p).toBe(true);w.link.disconnect();

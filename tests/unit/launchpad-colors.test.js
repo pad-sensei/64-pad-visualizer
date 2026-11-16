@@ -40,13 +40,16 @@ describe('Launchpad colour settings',()=>{
     const old=settingsWorld({key:2});old.c.loadAppSettings();expect(old.c.state.launchpadColors).toEqual(lp.defaultColors);
   });
   it('sends exact mixed RGB/palette bytes and redraws changed descriptors only',async()=>{
-    let listener;const input={name:'LPProMK3 MIDI',open:async()=>{},addEventListener(t,fn){listener=fn;},removeEventListener(){listener=null;}},output={name:'LPProMK3 MIDI',open:async()=>{},send:vi.fn(bytes=>{if(bytes.length===8)listener({data:[240,0,32,41,2,14,0,17,0,0,247]});})};
+    const listeners=new Set();
+    const input={name:'LPProMK3 MIDI',open:async()=>{},addEventListener(t,fn){if(t==='midimessage')listeners.add(fn);},removeEventListener(t,fn){if(t==='midimessage')listeners.delete(fn);}};
+    const output={name:'LPProMK3 MIDI',open:async()=>{},send:vi.fn(bytes=>{if(bytes.length===8)for(const listener of [...listeners])listener({data:[240,0,32,41,2,14,0,17,0,0,247]});})};
     const link=lp.create();await link.connect({sysexEnabled:true,inputs:new Map([['i',input]]),outputs:new Map([['o',output]])},[input]);
     const colors=Array(64).fill(0);link.paint(colors);output.send.mockClear();
     colors[0]='#ff8000';colors[1]=13;expect(link.paint(colors)).toBe(true);
     expect(output.send.mock.calls[0][0]).toEqual([240,0,32,41,2,14,3,3,11,127,64,0,0,12,13,247]);
     link.paint(colors);expect(output.send).toHaveBeenCalledTimes(1);
     colors[0]='#gg0000';expect(link.paint(colors)).toBe(false);expect(output.send).toHaveBeenCalledTimes(1);
+    link.disconnect();
   });
   it('executes UI selection, RGB changes, reset and reopen without duplicating controls',()=>{
     function element() {
