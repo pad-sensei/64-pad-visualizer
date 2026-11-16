@@ -58,6 +58,23 @@
   }
   // Novation reference pp.6–7: a query returns the select-layout packet.
   var layoutQuery = [0xf0, 0, 32, 41, 2, 14, 0, 0xf7];
+  var deviceInquiry = [0xf0, 0x7e, 0x7f, 6, 1, 0xf7];
+  function hexBytes(data) {
+    return Array.prototype.slice.call(data, 0, 17).map(function(byte) {
+      return Number(byte).toString(16).padStart(2, '0');
+    }).join(' ');
+  }
+  function readFirmware(data) {
+    if (!data || data.length !== 17 || data[0] !== 0xf0 || data[1] !== 0x7e
+      || data[3] !== 6 || data[4] !== 2 || data[5] !== 0 || data[6] !== 32 || data[7] !== 41
+      || data[10] !== 0 || data[11] !== 0 || data[16] !== 0xf7) return null;
+    var digits = Array.prototype.slice.call(data, 12, 16);
+    return {
+      version: digits.every(function(byte) { return Number.isInteger(byte) && byte >= 0 && byte <= 9; }) ? digits.join('') : null,
+      mode: data[9] === 1 ? 'application' : data[9] === 0x11 ? 'bootloader' : null,
+      family: hexBytes(data.slice(8, 10)), hex: hexBytes(data)
+    };
+  }
   function layoutRejection(data) {
     if (!data || data.length !== 11) return 'length';
     var header = [0xf0, 0, 32, 41, 2, 14, 0];
@@ -77,11 +94,12 @@
     var now = options.now || function() { return typeof performance !== 'undefined' ? performance.now() : 0; };
     var generation = 0, ownedInput = null, output = null, active = false, modeSent = false;
     var status = 'idle', statusReason = null, listener = null, pending = null, managedInputs = new Set();
+    var firmwareListener = null, connectionToken = null;
     var previous = new Array(64).fill(-1);
     var retryMs = (Array.isArray(options.queryRetryMs) ? options.queryRetryMs : [100, 300, 700])
       .filter(function(ms, i, all) { return Number.isFinite(ms) && ms > 0 && ms < timeoutMs && all.indexOf(ms) === i; })
       .sort(function(a, b) { return a - b; }).slice(0, 3);
-    var diagnostics = {};
+    var diagnostics = { firmware: null, inquirySent: false };
     function portMetadata(port) {
       if (!port) return null;
       var result = {};
@@ -95,6 +113,7 @@
         queryCount: 0, rxCount: 0, sysexCount: 0, parserRejects: {}, lastReject: null,
         lastSysExLength: null, lastSysExHex: null, lastArrivalDeltaMs: null,
         lastEventDeltaMs: null, negativeTimestampCount: 0, lastLayout: null,
+        firmware: null, inquirySent: false,
         timestampPolicy: 'same-port-generation-dispatch-window' };
     }
     function finishWindow() {
@@ -138,8 +157,11 @@
     }
     function disconnect() {
       generation += 1;
+      connectionToken = null;
       var oldInput = ownedInput, oldOutput = output, clearPads = active, restoreMode = modeSent;
       active = false; settle(false); removeListener();
+      if (firmwareListener && oldInput) oldInput.removeEventListener('midimessage', firmwareListener);
+      firmwareListener = null;
       ownedInput = null; output = null; modeSent = false; managedInputs.clear(); previous.fill(-1);
       if (oldInput && typeof onRelease === 'function') onRelease(oldInput);
       if (restoreMode) restore(oldOutput, clearPads);
@@ -148,6 +170,7 @@
     async function connect(access, selectedInputs) {
       disconnect();
       var token = generation;
+      var firmwareToken = connectionToken = {};
       resetDiagnostics();
       managedInputs = new Set((selectedInputs || []).filter(function(input) { return isMidiPort(input.name); }));
       diagnostics.selectedInputs = Array.from(managedInputs).slice(0, 4).map(portMetadata);
@@ -177,6 +200,9 @@
           if (token !== generation || input !== ownedInput) return;
           var arrival = now(), data = event && event.data;
           diagnostics.rxCount += 1;
+          // Inquiry is diagnostic only, even before the layout query or beyond its deadline.
+          var firmware = readFirmware(data);
+          if (firmware) return;
           if (data && data[0] === 0xf0) {
             diagnostics.sysexCount += 1;
             diagnostics.lastSysExLength = data.length;
@@ -208,6 +234,14 @@
           active = true; previous.fill(-1); settle(true); diagnostics.stage = 'confirmed'; setStatus('confirmed');
         };
         input.addEventListener('midimessage', listener);
+        // Confirmation failure changes generation; firmware remains observable until disconnect.
+        firmwareListener = function(event) {
+          if (firmwareToken !== connectionToken || input !== ownedInput) return;
+          var firmware = readFirmware(event && event.data);
+          if (firmware) diagnostics.firmware = firmware;
+        };
+        input.addEventListener('midimessage', firmwareListener);
+        try { port.send(deviceInquiry); diagnostics.inquirySent = true; } catch (_) {}
         diagnostics.stage = 'mode-send'; setStatus('pending');
         modeSent = true; port.send(enter);
         queryTime = now(); deadline = queryTime + timeoutMs; querySent = true;

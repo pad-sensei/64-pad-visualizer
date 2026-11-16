@@ -2,15 +2,17 @@ import { test, expect } from '@playwright/test';
 import { writeFile } from 'node:fs/promises';
 import { isolateColourPage } from './helpers/isolated-colour-page';
 test.use({viewport:{width:1280,height:900},launchOptions:{args:['--mute-audio']}});
-async function prepare(page,config={}) {
+async function prepareDevice(page,config={}) {
   const errors=await isolateColourPage(page,test.info().project.use.baseURL);
-  await page.addInitScript(({sysex=true,ambiguous=false,replyKind=null,openDelay=0})=>{
+  await page.addInitScript(({sysex=true,ambiguous=false,replyKind=null,openDelay=0,inquiryReply=false})=>{
     class Input extends EventTarget {
       constructor(){super();this.id='fake-lp-in';this.name='LPProMK3 MIDI';this.state='connected';}
       async open(){if(openDelay)await new Promise(resolve=>setTimeout(resolve,openDelay));return this;}
       emit(data){const event=Object.assign(new Event('midimessage'),{data:new Uint8Array(data)});this.dispatchEvent(event);this.onmidimessage?.(event);}
     }
-    const input=new Input(),packets=[],output={id:'fake-lp-out',name:input.name,state:'connected',open:async()=>{},clear(){},send(data){const bytes=Array.from(data);packets.push(bytes);if(bytes.length===8&&replyKind){
+    const input=new Input(),packets=[],output={id:'fake-lp-out',name:input.name,state:'connected',open:async()=>{},clear(){},send(data){const bytes=Array.from(data);packets.push(bytes);
+      if(inquiryReply&&bytes.join(',')==='240,126,127,6,1,247')input.emit([240,126,0,6,2,0,32,41,35,1,0,0,0,4,8,3,247]);
+      if(bytes.length===8&&replyKind){
       const response=replyKind==='short'?[240,0,32,41,2,14,0,17,247]:replyKind==='other-layout'?[240,0,32,41,2,14,0,4,0,0,247]:[240,0,32,41,2,14,0,17,0,0,247];
       const event=Object.assign(new Event('midimessage'),{data:new Uint8Array(response)});
       if(replyKind==='rounded')Object.defineProperty(event,'timeStamp',{value:Math.floor(performance.now())-3});
@@ -39,11 +41,17 @@ async function record(page,info,name,errors){
   await page.locator('#midi-status').scrollIntoViewIfNeeded();
   const state=await page.evaluate(()=>({status:launchpadLink.getStatus(),reason:launchpadLink.getReason(),diagnostics:getLaunchpadConnectionDiagnostics(),retryHidden:document.getElementById('launchpad-retry').hidden,label:document.getElementById('launchpad-status').textContent,hidden:document.getElementById('launchpad-status').hidden,indicator:getComputedStyle(document.getElementById('midi-indicator')).backgroundColor,active:launchpadLink.isActiveFor(window.__lp191.input),held:getMidiHeldSources(),events:window.__lp191.events,packets:window.__lp191.packets,octave:AppState.octaveShift,version:document.querySelector('.version-tag').textContent,layout:(()=>{const label=document.getElementById('launchpad-status'),shown=label.hidden,withStatus=document.documentElement.scrollWidth;label.hidden=true;const withoutStatus=document.documentElement.scrollWidth;label.hidden=shown;return {withStatus,withoutStatus,labelWidth:label.getBoundingClientRect().width,containerWidth:document.getElementById('sound-header').getBoundingClientRect().width};})(),grid:[...document.querySelectorAll('#pad-grid rect.pad')].map(p=>({fill:p.getAttribute('fill'),computed:getComputedStyle(p).fill,width:p.getBoundingClientRect().width}))}));
   await writeFile(info.outputPath(name+'.json'),JSON.stringify({state,errors},null,2));await page.screenshot({path:info.outputPath(name+'.png')});
-  expect(state.version).toBe('v1.9.1');expect(state.hidden).toBe(false);expect(state.layout.withStatus).toBeLessThanOrEqual(state.layout.withoutStatus);expect(state.layout.labelWidth).toBeGreaterThan(0);expect(state.layout.labelWidth).toBeLessThanOrEqual(state.layout.containerWidth);expect(state.grid).toHaveLength(64);expect(state.grid.every(p=>p.width>0)).toBe(true);
+  expect(state.version).toBe('v1.9.2');expect(state.hidden).toBe(false);expect(state.layout.withStatus).toBeLessThanOrEqual(state.layout.withoutStatus);expect(state.layout.labelWidth).toBeGreaterThan(0);expect(state.layout.labelWidth).toBeLessThanOrEqual(state.layout.containerWidth);expect(state.grid).toHaveLength(64);expect(state.grid.every(p=>p.width>0)).toBe(true);
   for(const key of ['page','network','http'])expect(errors[key]).toEqual([]);
   expect(errors.console.filter(e=>!(e.message.includes('ERR_BLOCKED_BY_CLIENT')&&errors.blockedExternal.length)&&(!e.url||e.url.startsWith(errors.origin+'/')))).toEqual([]);
   return state;
 }
+for(const inquiryReply of [false,true])test.describe(`Device Inquiry reply ${inquiryReply}`,()=>{
+const prepare=(page,config={})=>prepareDevice(page,{...config,inquiryReply});
+test.afterEach(async({page})=>{
+  const d=await page.evaluate(()=>getLaunchpadConnectionDiagnostics());
+  expect(d.firmware).toEqual(inquiryReply&&d.inquirySent?{version:'0483',mode:'application',family:'23 01',hex:'f0 7e 00 06 02 00 20 29 23 01 00 00 00 04 08 03 f7'}:null);
+});
 for(const mobile of [false,true])test(`ACK gates real input, status and LED frames (mobile ${mobile})`,async({page},info)=>{
   if(mobile)await page.setViewportSize({width:390,height:844});
   const errors=await prepare(page);
@@ -97,7 +105,7 @@ for(const config of [{replyKind:null},{replyKind:'short'},{replyKind:'other-layo
   else if(config.replyKind==='short'){expect(s.reason).toBe('unaccepted');expect(s.diagnostics.sysexCount).toBe(4);expect(s.diagnostics.parserRejects.length).toBe(4);expect(s.label).toContain('reply received');}
   else{expect(s.reason).toBe('layout');expect(s.diagnostics.lastLayout).toEqual({layout:4,page:0});}
   await page.locator('#launchpad-diagnostics > summary').click();await expect(page.locator('#launchpad-diagnostics-text')).toBeVisible();
-  const detail=JSON.parse(await page.locator('#launchpad-diagnostics-text').textContent());expect(detail.reason).toBe(s.reason);
+  const detail=JSON.parse(await page.locator('#launchpad-diagnostics-text').textContent());expect(detail.reason).toBe(s.reason);expect(detail.firmware).toEqual(s.diagnostics.firmware);expect(detail.inquirySent).toBe(true);
   expect(await page.locator('#launchpad-diagnostics-text').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   await page.screenshot({path:info.outputPath('expanded-local-details.png')});
 });
@@ -105,4 +113,5 @@ test('delayed input open and rounded timestamp still require an exact reply befo
   const errors=await prepare(page,{replyKind:'rounded',openDelay:80});await page.waitForFunction(()=>launchpadLink.getStatus()==='confirmed');
   const s=await record(page,info,'rounded-timestamp-confirmed',errors);expect(s.active).toBe(true);expect(s.diagnostics.negativeTimestampCount).toBeGreaterThan(0);expect(s.diagnostics.lastEventDeltaMs).toBeLessThan(0);
   for(const [raw,pitch] of [[11,36],[33,48]]){await emit(page,[144,raw,100]);await emit(page,[128,raw,0]);expect(await page.evaluate(()=>window.__lp191.events.slice(-2))).toEqual([['on',pitch],['off',pitch]]);}
+});
 });
