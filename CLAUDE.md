@@ -84,11 +84,11 @@ npm run test:prod
 ## Deploy and release safety
 
 - A push to `main` triggers `.github/workflows/deploy.yml`.
-- The workflow runs tests, deploys the Web application to production, then requests a Desktop build.
+- The workflow runs tests and installs only the old URL redirect on Xserver. The browser release at https://pad-sensei.com/apps/64-pad/ ships through the site repository: sync the released runtime files to `pad-sensei/web:site/apps/64-pad/` and follow that repository’s publication checks. Preserve its host-specific metadata and Service Worker scope.
 - Therefore, `main` push is a production action, not a storage-only Git operation.
 - Use a feature branch for review. Merge to `main` only after tests and external audit pass.
 - A local pre-push hook accepts `DEPLOY_CONFIRMED=1` for an explicitly approved non-interactive production push. Because hooks are clone-local, absence of that hook never grants permission to push `main`.
-- `./deploy.sh` is a manual fallback and must not be run as part of ordinary Git synchronization.
+- `./deploy.sh` targets the old Xserver directory. Keep the legacy recovery app and its notification feed available there; publish new browser releases through `pad-sensei/web`.
 - After a production push, verify the GitHub Actions result and the production-facing check appropriate to the change.
 
 ## Current state

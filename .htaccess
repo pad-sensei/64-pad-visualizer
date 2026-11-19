@@ -1,3 +1,14 @@
+# Transitional host move: keep the old app accessible with ?legacy=1 so users
+# can export browser-local settings. Retain 302 until the new app and export
+# window are verified. Online navigation is network-first in sw.js, so it
+# receives the redirect; offline use can continue from the existing cache.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTP_HOST} ^murinaikurashi\.com(?::[0-9]+)?$ [NC]
+    RewriteCond %{QUERY_STRING} !(^|&)legacy=1(&|$)
+    RewriteRule ^(?:index\.html)?/?$ https://pad-sensei.com/apps/64-pad/ [R=302,L,NE]
+</IfModule>
+
 # Neutralize Cloudflare CDN for 64PE entirely.
 # Cloudflare caused 10+ incidents / 15-25h debugging time (2026-01 ~ 2026-03).
 # SW Cache API handles offline caching independently — CDN cache is redundant.

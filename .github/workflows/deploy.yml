@@ -35,11 +35,21 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Deploy via rsync
+      - name: Identify the redirect configuration
+        id: redirect
+        run: sha256sum .htaccess | cut -d ' ' -f1 | sed 's/^/sha=/' >> "$GITHUB_OUTPUT"
+
+      - name: Deploy legacy redirect
         uses: burnett01/rsync-deployments@6.0.0
         with:
-          switches: -avz --exclude='.git' --exclude='.github' --exclude='CLAUDE.md' --exclude='deploy.sh' --exclude='config.sh' --exclude='*.bak' --exclude='tests' --exclude='node_modules' --exclude='package*.json' --exclude='vitest.config.*' --exclude='pad-core/tests' --exclude='pad-core/node_modules' --exclude='pad-core/package*.json' --exclude='pad-core/vitest.config.*' --exclude='pad-core/CLAUDE.md'
-          path: ./
+          # The instrument now ships from pad-sensei/web. Only install the old
+          # entrypoint redirect. Abort if the server has custom Apache rules.
+          switches: >-
+            -avz --checksum
+            --rsync-path="(cd ~/murinaikurashi.com/public_html/apps/64-pad &&
+            (test ! -e .htaccess || echo '452c5f9d6605d336a413b5f6245300631be9deed22a9501caeec37fb9353558d  .htaccess' | sha256sum --check --status ||
+            echo '${{ steps.redirect.outputs.sha }}  .htaccess' | sha256sum --check --status)) && rsync"
+          path: .htaccess
           remote_path: ~/murinaikurashi.com/public_html/apps/64-pad/
           remote_host: xs071284.xsrv.jp
           remote_port: 10022
