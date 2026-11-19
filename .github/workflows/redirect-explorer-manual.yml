@@ -1,0 +1,28 @@
+name: Redirect Explorer manual
+
+on:
+  workflow_dispatch:
+
+jobs:
+  redirect:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install redirect in the old manual directory
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.XSERVER_SSH_KEY }}
+        run: |
+          set -eu
+          test "$GITHUB_REF" = "refs/heads/main"
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/xserver"
+          chmod 600 "$HOME/.ssh/xserver"
+          ssh-keyscan -p 10022 xs071284.xsrv.jp >> "$HOME/.ssh/known_hosts" 2>/dev/null
+          ssh -i "$HOME/.ssh/xserver" -p 10022 xs071284@xs071284.xsrv.jp bash -s -- \
+            "murinaikurashi.com/public_html/64-pad-explorer-manual" \
+            "https://pad-sensei.com/64-pad-explorer-manual/" \
+            < .github/scripts/install-explorer-manual-redirect.sh
